@@ -566,3 +566,13 @@ a.btn { text-decoration: none; text-align: center; }
 #hudBtns { gap: calc(var(--u) * 16px); }
 .ult-btn .in { filter: grayscale(.5) brightness(.85); }
 .lefty .ult-btn { right: auto; left: calc(var(--u) * 26px); }
+
+/* ---------- legibilidad en móviles pequeños ---------- */
+.sb i { font-size: max(9px, calc(var(--u) * 12px)); }
+.sb b { font-size: max(10px, calc(var(--u) * 14px)); }
+.shop-item.ach { opacity: 1; }
+.shop-item.ach:not(.got) .ic, .shop-item.ach:not(.got) b { opacity: .55; }
+.shop-item i, .set-row i, .react i { font-size: max(10px, calc(var(--u) * 14px)); }
+#achToast .tx b { font-size: max(10px, calc(var(--u) * 13px)); }
+.panel.tap { position: absolute; inset: 0; width: 100%; max-height: none; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.btn.quit.armed { background: rgba(255, 70, 70, .22); border-color: #ff5a5a; color: #ffd0d0; }
