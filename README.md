@@ -22,6 +22,8 @@ El primer juego de **Doublelag Games**.
 - **Santuario**: mejoras permanentes compradas con la esencia que ganas en cada partida (vida, poder, maná inicial, experiencia, cambio de cartas, velocidad, pluma de fénix) y escuelas nuevas.
 - 20 salas al azar, **altares** antes de cada jefe (curar, subir de nivel o cargar el definitivo), jefes en 5/10/15/20 y **élites** desde la sala 6.
 - 9 enemigos: slime, slime gigante (se divide), murciélago, arquero goblin, jabalí, cultista, diablillo bomba, tótem rúnico y espectro.
+- **4 biomas** (uno por capítulo, estilo Archero): Pradera esmeralda, Cripta de los susurros, Gruta de cristal y Corazón volcánico, con suelos, muros, obstáculos, decoración y partículas ambientales propios (`biomes.js`).
+- **Gráficos con volumen**: personajes sombreados como esferas, sombras suaves, brillos aditivos, números de daño que saltan, retroceso al golpear, cámara lenta al matar a un jefe.
 - **Intro de Doublelag Games**, pantalla de "toca para empezar" (desbloquea el audio en móvil) y menú animado.
 - **Música procedural** (`music.js`): temas de menú, mazmorra, jefe, victoria y derrota, sin archivos de audio.
 - **Ajustes**: volumen de música y efectos, vibración, temblor de pantalla, números de daño, modo zurdo, calidad gráfica, FPS, repetir tutorial y borrar progreso.
@@ -32,6 +34,7 @@ El primer juego de **Doublelag Games**.
 
 - `public/game.js`: todo el juego (datos, IA, combate, render, pantallas)
 - `public/music.js`: motor de música procedural (`window.ArcanoMusic`)
+- `public/biomes.js`: fondos de sala por bioma (`window.ArcanoBiomes`)
 - `public/style.css`: pantallas y botones
 - `public/sw.js`, `public/manifest.webmanifest`, `public/icons/`, `public/assets/`: app instalable y marca
 

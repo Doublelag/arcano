@@ -153,6 +153,11 @@
     totem:   { hp: 45, r: 18, speed: 0,   dmg: 12, xp: 4, cost: 2,   color: '#8b7bb8', ground: true }, // torreta rúnica
     spirit:  { hp: 24, r: 15, speed: 30,  dmg: 12, xp: 4, cost: 2,   color: '#9fd8ff', ground: false }, // espectro que se teletransporta
   };
+  // colores de enemigos por bioma, para que no se confundan con el suelo (los verdes en la pradera)
+  const BIOME_TINT = {
+    pradera: { slime: '#59b4ff', bigslime: '#3f86e8', archer: '#b8642e' },
+    cristal: { spirit: '#e3c8ff' },
+  };
   // sala a partir de la que aparece cada enemigo
   const ENEMY_UNLOCK = { slime: 1, bat: 1, archer: 2, charger: 3, mage: 4, bigslime: 6, bomber: 6, totem: 7, spirit: 11 };
 
@@ -258,6 +263,8 @@
   const btnMute = document.getElementById('btnMute');
   const btnUlt = document.getElementById('btnUlt');
 
+  // fondo de sala pintado por biomes.js (se cachea por sala y escala)
+  let roomBg = null, roomBgDirty = true, runSeed = 1, menuBiome = null;
   function resize() {
     const s = Math.min(window.innerWidth / W, window.innerHeight / H);
     const dpr = settings.quality === 'baja' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
@@ -268,6 +275,7 @@
     canvas.style.height = H * s + 'px';
     canvas.width = Math.round(W * s * dpr);
     canvas.height = Math.round(H * s * dpr);
+    roomBgDirty = true; // el fondo se vuelve a pintar a la nueva escala
   }
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', resize);
@@ -291,6 +299,7 @@
   let roomHit = false, runUlts = 0, runReacts = 0;   // para logros
   let tut = null;                                     // tutorial de la primera partida
   let fps = 60, fpsAcc = 0, fpsN = 0;
+  let slowT = 0; // cámara lenta (al matar a un jefe)
   const seenReactions = new Set();
 
   const dmgMul = () => 1 + 0.07 * (room - 1);
@@ -923,9 +932,10 @@
   // ================================================================
   function makeEnemy(kind, x, y, delay = 0) {
     const d = ENEMIES[kind], hm = 1 + 0.2 * (room - 1);
+    const tint = window.ArcanoBiomes ? BIOME_TINT[window.ArcanoBiomes.forRoom(Math.max(1, room))] : null;
     return {
       kind, x, y, r: d.r, hp: d.hp * hm, maxHp: d.hp * hm, speed: d.speed * rand(0.92, 1.08),
-      dmg: d.dmg * dmgMul(), xp: d.xp, ground: d.ground, color: d.color,
+      dmg: d.dmg * dmgMul(), xp: d.xp, ground: d.ground, color: (tint && tint[kind]) || d.color,
       spawnT: 0.75 + delay, spawnMax: 0.75 + delay, t: 0, seed: rand(0, TAU), flash: 0,
       state: kind === 'archer' ? 'move' : 'idle', timer: rand(0.6, 1.6), aim: 0, tx: x, ty: y,
       vx: 0, vy: 0, knock: 0, burn: 0, burnDps: 0, poisonDps: 0, dotT: 0.5, slow: 0, orbCd: 0, dead: false,
@@ -1343,6 +1353,7 @@
     if (isBoss) {
       bossesKilled++;
       meta.stats.bosses++;
+      slowT = 1.1;
       unlock('boss' + e.tier);
       if (!roomHit) unlock('untouchable');
       boss = null;
@@ -1646,6 +1657,12 @@
       enemies.push(e);
     });
     banner = { text: 'SALA ' + room, sub: room === TOTAL_ROOMS - 1 ? 'Se oye algo enorme al otro lado…' : '', color: '#ffffff', t: 1.4, max: 1.4 };
+    if (room % 5 === 1 && Biomes()) { // nuevo capítulo = nuevo bioma
+      try {
+        const info = Biomes().info(biomeId());
+        banner = { text: 'CAPÍTULO ' + Math.ceil(room / 5), sub: info.name, color: info.accent || '#ffd27a', t: 2.2, max: 2.2 };
+      } catch (_) { /* sin biomas */ }
+    }
   }
 
   function nextRoom() {
@@ -1655,6 +1672,7 @@
     if (tut && room >= 2) tutDone();
     roomHit = false;
     grid = genRocks(!!BOSSES[room] || ALTAR_ROOMS.has(room));
+    roomBgDirty = true;
     shots = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null;
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0 });
@@ -1681,6 +1699,8 @@
     seenReactions.clear();
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
+    runSeed = Math.floor(Math.random() * 1e9);
+    slowT = 0;
     // nada de la partida anterior: ni gemas en el suelo ni efectos a medias
     drops = []; enemies = []; shots = []; bullets = []; parts = []; texts = []; bolts = []; volleys = [];
     tutStart();
@@ -1813,7 +1833,8 @@
     clock += dt;
     fpsAcc += raw; fpsN++;
     if (fpsAcc >= 0.5) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
-    if (state === 'play') update(dt);
+    if (slowT > 0) slowT -= dt;
+    if (state === 'play') update(slowT > 0 ? dt * 0.28 : dt);
     else if (state === 'transition') updateTransition(dt);
     else if (state === 'dying') {
       deathT -= dt;
@@ -1972,7 +1993,44 @@
     ctx.drawImage(shadowSpr, e.x - w / 2, e.y + e.r * 0.78 + lift - h / 2, w, h);
   }
 
+  const Biomes = () => window.ArcanoBiomes;
+  function biomeId() {
+    if (!Biomes()) return null;
+    if (!player) return menuBiome || (menuBiome = pick(Biomes().list));
+    return Biomes().forRoom(Math.max(1, room));
+  }
+  function buildRoomBg() {
+    if (roomBg) roomBg.width = roomBg.height = 0; // libera el lienzo anterior (Safari tiene poca memoria para canvas)
+    roomBg = null;
+    try {
+      roomBg = Biomes().render({ grid, biome: biomeId(), seed: (runSeed * 31 + room * 7919) >>> 0, scale: canvas.width / W, doorX0: DOOR_X0, doorX1: DOOR_X1 });
+    } catch (_) { roomBg = null; }
+  }
   function drawRoom() {
+    if (Biomes()) {
+      if (roomBgDirty) { buildRoomBg(); roomBgDirty = false; }
+      if (roomBg) {
+        ctx.drawImage(roomBg, 0, 0, W, H);
+        drawTorches();
+        drawDoor();
+        return;
+      }
+    }
+    drawRoomPlain();
+  }
+
+  function drawTorches() {
+    for (const tx of [AX + 70, AX + AW - 70]) {
+      const fl = Math.sin(clock * 13 + tx) * 0.5 + Math.sin(clock * 7.3 + tx * 2) * 0.5;
+      glow(tx, AY - 22, 60 + fl * 4, '#ff9a3d', 0.55);
+      ctx.fillStyle = '#3b2a1a'; ctx.fillRect(tx - 3, AY - 18, 6, 14);
+      ellipse(tx, AY - 23 - fl, 6 + fl, 9 + fl * 2, '#ff8a2a');
+      ellipse(tx, AY - 21 - fl, 3, 5 + fl, '#ffe08a');
+    }
+  }
+
+  // sala sin biomes.js (respaldo)
+  function drawRoomPlain() {
     // marco y muros
     ctx.fillStyle = '#1b1529';
     ctx.fillRect(AX - 24, AY - 34, AW + 48, AH + 58);
@@ -2689,6 +2747,7 @@
       drawAltar();
       drawSingularity();
       drawDrops();
+      if (Biomes() && !lowQ()) { try { Biomes().ambient(ctx, clock, biomeId()); } catch (_) { /* sin biomas */ } }
       const list = enemies.slice();
       if (player.hp > 0) list.push(player);
       list.sort((a, b) => a.y - b.y);
@@ -2811,6 +2870,7 @@
     rings = []; meteors = []; storm = null; sing = null; altar = null; toast = null; screenFlash = null;
     cleared = true; doorAnim = 1; fade = 0; shake = 0;
     grid = genRocks(false);
+    menuBiome = null; roomBgDirty = true;
     hud(false);
     music('menu');
     try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(0); } catch (_) { /* sin música */ }

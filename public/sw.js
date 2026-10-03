@@ -8,6 +8,7 @@ const PRECACHE = [
   'style.css',
   'game.js',
   'music.js',
+  'biomes.js',
   'manifest.webmanifest',
   'icons/icon-32.png',
   'icons/icon-192.png',
