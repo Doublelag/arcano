@@ -6,13 +6,14 @@
      Los % se redondean al 1% entero y los planos (vida, maná) a la unidad, por rareza.
    - Perk: se desbloquea en Épico (nivel 1) y mejora en Legendario y Mítico (nivel 2).
    - Equipo completo (una base por hueco), media de las 256 combinaciones:
-       Común      ≈ +7% daño, +26 vida, +1,6% crítico, +1,5% cadencia  → daño efectivo ≈ +10%
-       Legendario ≈ +26% daño, +98 vida, +6% crítico, +6% cadencia     → daño efectivo ≈ +41%
-       Mítico     ≈ +37% daño, +142 vida                               → daño efectivo ≈ +63%
-     Rango en legendario: build ofensiva ≈ +60% efectivo / ~55 de vida; build tanque ≈ +23% / ~150 de vida.
+       Común      ≈ +7% daño,  +27 vida,  +2% crítico, +2% cadencia  → daño efectivo ≈ +11%
+       Legendario ≈ +26% daño, +101 vida, +7% crítico, +6% cadencia  → daño efectivo ≈ +42%
+       Mítico     ≈ +38% daño, +147 vida, +10% crítico, +9% cadencia → daño efectivo ≈ +63%
+     Rango en legendario: build ofensiva hasta +66% efectivo (~70 de vida); build tanque +19% (hasta 157 de vida).
      (daño efectivo = daño × factor de crítico × cadencia; los perks van aparte).
-   - Caída de rareza por sala (ver rarityOdds): sala 1 = 85% común / 15% raro; sala 5 ≈ 80/19/0,3;
-     sala 10 ≈ 71/25/3/0,1; sala 20 ≈ 50,5/35/13/1,5. Mítico nunca cae: solo por fusión. */
+   - Caída de rareza por sala, % común/raro/épico/legendario (ver rarityOdds):
+     sala 1 = 85/15/0/0 · sala 5 ≈ 80,5/19/0,3/0 · sala 10 ≈ 72/24,5/3,3/0,01 · sala 15 ≈ 62/30/7,7/0,45
+     · sala 20 ≈ 50,5/35/13/1,5. Mítico nunca cae: solo por fusión. */
 (function () {
   'use strict';
 
@@ -188,7 +189,8 @@
     let p = 0;
     for (const k in st) p += st[k] * POWER_W[k];
     p += perkLevel(item.r) * 40;
-    return Math.round(p);
+    // La rareza manda (un Raro nunca queda por debajo de un Común); dentro de la rareza, las stats
+    return item.r * 1000 + Math.round(p);
   }
 
   function mergeGroups(inv) {
@@ -209,6 +211,7 @@
 
   function merge(inv, uids, newUid) {
     if (!Array.isArray(inv) || !Array.isArray(uids) || uids.length !== 3) return null;
+    if (uids.some(u => u === undefined || u === null)) return null; // igual que mergeGroups: sin uid no se fusiona
     if (uids[0] === uids[1] || uids[0] === uids[2] || uids[1] === uids[2]) return null;
     const its = uids.map(u => inv.find(it => it && it.uid === u));
     if (its.some(it => !isItem(it))) return null;
