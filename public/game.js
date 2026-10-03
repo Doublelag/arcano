@@ -9,7 +9,7 @@
   const DOOR_X0 = AX + AW / 2 - 50, DOOR_X1 = AX + AW / 2 + 50;
   const TOTAL_ROOMS = 20;
   const TAU = Math.PI * 2;
-  const ARROW_SPEED = 760;
+  const SHOT_SPEED = 760;
   const JOY_R = 70;
   const SPAWN_C = 5, SPAWN_R = 18;              // celda donde aparece el jugador
   const DIR4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -29,8 +29,8 @@
   const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
   const store = {
-    get(k, d) { try { const v = localStorage.getItem('arquero.' + k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } },
-    set(k, v) { try { localStorage.setItem('arquero.' + k, JSON.stringify(v)); } catch (_) { /* sin almacenamiento */ } },
+    get(k, d) { try { const v = localStorage.getItem('arcano.' + k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } },
+    set(k, v) { try { localStorage.setItem('arcano.' + k, JSON.stringify(v)); } catch (_) { /* sin almacenamiento */ } },
   };
 
   // ================================================================
@@ -170,7 +170,7 @@
   const flow = new Int16Array(COLS * ROWS);
   let flowT = 0;
   let player = null, boss = null;
-  let enemies = [], arrows = [], bullets = [], drops = [], parts = [], texts = [], bolts = [], volleys = [];
+  let enemies = [], shots = [], bullets = [], drops = [], parts = [], texts = [], bolts = [], volleys = [];
   let cleared = true, doorAnim = 1, banner = null, shake = 0, hurtFlash = 0, fade = 0;
   let transPhase = null, transT = 0, deathT = 0, winTimer = -1;
   let pendingLevels = 0, firstPick = false, lockUntil = 0;
@@ -445,11 +445,11 @@
     return bestL || best;
   }
 
-  function spawnArrow(x, y, a, dmg) {
+  function spawnShot(x, y, a, dmg) {
     const s = player.sk;
-    arrows.push({
+    shots.push({
       x: x + Math.cos(a) * 18, y: y + Math.sin(a) * 18,
-      vx: Math.cos(a) * ARROW_SPEED, vy: Math.sin(a) * ARROW_SPEED,
+      vx: Math.cos(a) * SHOT_SPEED, vy: Math.sin(a) * SHOT_SPEED,
       dmg, life: 1.6, hit: new Set(),
       pierce: s.pierce || 0, rico: (s.ricochet || 0) * 2, wall: (s.wall || 0) * 2,
       fire: s.fire || 0, ice: s.ice || 0, poison: s.poison || 0, bolt: s.bolt || 0,
@@ -465,15 +465,15 @@
     const px = Math.cos(base + Math.PI / 2), py = Math.sin(base + Math.PI / 2);
     for (let i = 0; i < nF; i++) {
       const off = (i - (nF - 1) / 2) * 13;
-      spawnArrow(player.x + px * off, player.y + py * off, base, dmg);
+      spawnShot(player.x + px * off, player.y + py * off, base, dmg);
     }
     const diagA = [0.5, 0.95];
     for (let i = 0; i < (s.diag || 0); i++) {
-      spawnArrow(player.x, player.y, base + diagA[i], dmg);
-      spawnArrow(player.x, player.y, base - diagA[i], dmg);
+      spawnShot(player.x, player.y, base + diagA[i], dmg);
+      spawnShot(player.x, player.y, base - diagA[i], dmg);
     }
-    if (s.side) { spawnArrow(player.x, player.y, base + Math.PI / 2, dmg); spawnArrow(player.x, player.y, base - Math.PI / 2, dmg); }
-    if (s.rear) spawnArrow(player.x, player.y, base + Math.PI, dmg);
+    if (s.side) { spawnShot(player.x, player.y, base + Math.PI / 2, dmg); spawnShot(player.x, player.y, base - Math.PI / 2, dmg); }
+    if (s.rear) spawnShot(player.x, player.y, base + Math.PI, dmg);
     player.face = base;
     Sfx.shoot();
   }
@@ -491,7 +491,7 @@
     if (p.inv > 0) p.inv -= dt;
     if (p.cd > 0) p.cd -= dt;
 
-    // Quieto = disparas; moviéndote = no
+    // Quieto = lanzas hechizos; moviéndote = no
     const target = findTarget();
     if (target && !p.moving) p.face = angTo(p, target);
     if (target && !p.moving && p.still > 0.06 && p.cd <= 0) {
@@ -873,7 +873,7 @@
   // ================================================================
   //  Flechas, balas y botín
   // ================================================================
-  function arrowHit(ar, e) {
+  function shotHit(ar, e) {
     ar.hit.add(e);
     const crit = Math.random() < player.crit;
     const dmg = ar.dmg * (crit ? player.critMul : 1);
@@ -896,7 +896,7 @@
       if (best) {
         ar.rico--;
         const a = angTo(ar, best);
-        ar.vx = Math.cos(a) * ARROW_SPEED; ar.vy = Math.sin(a) * ARROW_SPEED;
+        ar.vx = Math.cos(a) * SHOT_SPEED; ar.vy = Math.sin(a) * SHOT_SPEED;
         ar.life = Math.max(ar.life, 0.8);
         return;
       }
@@ -905,8 +905,8 @@
     ar.dead = true;
   }
 
-  function updateArrows(dt) {
-    for (const ar of arrows) {
+  function updateShots(dt) {
+    for (const ar of shots) {
       ar.life -= dt;
       if (ar.life <= 0) { ar.dead = true; continue; }
       for (let s = 0; s < 2 && !ar.dead; s++) {
@@ -916,7 +916,7 @@
         for (const e of enemies) {
           if (e.dead || e.spawnT > 0 || ar.hit.has(e) || (e.alpha !== undefined && e.alpha < 0.4)) continue;
           const rr = e.r + 5;
-          if ((e.x - ar.x) ** 2 + (e.y - ar.y) ** 2 < rr * rr) { arrowHit(ar, e); break; }
+          if ((e.x - ar.x) ** 2 + (e.y - ar.y) ** 2 < rr * rr) { shotHit(ar, e); break; }
         }
         if (ar.dead) break;
         if (isRock(ar.x, ar.y)) {
@@ -934,7 +934,7 @@
         }
       }
     }
-    arrows = arrows.filter(a => !a.dead);
+    shots = shots.filter(a => !a.dead);
   }
 
   function updateBullets(dt) {
@@ -1037,7 +1037,7 @@
     for (const g of drops) collectDrop(g); // nada se pierde al cambiar de sala
     room++;
     grid = genRocks(!!BOSSES[room]);
-    arrows = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
+    shots = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0 });
     cleared = false; doorAnim = 0; flowT = 0;
     spawnRoom();
@@ -1083,7 +1083,7 @@
     if (flowT <= 0) { flowT = 0.2; bfs(grid, cellC(player.x), cellR(player.y), flow); }
     for (const e of enemies) if (!e.dead) updateEnemy(e, dt);
     separate();
-    updateArrows(dt);
+    updateShots(dt);
     updateBullets(dt);
     updateDrops(dt);
     updateFx(dt);
@@ -1461,18 +1461,18 @@
     }
   }
 
-  function drawArrows() {
-    for (const a of arrows) {
-      ctx.save();
-      ctx.translate(a.x, a.y);
-      ctx.rotate(Math.atan2(a.vy, a.vx));
-      ctx.strokeStyle = a.col; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(2, 0); ctx.stroke();
-      ctx.fillStyle = a.col;
-      ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-1, -4.5); ctx.lineTo(-1, 4.5); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-16, 0); ctx.lineTo(-21, -4); ctx.moveTo(-16, 0); ctx.lineTo(-21, 4); ctx.stroke();
-      ctx.restore();
+  function drawShots() {
+    // orbes mágicos con estela (el color sale del elemento del hechizo)
+    for (const a of shots) {
+      const col = a.col === '#f4efe0' ? '#c77dff' : a.col;
+      const sp = Math.hypot(a.vx, a.vy) || 1, ux = a.vx / sp, uy = a.vy / sp;
+      for (let i = 1; i <= 4; i++) {
+        ctx.globalAlpha = 0.35 * (1 - i / 5);
+        circle(a.x - ux * i * 7, a.y - uy * i * 7, 6 * (1 - i / 6), col);
+      }
+      ctx.globalAlpha = 0.3; circle(a.x, a.y, 10, col);
+      ctx.globalAlpha = 1; circle(a.x, a.y, 6, col);
+      circle(a.x, a.y, 2.8, '#fff');
     }
   }
 
@@ -1552,7 +1552,7 @@
       ctx.fillStyle = boss.enraged ? '#ff3b3b' : '#e0453a'; rrect(x, y, w * kb, 20, 7); ctx.fill();
       txt(boss.name.toUpperCase(), AX + AW / 2, y + 10, 13, '#fff');
     }
-    if (room === 1 && !cleared) txt('Quieto = disparas  ·  Moviéndote = esquivas', W / 2, H - 20, 15, 'rgba(255,255,255,.7)');
+    if (room === 1 && !cleared) txt('Quieto = lanzas hechizos  ·  Moviéndote = esquivas', W / 2, H - 20, 15, 'rgba(255,255,255,.7)');
   }
 
   function drawVignette() {
@@ -1598,7 +1598,7 @@
       list.sort((a, b) => a.y - b.y);
       for (const o of list) (o === player ? drawPlayer() : drawEnemy(o));
       if (player.hp > 0) drawOrbs();
-      drawArrows();
+      drawShots();
       drawBullets();
       drawBolts();
       drawParts();
@@ -1631,20 +1631,20 @@
   function showMenu() {
     state = 'menu';
     player = null; boss = null; room = 0;
-    enemies = []; arrows = []; bullets = []; drops = []; parts = []; texts = []; bolts = [];
+    enemies = []; shots = []; bullets = []; drops = []; parts = []; texts = []; bolts = [];
     cleared = true; doorAnim = 1; fade = 0; shake = 0;
     grid = genRocks(false);
     hud(false);
     const b = store.get('best', null);
     showOverlay(`
       <div class="panel">
-        <div class="logo">ARQUERO</div>
-        <div class="tag">Roguelite de mazmorras · ${TOTAL_ROOMS} salas · 4 jefes</div>
+        <div class="logo">ARCANO</div>
+        <div class="tag">Roguelite de magia · ${TOTAL_ROOMS} salas · 4 jefes</div>
         <button class="btn primary menu-play" data-act="play">JUGAR</button>
         ${b ? `<div class="best">Récord: ${b.win ? '🏆 Mazmorra completada' : 'Sala ' + b.room} · Nivel ${b.lvl}</div>` : ''}
         <div class="howto">
           <div><b>Muévete</b> para esquivar</div>
-          <div><b>Quédate quieto</b> para disparar solo</div>
+          <div><b>Quédate quieto</b> para lanzar hechizos</div>
           <div>Cada nivel: elige <b>1 de 3</b> habilidades</div>
           <div class="dim">Móvil: arrastra el dedo · PC: WASD o flechas · P = pausa</div>
         </div>
