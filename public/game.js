@@ -31,13 +31,25 @@
   const store = {
     get(k, d) { try { const v = localStorage.getItem('arcano.' + k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } },
     set(k, v) { try { localStorage.setItem('arcano.' + k, JSON.stringify(v)); } catch (_) { /* sin almacenamiento */ } },
+    del(k) { try { localStorage.removeItem('arcano.' + k); } catch (_) { /* sin almacenamiento */ } },
   };
 
+  const VERSION = '1.0';
+
+  // Ajustes del jugador (pantalla de Ajustes)
+  const SETTINGS_DEFAULT = {
+    music: 0.6, sfx: 0.8, vibration: true, shake: true, dmgNumbers: true,
+    lefty: false, quality: 'alta', fps: false, tutorial: false, ultTip: false,
+  };
+  const settings = Object.assign({}, SETTINGS_DEFAULT, store.get('settings', {}));
+  const saveSettings = () => store.set('settings', settings);
+  const lowQ = () => settings.quality === 'baja';
+
   // ================================================================
-  //  Sonido (sintetizado, sin archivos)
+  //  Sonido (sintetizado, sin archivos): efectos y música van por buses separados
   // ================================================================
   const Sfx = {
-    ctx: null, master: null, nbuf: null, last: {}, muted: store.get('muted', false),
+    ctx: null, master: null, sfxBus: null, musicBus: null, nbuf: null, last: {}, muted: store.get('muted', false),
     init() {
       if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
       try {
@@ -45,11 +57,22 @@
         if (!AC) return;
         this.ctx = new AC();
         this.master = this.ctx.createGain();
-        this.master.gain.value = this.muted ? 0 : 0.5;
+        this.master.gain.value = this.muted ? 0 : 1;
         this.master.connect(this.ctx.destination);
+        this.sfxBus = this.ctx.createGain();
+        this.musicBus = this.ctx.createGain();
+        this.sfxBus.connect(this.master);
+        this.musicBus.connect(this.master);
+        this.applyVolumes();
+        if (window.ArcanoMusic) window.ArcanoMusic.attach(this.ctx, this.musicBus);
       } catch (_) { this.ctx = null; }
     },
-    setMuted(m) { this.muted = m; store.set('muted', m); if (this.master) this.master.gain.value = m ? 0 : 0.5; },
+    applyVolumes() {
+      if (!this.ctx) return;
+      this.sfxBus.gain.value = 0.5 * settings.sfx;
+      this.musicBus.gain.value = settings.music;
+    },
+    setMuted(m) { this.muted = m; store.set('muted', m); if (this.master) this.master.gain.value = m ? 0 : 1; },
     gate(k, ms) { const n = performance.now(); if (n - (this.last[k] || 0) < ms) return false; this.last[k] = n; return true; },
     tone(f, dur, type = 'square', vol = 0.1, slide = 1, delay = 0) {
       if (!this.ctx || this.muted) return;
@@ -60,7 +83,7 @@
       if (slide !== 1) o.frequency.exponentialRampToValueAtTime(Math.max(20, f * slide), t + dur);
       g.gain.setValueAtTime(vol, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g); g.connect(this.master);
+      o.connect(g); g.connect(this.sfxBus);
       o.start(t); o.stop(t + dur + 0.02);
     },
     noise(dur, vol = 0.1, freq = 1500) {
@@ -74,7 +97,7 @@
       const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
       s.buffer = this.nbuf; f.type = 'lowpass'; f.frequency.value = freq;
       g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      s.connect(f); f.connect(g); g.connect(this.master);
+      s.connect(f); f.connect(g); g.connect(this.sfxBus);
       s.start(t); s.stop(t + dur);
     },
     shoot() { if (this.gate('shoot', 60)) this.tone(520, 0.09, 'sine', 0.05, 1.8); },
@@ -82,6 +105,10 @@
     freeze() { this.tone(1400, 0.35, 'sine', 0.07, 0.5); this.noise(0.3, 0.06, 6000); },
     zap() { if (this.gate('zap', 50)) { this.noise(0.14, 0.14, 5000); this.tone(220, 0.12, 'sawtooth', 0.05, 0.5); } },
     whistle() { this.tone(1500, 0.7, 'sine', 0.05, 0.25); },
+    plague() { this.noise(0.6, 0.1, 400); this.tone(140, 0.6, 'sawtooth', 0.06, 0.6); },
+    blast() { if (this.gate('blast', 60)) { this.noise(0.35, 0.16, 700); this.tone(120, 0.3, 'sine', 0.14, 0.4); } },
+    fuse() { if (this.gate('fuse', 120)) this.tone(900, 0.06, 'square', 0.03); },
+    buy() { [660, 880, 1320].forEach((f, i) => this.tone(f, 0.1, 'triangle', 0.08, 1, i * 0.06)); },
     ultReady() { this.tone(880, 0.12, 'sine', 0.07); this.tone(1320, 0.2, 'sine', 0.07, 1, 0.1); },
     hit() { if (this.gate('hit', 35)) this.noise(0.05, 0.07, 2400); },
     kill() { if (this.gate('kill', 40)) { this.tone(420, 0.12, 'square', 0.05, 0.35); this.noise(0.12, 0.06, 900); } },
@@ -95,7 +122,22 @@
     boom() { this.noise(0.6, 0.2, 500); this.tone(90, 0.5, 'sine', 0.2, 0.4); },
     die() { this.tone(300, 0.7, 'sawtooth', 0.12, 0.2); },
     win() { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.1, 1, i * 0.11)); },
+    click() { if (this.gate('click', 60)) this.tone(660, 0.05, 'triangle', 0.05, 1.2); },
+    ach() { [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, 0.16, 'sine', 0.08, 1, i * 0.08)); },
+    shield() { this.tone(1200, 0.2, 'sine', 0.08, 0.6); },
   };
+
+  // música (music.js); si no ha cargado o el audio no está listo, no hace nada
+  function music(track) {
+    try { if (window.ArcanoMusic && Sfx.ctx) window.ArcanoMusic.play(track); } catch (_) { /* sin música */ }
+  }
+  function vibrate(ms) {
+    if (!settings.vibration) return;
+    try {
+      const ua = navigator.userActivation;
+      if (navigator.vibrate && (!ua || ua.hasBeenActive)) navigator.vibrate(ms);
+    } catch (_) { /* ignorar */ }
+  }
 
   // ================================================================
   //  Datos: enemigos, jefes, habilidades
@@ -106,7 +148,13 @@
     archer:  { hp: 18, r: 16, speed: 62,  dmg: 12, xp: 3, cost: 1.5, color: '#5d8f2f', ground: true },
     charger: { hp: 34, r: 19, speed: 50,  dmg: 16, xp: 4, cost: 2,   color: '#9a6431', ground: true },
     mage:    { hp: 28, r: 17, speed: 34,  dmg: 11, xp: 4, cost: 2,   color: '#9a2a52', ground: true }, // cultista
+    bigslime: { hp: 55, r: 19, speed: 52, dmg: 16, xp: 5, cost: 2.5, color: '#3fbf6a', ground: true }, // se divide al morir
+    bomber:  { hp: 22, r: 15, speed: 100, dmg: 24, xp: 3, cost: 1.5, color: '#ff6a2a', ground: true }, // diablillo bomba
+    totem:   { hp: 45, r: 18, speed: 0,   dmg: 12, xp: 4, cost: 2,   color: '#8b7bb8', ground: true }, // torreta rúnica
+    spirit:  { hp: 24, r: 15, speed: 30,  dmg: 12, xp: 4, cost: 2,   color: '#9fd8ff', ground: false }, // espectro que se teletransporta
   };
+  // sala a partir de la que aparece cada enemigo
+  const ENEMY_UNLOCK = { slime: 1, bat: 1, archer: 2, charger: 3, mage: 4, bigslime: 6, bomber: 6, totem: 7, spirit: 11 };
 
   // Elementos, escuelas de magia y reacciones
   const EL = {
@@ -118,15 +166,51 @@
   };
   const ELEMENTS = ['fire', 'ice', 'bolt', 'poison'];
   const SCHOOLS = {
-    fire: { name: 'Piromante',    icon: '🔥', ultIcon: '☄️', ult: 'Meteoro',  desc: 'Tus hechizos queman', ultDesc: 'Un meteorito arrasa la zona con más enemigos' },
-    ice:  { name: 'Criomante',    icon: '❄️', ultIcon: '🌨️', ult: 'Ventisca', desc: 'Tus hechizos ralentizan', ultDesc: 'Congela a todos los enemigos y borra sus disparos' },
-    bolt: { name: 'Electromante', icon: '⚡', ultIcon: '🌩️', ult: 'Tormenta', desc: 'Tus hechizos electrocutan y saltan', ultDesc: 'Diez rayos caen sobre los enemigos' },
+    fire:   { name: 'Piromante',    el: 'fire',   icon: '🔥', ultIcon: '☄️', ult: 'Meteoro',  desc: 'Tus hechizos queman', ultDesc: 'Un meteorito arrasa la zona con más enemigos' },
+    ice:    { name: 'Criomante',    el: 'ice',    icon: '❄️', ultIcon: '🌨️', ult: 'Ventisca', desc: 'Tus hechizos ralentizan', ultDesc: 'Congela a todos los enemigos y borra sus disparos' },
+    bolt:   { name: 'Electromante', el: 'bolt',   icon: '⚡', ultIcon: '🌩️', ult: 'Tormenta', desc: 'Tus hechizos electrocutan y saltan', ultDesc: 'Diez rayos caen sobre los enemigos' },
+    poison: { name: 'Pestilente',   el: 'poison', icon: '☠️', ultIcon: '☣️', ult: 'Plaga', cost: 150, desc: 'Tus hechizos envenenan', ultDesc: 'Envenena a todos: los que mueran revientan y contagian' },
+    arcane: { name: 'Arcanista',    el: null, grant: { front: 1, atkspd: 1 }, icon: '🔮', ultIcon: '🌌', ult: 'Singularidad', cost: 250, desc: 'Sin elemento, pero +1 proyectil y más cadencia', ultDesc: 'Un agujero negro atrae a los enemigos y estalla' },
   };
   const REACTIONS = [
     { id: 'vapor',   a: 'fire', b: 'ice',    name: 'VAPOR',       color: '#e8f7ff', desc: 'Golpe de daño triple' },
     { id: 'overload', a: 'fire', b: 'bolt',  name: 'SOBRECARGA',  color: '#ffb347', desc: 'Explosión en área' },
     { id: 'freeze',  a: 'ice',  b: 'bolt',   name: 'CONGELACIÓN', color: '#9fefff', desc: 'Congela al enemigo' },
     { id: 'combust', a: 'fire', b: 'poison', name: 'COMBUSTIÓN',  color: '#c6ff5a', desc: 'Nube tóxica que contagia' },
+    { id: 'corrode', a: 'bolt', b: 'poison', name: 'CORROSIÓN',   color: '#d4ff4a', desc: 'Recibe +40% de daño 4 s' },
+  ];
+
+  // Mejoras permanentes del Santuario (se compran con esencia entre partidas)
+  const META_UPS = [
+    { id: 'vida',   icon: '❤️', name: 'Vitalidad eterna', desc: '+10 de vida máxima',                max: 5, cost: [30, 60, 100, 150, 220] },
+    { id: 'poder',  icon: '💥', name: 'Poder ancestral',  desc: '+6% de daño',                       max: 5, cost: [40, 80, 130, 190, 260] },
+    { id: 'mana',   icon: '💠', name: 'Reserva de maná',  desc: '+15 de maná al empezar',            max: 4, cost: [30, 60, 100, 150] },
+    { id: 'sabio',  icon: '📜', name: 'Sabiduría',        desc: '+10% de experiencia',               max: 3, cost: [50, 110, 180] },
+    { id: 'suerte', icon: '🍀', name: 'Suerte',           desc: '+1 cambio de cartas por partida',   max: 3, cost: [40, 90, 160] },
+    { id: 'paso',   icon: '👟', name: 'Paso ligero',      desc: '+4% de velocidad',                  max: 3, cost: [35, 75, 130] },
+    { id: 'fenix',  icon: '🕊️', name: 'Pluma de fénix',   desc: 'Revives una vez por partida con 50% de vida', max: 1, cost: [300] },
+  ];
+  const ALTAR_ROOMS = new Set([4, 9, 14, 19]); // salas de descanso justo antes de cada jefe
+
+  // Logros: dan esencia al desbloquearse
+  const ACHIEVEMENTS = [
+    { id: 'firstUlt',    icon: '✨', name: 'Primer conjuro',      desc: 'Lanza tu primer hechizo definitivo',     reward: 10 },
+    { id: 'boss1',       icon: '🗿', name: 'Rompepiedras',        desc: 'Derrota al Gólem de Piedra',             reward: 20 },
+    { id: 'room10',      icon: '🚪', name: 'Explorador',          desc: 'Llega a la sala 10',                     reward: 20 },
+    { id: 'boss2',       icon: '👑', name: 'Regicida viscoso',    desc: 'Derrota al Rey Slime',                   reward: 30 },
+    { id: 'boss3',       icon: '🌙', name: 'Duelo de magos',      desc: 'Derrota al Brujo Sombrío',               reward: 40 },
+    { id: 'boss4',       icon: '😈', name: 'Señor de nada',       desc: 'Derrota al Señor de la Mazmorra',        reward: 60 },
+    { id: 'firstWin',    icon: '🏆', name: 'Archimago',           desc: 'Completa la mazmorra',                   reward: 100 },
+    { id: 'reactAll',    icon: '⚗️', name: 'Alquimista',          desc: 'Provoca las 5 reacciones elementales',   reward: 40 },
+    { id: 'react50',     icon: '💥', name: 'Reacción en cadena',  desc: '50 reacciones en una sola partida',      reward: 40 },
+    { id: 'untouchable', icon: '🛡️', name: 'Intocable',           desc: 'Derrota a un jefe sin recibir daño',     reward: 50 },
+    { id: 'lvl15',       icon: '📈', name: 'Erudito',             desc: 'Alcanza el nivel 15 en una partida',     reward: 30 },
+    { id: 'phoenix',     icon: '🕊️', name: 'Renacido',            desc: 'Vuelve a la vida con la pluma de fénix', reward: 20 },
+    { id: 'elites',      icon: '⭐', name: 'Cazaélites',          desc: 'Derrota a 25 enemigos élite en total',   reward: 40 },
+    { id: 'kills1000',   icon: '💀', name: 'Exterminador',        desc: 'Derrota a 1000 enemigos en total',       reward: 60 },
+    { id: 'allSchools',  icon: '📚', name: 'Biblioteca completa', desc: 'Desbloquea todas las escuelas',          reward: 50 },
+    { id: 'speedrun',    icon: '⏱️', name: 'Contrarreloj',        desc: 'Gana en menos de 6 minutos',             reward: 80 },
+    { id: 'winAll',      icon: '🌈', name: 'Maestro de escuelas', desc: 'Gana con las 5 escuelas',                reward: 150 },
   ];
 
   const BOSSES = {
@@ -144,18 +228,18 @@
     { id: 'rear',     icon: '↩️', name: 'Guardia trasera',  max: 1, w: 0.8, desc: '+1 proyectil hacia atrás' },
     { id: 'ricochet', icon: '🔀', name: 'Salto arcano',     max: 2, w: 1,   desc: 'Los proyectiles saltan a 2 enemigos más' },
     { id: 'pierce',   icon: '💫', name: 'Lanza de éter',    max: 2, w: 1,   desc: 'Los proyectiles atraviesan 1 enemigo más' },
-    { id: 'wall',     icon: '🧱', name: 'Rebote',           max: 2, w: 0.9, desc: 'Los proyectiles rebotan 2 veces en muros y rocas' },
+    { id: 'wall',     icon: '↪️', name: 'Rebote',           max: 2, w: 0.9, desc: 'Los proyectiles rebotan 2 veces en muros y rocas' },
     { id: 'atk',      icon: '💥', name: 'Poder +25%',       max: 6, w: 1,   desc: 'Más daño en todos tus hechizos' },
     { id: 'atkspd',   icon: '⏱️', name: 'Celeridad',        max: 5, w: 1,   desc: '+22% de velocidad de lanzamiento' },
     { id: 'crit',     icon: '🎯', name: 'Concentración',    max: 4, w: 0.9, desc: '+10% prob. de crítico y +25% daño crítico' },
     { id: 'hp',       icon: '❤️', name: 'Vitalidad',        max: 5, w: 0.9, desc: '+25 de vida máxima y te cura 25' },
-    { id: 'heal',     icon: '🧪', name: 'Poción',           max: 99, w: 1.4, desc: 'Recuperas el 40% de la vida', cond: () => player.hp < player.maxHp * 0.75 },
+    { id: 'heal',     icon: '⚗️', name: 'Poción',           max: 99, w: 1.4, desc: 'Recuperas el 40% de la vida', cond: () => player.hp < player.maxHp * 0.75 },
     { id: 'fire',     icon: '🔥', name: 'Runa de fuego',    max: 2, w: 1.1, el: true, desc: 'Tus hechizos queman durante 2,5 s' },
     { id: 'ice',      icon: '❄️', name: 'Runa de hielo',    max: 2, w: 1.1, el: true, desc: 'Tus hechizos ralentizan a los enemigos' },
     { id: 'bolt',     icon: '⚡', name: 'Runa de rayo',     max: 2, w: 1.1, el: true, desc: 'Electrocutan y pueden saltar a 2 enemigos' },
     { id: 'poison',   icon: '☠️', name: 'Runa de veneno',   max: 2, w: 1,   el: true, desc: 'Daño continuo que se acumula con cada impacto' },
     { id: 'orbs',     icon: '🌀', name: 'Orbes guardianes', max: 3, w: 0.9, desc: 'Un orbe gira a tu alrededor y daña al contacto' },
-    { id: 'blood',    icon: '🩸', name: 'Drenar vida',      max: 3, w: 0.8, desc: 'Cada baja te cura un 2% de la vida máxima' },
+    { id: 'blood',    icon: '🦇', name: 'Drenar vida',      max: 3, w: 0.8, desc: 'Cada baja te cura un 2% de la vida máxima' },
     { id: 'channel',  icon: '💠', name: 'Canalización',     max: 2, w: 0.9, desc: 'Tu hechizo definitivo se carga un 35% más rápido' },
     { id: 'speed',    icon: '👟', name: 'Botas ligeras',    max: 2, w: 0.8, desc: '+12% de velocidad de movimiento' },
     { id: 'dodge',    icon: '💨', name: 'Parpadeo',         max: 3, w: 0.8, desc: '+8% de probabilidad de esquivar golpes' },
@@ -176,7 +260,7 @@
 
   function resize() {
     const s = Math.min(window.innerWidth / W, window.innerHeight / H);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = settings.quality === 'baja' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     wrap.style.width = W * s + 'px';
     wrap.style.height = H * s + 'px';
     wrap.style.setProperty('--u', s);
@@ -202,11 +286,82 @@
   let cleared = true, doorAnim = 1, banner = null, shake = 0, hurtFlash = 0, fade = 0;
   let transPhase = null, transT = 0, deathT = 0, winTimer = -1;
   let pendingLevels = 0, lockUntil = 0;
-  let rings = [], meteors = [], storm = null, screenFlash = null, toast = null;
+  let rings = [], meteors = [], storm = null, sing = null, screenFlash = null, toast = null;
+  let altar = null, bossesKilled = 0, runEssence = 0;
+  let roomHit = false, runUlts = 0, runReacts = 0;   // para logros
+  let tut = null;                                     // tutorial de la primera partida
+  let fps = 60, fpsAcc = 0, fpsN = 0;
   const seenReactions = new Set();
 
   const dmgMul = () => 1 + 0.07 * (room - 1);
   const xpNeed = lvl => 6 + (lvl - 1) * 5;
+
+  // progreso permanente: esencia, mejoras compradas y escuelas desbloqueadas
+  const META_DEFAULT = () => ({
+    essence: 0, up: {}, schools: ['fire', 'ice', 'bolt'], runs: 0, ach: {},
+    stats: { kills: 0, wins: 0, bosses: 0, elites: 0, reactions: 0, ults: 0, time: 0, essenceTotal: 0, best: {}, winsBy: {}, reactSeen: {} },
+  });
+  const meta = loadMeta();
+  function loadMeta() {
+    const d = META_DEFAULT(), s = store.get('meta', {}) || {};
+    const m = Object.assign(d, s);
+    m.up = Object.assign({}, s.up);
+    m.ach = Object.assign({}, s.ach);
+    m.schools = Array.isArray(s.schools) ? [...new Set(['fire', 'ice', 'bolt', ...s.schools])].filter(id => SCHOOLS[id]) : d.schools;
+    m.stats = Object.assign(META_DEFAULT().stats, s.stats);
+    for (const k of ['best', 'winsBy', 'reactSeen']) m.stats[k] = Object.assign({}, s.stats && s.stats[k]);
+    if (!(m.essence >= 0)) m.essence = 0;
+    return m;
+  }
+  const saveMeta = () => store.set('meta', meta);
+  const metaLv = id => meta.up[id] || 0;
+  const schoolOpen = id => meta.schools.includes(id);
+
+  // ---------- Logros: aviso flotante que funciona en cualquier pantalla ----------
+  const achEl = document.createElement('div');
+  achEl.id = 'achToast';
+  wrap.appendChild(achEl);
+  const achQueue = [];
+  let achBusy = false;
+  function unlock(id) {
+    if (meta.ach[id]) return;
+    const a = ACHIEVEMENTS.find(x => x.id === id);
+    if (!a) return;
+    meta.ach[id] = true;
+    meta.essence += a.reward;
+    meta.stats.essenceTotal += a.reward;
+    saveMeta();
+    achQueue.push(a);
+    nextAch();
+  }
+  function nextAch() {
+    if (achBusy || !achQueue.length) return;
+    const a = achQueue.shift();
+    achBusy = true;
+    achEl.innerHTML = `<span class="ic">${a.icon}</span><span class="tx"><b>¡Logro desbloqueado!</b>${a.name}</span><span class="rw">+✨ ${a.reward}</span>`;
+    achEl.classList.add('show');
+    Sfx.ach();
+    setTimeout(() => { achEl.classList.remove('show'); setTimeout(() => { achBusy = false; nextAch(); }, 350); }, 2600);
+  }
+
+  // un espectro o jefe congelado a medio desvanecerse vuelve a ser visible y tocable
+  function unfade(e) {
+    if (e.alpha === undefined || e.kind === 'boss') return;
+    e.alpha = 1;
+    if (e.kind === 'spirit') { e.state = 'idle'; e.timer = rand(1, 1.6); }
+  }
+
+  // ---------- Tutorial de la primera partida ----------
+  const TOUCH = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
+  const TUT_TEXT = {
+    move: () => TOUCH ? 'Arrastra el dedo por la pantalla para moverte' : 'Muévete con WASD o con las flechas',
+    shoot: () => 'Ahora quédate quieto: lanzas hechizos tú solo',
+    clear: () => '¡Eso es! Muévete para esquivar y para para atacar',
+    door: () => 'Sala limpia: cruza la puerta de arriba',
+  };
+  function tutStart() { tut = settings.tutorial ? null : { step: 'move', t: 0 }; }
+  function tutDone() { tut = null; settings.tutorial = true; saveSettings(); }
+  function tutNext() { if (!settings.ultTip) { settings.ultTip = true; saveSettings(); } }
 
   // ================================================================
   //  Entrada: teclado + joystick flotante
@@ -214,18 +369,33 @@
   const keys = new Set();
   window.addEventListener('keydown', e => {
     keys.add(e.code);
-    if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
-    if (state === 'menu' && (e.code === 'Enter' || e.code === 'Space')) { Sfx.init(); hideOverlay(); newRun(); }
+    if (state === 'splash') { showTapToStart(); return; }
+    if (state === 'tap') { startFromTap(); return; }
+    if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (state === 'play' || state === 'paused') togglePause();
+      else if (['settings', 'credits', 'stats', 'shop'].includes(state)) goBack();
+      else if (state === 'school') showMenu();
+    }
+    const onButton = document.activeElement && document.activeElement.tagName === 'BUTTON';
+    if (state === 'menu' && (e.code === 'Enter' || e.code === 'Space') && !onButton) { Sfx.init(); hideOverlay(); newRun(); }
     else if (state === 'play' && (e.code === 'Space' || e.code === 'KeyE') && !e.repeat) castUlt();
-    if ((state === 'levelup' || state === 'school') && /^Digit[1-3]$/.test(e.code)) {
-      const card = overlay.querySelectorAll('[data-act="pick"],[data-act="school"]')[+e.code.slice(5) - 1];
+    if ((state === 'levelup' || state === 'school' || state === 'altar') && /^Digit[1-5]$/.test(e.code)) {
+      const card = overlay.querySelectorAll('[data-act="pick"],[data-act="school"]:not(.locked),[data-act="altar"]')[+e.code.slice(5) - 1];
       if (card) card.click();
     }
     if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   });
   window.addEventListener('keyup', e => keys.delete(e.code));
   window.addEventListener('blur', () => { keys.clear(); resetJoy(); if (state === 'play') pause(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') pause(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (state === 'play') pause();
+      saveMeta(); // por si cierran la app a mitad de partida
+      try { if (Sfx.ctx) Sfx.ctx.suspend(); } catch (_) { /* ignorar */ }
+    } else {
+      try { if (Sfx.ctx) Sfx.ctx.resume(); } catch (_) { /* ignorar */ }
+    }
+  });
 
   const joy = { active: false, id: null, ox: 0, oy: 0, vx: 0, vy: 0 };
   function resetJoy() { joy.active = false; joy.id = null; joy.vx = joy.vy = 0; }
@@ -410,11 +580,13 @@
   //  Jugador
   // ================================================================
   function newPlayer() {
+    const hp = 100 + 10 * metaLv('vida'); // mejoras del Santuario
     return {
-      x: AX + AW / 2, y: AY + AH - 50, r: 15, hp: 100, maxHp: 100, lvl: 1, xp: 0, sk: {},
+      x: AX + AW / 2, y: AY + AH - 50, r: 15, hp, maxHp: hp, lvl: 1, xp: 0, sk: {},
       atk: 10, rate: 1.5, crit: 0.05, critMul: 2, speed: 190, dodge: 0,
       cd: 0, still: 0, inv: 0, face: -Math.PI / 2, moving: false, orbA: 0, walkT: 0,
-      school: 'fire', mana: 30, castFx: 0,
+      school: 'fire', mana: 30 + 15 * metaLv('mana'), castFx: 0,
+      revives: metaLv('fenix'), rerolls: metaLv('suerte'), shield: 0,
     };
   }
 
@@ -427,6 +599,16 @@
 
   function liveEnemies() { return enemies.filter(e => !e.dead && e.spawnT <= 0); }
 
+  // el enemigo con más vecinos cerca (el jefe pesa más): blanco de meteoro y singularidad
+  function densest(live) {
+    let best = live[0], bc = -1;
+    for (const e of live) {
+      const c = live.filter(o => dist(o, e) < 130).length + (e.kind === 'boss' ? 3 : 0);
+      if (c > bc) { bc = c; best = e; }
+    }
+    return best;
+  }
+
   function castUlt() {
     if (state !== 'play' || !player || player.mana < 100) return;
     const live = liveEnemies();
@@ -434,20 +616,20 @@
     player.mana = 0;
     player.castFx = 0.5;
     shake = Math.max(shake, 6);
+    runUlts++;
+    meta.stats.ults++;
+    unlock('firstUlt');
+    tutNext();
     const col = EL[player.school].color;
     rings.push({ x: player.x, y: player.y, r0: 10, r1: 120, t: 0.4, max: 0.4, color: col, w: 6 });
     if (player.school === 'fire') {
-      // la zona con más enemigos (el jefe pesa más)
-      let best = live[0], bc = -1;
-      for (const e of live) {
-        const c = live.filter(o => dist(o, e) < 130).length + (e.kind === 'boss' ? 3 : 0);
-        if (c > bc) { bc = c; best = e; }
-      }
+      const best = densest(live);
       meteors.push({ x: best.x, y: best.y, t: 0.75, max: 0.75, r: 140 });
       Sfx.whistle();
     } else if (player.school === 'ice') {
       for (const e of live) {
         e.frozen = e.kind === 'boss' ? 1.2 : 2.5;
+        unfade(e);
         e.slow = Math.max(e.slow, 3);
         damageEnemy(e, player.atk * 4, false, EL.ice.color, true);
       }
@@ -458,6 +640,20 @@
       }
       screenFlash = { color: '180,235,255', t: 0.5, max: 0.5 };
       Sfx.freeze();
+    } else if (player.school === 'poison') {
+      // Plaga: veneno fuerte para todos; los que mueran en 6 s revientan y contagian
+      for (const e of live) {
+        e.poisonDps = Math.max(e.poisonDps, player.atk * 1.2);
+        e.plague = 6;
+        damageEnemy(e, player.atk * 2, false, EL.poison.color, true);
+        for (let i = 0; i < 6; i++) parts.push({ x: e.x + rand(-e.r, e.r), y: e.y, vx: rand(-20, 20), vy: rand(-70, -20), life: rand(0.5, 1), max: 1, color: EL.poison.color, size: rand(2, 4.5) });
+      }
+      screenFlash = { color: '150,255,110', t: 0.4, max: 0.4 };
+      Sfx.plague();
+    } else if (player.school === 'arcane') {
+      const best = densest(live);
+      sing = { x: best.x, y: best.y, t: 2, max: 2, tick: 0 };
+      Sfx.whistle();
     } else {
       storm = { n: 10, t: 0 };
       for (const b of bullets) if (dist(b, player) < 170) { b.dead = true; sparks(b.x, b.y, EL.bolt.color, 2); }
@@ -482,6 +678,36 @@
       }
     }
     meteors = meteors.filter(m => !m.done);
+    if (sing) {
+      // Singularidad: atrae a los enemigos, los daña poco a poco y al final estalla
+      sing.t -= dt; sing.tick -= dt;
+      for (const e of enemies) {
+        if (e.dead || e.spawnT > 0 || e.kind === 'totem') continue;
+        const d = dist(e, sing);
+        if (d < 270 && d > 3) {
+          const pull = Math.min(d, (e.kind === 'boss' ? 45 : 175) * dt);
+          e.x += (sing.x - e.x) / d * pull; e.y += (sing.y - e.y) / d * pull;
+        }
+      }
+      if (sing.tick <= 0) {
+        sing.tick = 0.25;
+        for (const e of enemies) if (!e.dead && e.spawnT <= 0 && dist(e, sing) < 110 + e.r) damageEnemy(e, player.atk * 0.7, false, EL.arcane.color, true);
+      }
+      for (const b of bullets) if (dist(b, sing) < 220) { b.dead = true; sparks(b.x, b.y, EL.arcane.color, 2); }
+      bullets = bullets.filter(b => !b.dead);
+      if (Math.random() < dt * 40) {
+        const a = rand(0, TAU), r = rand(80, 150);
+        parts.push({ x: sing.x + Math.cos(a) * r, y: sing.y + Math.sin(a) * r, vx: -Math.cos(a) * r * 2.2 - Math.sin(a) * 120, vy: -Math.sin(a) * r * 2.2 + Math.cos(a) * 120, life: 0.4, max: 0.4, color: EL.arcane.color, size: rand(1.5, 3) });
+      }
+      if (sing.t <= 0) {
+        explode(sing.x, sing.y, 150, player.atk * 7, EL.arcane.color);
+        burst(sing.x, sing.y, '#ffffff', 30, 300);
+        shake = Math.max(shake, 14);
+        screenFlash = { color: '200,140,255', t: 0.35, max: 0.35 };
+        Sfx.boom();
+        sing = null;
+      }
+    }
     if (storm) {
       storm.t -= dt;
       if (storm.t <= 0) {
@@ -501,11 +727,11 @@
 
   function recalc() {
     const s = player.sk;
-    player.atk = 10 * (1 + 0.25 * (s.atk || 0));
+    player.atk = 10 * (1 + 0.25 * (s.atk || 0)) * (1 + 0.06 * metaLv('poder'));
     player.rate = 1.5 * (1 + 0.22 * (s.atkspd || 0));
     player.crit = 0.05 + 0.1 * (s.crit || 0);
     player.critMul = 2 + 0.25 * (s.crit || 0);
-    player.speed = 190 * (1 + 0.12 * (s.speed || 0));
+    player.speed = 190 * (1 + 0.12 * (s.speed || 0)) * (1 + 0.04 * metaLv('paso'));
     player.dodge = 0.08 * (s.dodge || 0);
   }
 
@@ -517,12 +743,13 @@
   }
 
   function addXp(v) {
-    player.xp += v;
+    player.xp += v * (1 + 0.1 * metaLv('sabio'));
     while (player.xp >= xpNeed(player.lvl)) {
       player.xp -= xpNeed(player.lvl);
       player.lvl++;
       pendingLevels++;
       Sfx.level();
+      if (player.lvl >= 15) unlock('lvl15');
     }
   }
 
@@ -533,18 +760,43 @@
       addText(player.x, player.y - 34, 'ESQUIVA', '#9be7ff', 0.9);
       return;
     }
+    if (player.shield > 0) { // escudo del altar: absorbe un golpe entero
+      player.shield--;
+      player.inv = 0.6;
+      rings.push({ x: player.x, y: player.y, r0: player.r + 4, r1: player.r + 34, t: 0.35, max: 0.35, color: '#9fe8ff', w: 4 });
+      addText(player.x, player.y - 34, 'ESCUDO', '#9fe8ff', 0.95);
+      Sfx.shield();
+      return;
+    }
     dmg = Math.max(1, Math.round(dmg));
     player.hp -= dmg;
     player.inv = 0.7;
+    roomHit = true;
     shake = Math.max(shake, 7);
     hurtFlash = 0.25;
     addText(player.x, player.y - 34, '-' + dmg, '#ff5a5a', 1.15);
     Sfx.hurt();
-    try {
-      const ua = navigator.userActivation;
-      if (navigator.vibrate && (!ua || ua.hasBeenActive)) navigator.vibrate(50);
-    } catch (_) { /* ignorar */ }
-    if (player.hp <= 0) { player.hp = 0; die(); }
+    vibrate(50);
+    if (player.hp <= 0) {
+      if (player.revives > 0) revive();
+      else { player.hp = 0; die(); }
+    }
+  }
+
+  // Pluma de fénix: vuelves con media vida y una onda que limpia la zona
+  function revive() {
+    player.revives--;
+    unlock('phoenix');
+    player.hp = Math.round(player.maxHp * 0.5);
+    player.inv = 2.5;
+    for (const b of bullets) sparks(b.x, b.y, '#ffcf4a', 2);
+    bullets = [];
+    explode(player.x, player.y, 170, player.atk * 5, '#ffcf4a');
+    burst(player.x, player.y, '#ffcf4a', 40, 300);
+    screenFlash = { color: '255,210,110', t: 0.6, max: 0.6 };
+    toast = { text: '¡RENACES!', sub: 'La pluma de fénix te devuelve a la vida', color: '#ffcf4a', t: 2.4, max: 2.4 };
+    shake = Math.max(shake, 12);
+    Sfx.win();
   }
 
   function findTarget() {
@@ -601,6 +853,7 @@
     if (p.moving) {
       p.x += mx * p.speed * dt; p.y += my * p.speed * dt;
       p.face = Math.atan2(my, mx); p.walkT += dt; p.still = 0;
+      if (tut && tut.step === 'move' && (tut.t += dt) > 0.6) tut.step = 'shoot';
     } else p.still += dt;
     collideRocks(p);
     clampArena(p, cleared && room < TOTAL_ROOMS);
@@ -656,8 +909,20 @@
       spawnT: 0.75 + delay, spawnMax: 0.75 + delay, t: 0, seed: rand(0, TAU), flash: 0,
       state: kind === 'archer' ? 'move' : 'idle', timer: rand(0.6, 1.6), aim: 0, tx: x, ty: y,
       vx: 0, vy: 0, knock: 0, burn: 0, burnDps: 0, poisonDps: 0, dotT: 0.5, slow: 0, orbCd: 0, dead: false,
-      shock: 0, frozen: 0, reactCd: 0,
+      shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0,
+      heavy: kind === 'totem', alpha: kind === 'spirit' ? 1 : undefined, spin: rand(0, TAU),
+      vscale: kind === 'bigslime' ? 1.4 : 1, // se dibuja más grande de lo que ocupa (cabe por pasillos de 1 celda)
     };
+  }
+
+  // Élite: más vida, más daño, aura dorada y el doble de experiencia
+  function makeElite(e) {
+    e.elite = true;
+    e.hp *= 2.2; e.maxHp *= 2.2;
+    e.r = Math.min(Math.round(e.r * 1.15), e.ground ? 19 : 30); // en tierra tiene que caber por pasillos de 40 px
+    e.vscale = (e.vscale || 1) * 1.15;
+    e.dmg *= 1.25; e.xp *= 2;
+    return e;
   }
 
   function makeBoss(B) {
@@ -668,20 +933,19 @@
       aim: 0, spin: 0, acc: 0, alpha: 1, ringN: 12 + B.tier * 3, enraged: false,
       spawnT: 1, spawnMax: 1, t: 0, seed: 0, flash: 0, tx: 0, ty: 0, vx: 0, vy: 0, knock: 0,
       burn: 0, burnDps: 0, poisonDps: 0, dotT: 0.5, slow: 0, orbCd: 0, dead: false,
-      shock: 0, frozen: 0, reactCd: 0,
+      shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0, heavy: true,
     };
   }
 
   function roomEnemies(n) {
-    const pool = ['slime', 'bat'];
-    if (n >= 2) pool.push('archer');
-    if (n >= 3) pool.push('charger');
-    if (n >= 4) pool.push('mage');
+    const pool = Object.keys(ENEMY_UNLOCK).filter(k => n >= ENEMY_UNLOCK[k]);
+    const cap = { totem: 2, spirit: 3, bomber: 3, bigslime: 2 }; // máximo por sala
     let budget = 3.5 + n * 0.55;
     const list = [];
     for (let guard = 0; guard < 200 && budget > 0.9 && list.length < 11; guard++) {
       const k = pick(pool), c = ENEMIES[k].cost;
       if (c > budget + 0.3) continue;
+      if (cap[k] && list.filter(x => x === k).length >= cap[k]) continue;
       list.push(k); budget -= c;
     }
     return list;
@@ -732,13 +996,19 @@
     if (e.orbCd > 0) e.orbCd -= dt;
     if (e.shock > 0) e.shock -= dt;
     if (e.reactCd > 0) e.reactCd -= dt;
+    if (e.corrode > 0) e.corrode -= dt;
+    if (e.plague > 0) {
+      e.plague -= dt;
+      if (Math.random() < dt * 18) parts.push({ x: e.x + rand(-e.r, e.r), y: e.y, vx: 0, vy: -40, life: 0.4, max: 0.4, color: EL.poison.color, size: 2 });
+    }
     if (e.frozen > 0) { e.frozen -= dt; return; } // congelado: ni se mueve ni ataca
     const chill = (player.sk.ice || 0) >= 2 ? 0.5 : 0.62;
     const ds = dt * (e.slow > 0 ? chill : 1); // el hielo ralentiza también sus ataques
 
     switch (e.kind) {
-      case 'slime': {
-        const hop = 0.3 + 0.7 * Math.max(0, Math.sin(e.t * 5 + e.seed));
+      case 'slime':
+      case 'bigslime': {
+        const hop = 0.3 + 0.7 * Math.max(0, Math.sin(e.t * (e.kind === 'bigslime' ? 3.5 : 5) + e.seed));
         const a = chaseDir(e);
         e.x += Math.cos(a) * e.speed * hop * ds;
         e.y += Math.sin(a) * e.speed * hop * ds;
@@ -801,6 +1071,58 @@
         }
         break;
       }
+      case 'bomber': { // corre hacia ti, se para, chisporrotea y explota
+        e.timer -= ds;
+        if (e.state === 'idle') {
+          const a = chaseDir(e);
+          e.x += Math.cos(a) * e.speed * ds; e.y += Math.sin(a) * e.speed * ds;
+          if (dist(e, player) < 72) { e.state = 'fuse'; e.timer = 0.8; }
+        } else {
+          if (Math.random() < dt * 20) sparks(e.x, e.y - e.r, '#ffd27a', 1);
+          Sfx.fuse();
+          if (e.timer <= 0) { bomberBlast(e, true); return; }
+        }
+        break;
+      }
+      case 'totem': { // torreta fija: cruz de balas que va girando
+        e.timer -= ds;
+        if (e.timer <= 0) {
+          const n = room >= 15 ? 6 : 4;
+          for (let i = 0; i < n; i++) fireBullet(e.x, e.y, e.spin + i * TAU / n, 150 + room * 3, e.dmg, '#c9a8ff', 6);
+          e.spin += 0.38;
+          e.timer = room >= 14 ? 0.95 : 1.3;
+          Sfx.eshot();
+        }
+        break;
+      }
+      case 'spirit': { // flota, se desvanece y reaparece a tu lado para dispararte
+        e.timer -= ds;
+        if (e.state === 'idle') {
+          const a = angTo(e, player) + Math.sin(e.t * 2 + e.seed) * 1.2;
+          e.x += Math.cos(a) * e.speed * ds; e.y += Math.sin(a) * e.speed * ds;
+          if (e.timer <= 0) { e.state = 'out'; e.timer = 0.35; }
+        } else if (e.state === 'out') {
+          e.alpha = clamp(e.timer / 0.35, 0, 1);
+          if (e.timer <= 0) {
+            for (let i = 0; i < 15; i++) {
+              const a = rand(0, TAU), d = rand(150, 230);
+              const t = { x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d };
+              if (t.x > AX + 30 && t.x < AX + AW - 30 && t.y > AY + 30 && t.y < AY + AH - 30) { e.x = t.x; e.y = t.y; break; }
+            }
+            e.state = 'in'; e.timer = 0.35;
+          }
+        } else if (e.state === 'in') {
+          e.alpha = 1 - clamp(e.timer / 0.35, 0, 1);
+          if (e.timer <= 0) {
+            e.alpha = 1;
+            const a = angTo(e, player), n = room >= 15 ? 5 : 3;
+            for (let i = 0; i < n; i++) fireBullet(e.x, e.y, a + (i - (n - 1) / 2) * 0.2, 210, e.dmg, '#bfe9ff', 6);
+            Sfx.eshot();
+            e.state = 'idle'; e.timer = rand(1.8, 2.6);
+          }
+        }
+        break;
+      }
       case 'boss':
         updateBoss(e, ds);
         break;
@@ -808,6 +1130,13 @@
 
     if (e.ground) collideRocks(e);
     clampArena(e, false);
+
+    if (e.kind === 'totem') { // es un pilar: te bloquea el paso, no te daña al tocarlo
+      const d = dist(e, player), min = e.r + player.r;
+      if (d < min && d > 0.01) { player.x += (player.x - e.x) / d * (min - d); player.y += (player.y - e.y) / d * (min - d); }
+      return;
+    }
+    if (e.kind === 'bomber') return; // solo hace daño al explotar
 
     // daño por contacto
     if ((e.alpha === undefined || e.alpha > 0.5) && dist(e, player) < e.r + player.r - 3) {
@@ -942,8 +1271,8 @@
         const dx = b.x - a.x, dy = b.y - a.y, rr = a.r + b.r, d2 = dx * dx + dy * dy;
         if (d2 >= rr * rr || d2 < 0.01) continue;
         const d = Math.sqrt(d2), push = (rr - d) / 2, ux = dx / d, uy = dy / d;
-        const wa = a.kind === 'boss' ? 0 : b.kind === 'boss' ? 2 : 1;
-        const wb = b.kind === 'boss' ? 0 : a.kind === 'boss' ? 2 : 1;
+        const wa = a.heavy ? 0 : b.heavy ? 2 : 1; // jefes y tótems no se dejan empujar
+        const wb = b.heavy ? 0 : a.heavy ? 2 : 1;
         a.x -= ux * push * wa; a.y -= uy * push * wa;
         b.x += ux * push * wb; b.y += uy * push * wb;
       }
@@ -954,18 +1283,24 @@
   function damageEnemy(e, dmg, crit, color, small) {
     if (e.dead) return;
     if (e.frozen > 0) dmg *= 1.3; // los congelados reciben más daño
+    if (e.corrode > 0) dmg *= 1.4; // corrosión (rayo + veneno)
     e.hp -= dmg;
     e.flash = 0.08;
     if (e.kind === 'boss') gainMana(dmg / e.maxHp * 90);
-    addText(e.x + rand(-6, 6), e.y - e.r - 6, Math.max(1, Math.round(dmg)), color || (crit ? '#ffd23f' : '#ffffff'), crit ? 1.35 : small ? 0.75 : 1);
+    if (settings.dmgNumbers) addText(e.x + rand(-6, 6), e.y - e.r - 6, Math.max(1, Math.round(dmg)), color || (crit ? '#ffd23f' : '#ffffff'), crit ? 1.35 : small ? 0.75 : 1);
     if (e.hp <= 0) killEnemy(e);
   }
 
   function killEnemy(e) {
     if (e.dead) return;
     e.dead = true;
-    kills++;
     const isBoss = e.kind === 'boss';
+    if (e.selfBlast) { burst(e.x, e.y, e.color, lowQ() ? 6 : 14, 170); return; } // se ha inmolado: sin baja ni premio
+    kills++;
+    meta.stats.kills++;
+    if (tut && tut.step === 'shoot') tut.step = 'clear';
+    if (e.elite) { meta.stats.elites++; if (meta.stats.elites >= 25) unlock('elites'); }
+    if (meta.stats.kills >= 1000) unlock('kills1000');
     burst(e.x, e.y, e.color, isBoss ? 70 : 14, isBoss ? 320 : 170);
     if (isBoss) { Sfx.boom(); shake = 16; } else Sfx.kill();
     let xp = e.xp;
@@ -974,14 +1309,50 @@
       xp -= v;
       drops.push({ type: 'gem', v, x: e.x, y: e.y, vx: rand(-150, 150), vy: rand(-150, 150), t: 0 });
     }
-    const hearts = isBoss ? 2 : Math.random() < 0.06 ? 1 : 0;
+    const hearts = isBoss ? 2 : Math.random() < (e.elite ? 0.3 : 0.06) ? 1 : 0;
     for (let i = 0; i < hearts; i++) drops.push({ type: 'heart', x: e.x, y: e.y, vx: rand(-120, 120), vy: rand(-120, 120), t: 0 });
     if (player.sk.blood) heal(player.maxHp * 0.02 * player.sk.blood);
-    if (!isBoss) gainMana(e.minion ? 2 : 5);
+    if (!isBoss) gainMana(e.minion ? 2 : e.elite ? 10 : 5);
     if (isBoss) {
+      bossesKilled++;
+      meta.stats.bosses++;
+      unlock('boss' + e.tier);
+      if (!roomHit) unlock('untouchable');
       boss = null;
-      for (const o of enemies) if (!o.dead && o !== e) killEnemy(o);
+      for (const o of enemies) if (!o.dead && o !== e) { o.wiped = true; killEnemy(o); }
+      return;
     }
+    if (e.wiped) return; // muerto por la caída del jefe: sin efectos en cadena
+    if (e.kind === 'bigslime') { // se divide en dos slimes pequeños
+      for (const s of [-1, 1]) {
+        const m = makeEnemy('slime', e.x + s * 14, e.y, -0.6);
+        m.xp = 1; m.minion = true;
+        clampArena(m, false);
+        enemies.push(m);
+      }
+    }
+    if (e.kind === 'bomber' && !e.blown) bomberBlast(e, false); // si lo matas, revienta contra los suyos
+    if (e.plague > 0) { // Plaga: revienta y contagia
+      e.plague = 0;
+      explode(e.x, e.y, 85, player.atk * 2, EL.poison.color, player.atk * 0.8);
+    }
+  }
+
+  // Explosión del diablillo: te daña si estás cerca (solo si llegó a detonar) y a sus compañeros siempre
+  function bomberBlast(e, detonated) {
+    e.blown = true;
+    if (detonated) { e.xp = 0; e.selfBlast = true; }
+    const rad = 80;
+    rings.push({ x: e.x, y: e.y, r0: 10, r1: rad, t: 0.35, max: 0.35, color: '#ff6a2a', w: 6 });
+    burst(e.x, e.y, '#ffb347', 26, 260);
+    shake = Math.max(shake, 8);
+    Sfx.blast();
+    if (detonated && dist(e, player) < rad + player.r) hurtPlayer(e.dmg);
+    for (const o of enemies) {
+      if (o === e || o.dead || o.spawnT > 0) continue;
+      if (dist(o, e) < rad + o.r) damageEnemy(o, 30 * dmgMul(), false, '#ffb347', true);
+    }
+    if (detonated && !e.dead) killEnemy(e); // selfBlast: no cuenta como baja tuya
   }
 
   function chainLightning(src, dmg) {
@@ -1005,7 +1376,10 @@
     if (els.includes('fire')) { e.burn = 2.5; e.burnDps = Math.max(e.burnDps, player.atk * 0.35 * s.fire); }
     if (els.includes('ice')) e.slow = 1.8;
     if (els.includes('bolt')) e.shock = 2;
-    if (els.includes('poison')) e.poisonDps = Math.min(e.poisonDps + player.atk * 0.1 * s.poison, player.atk * 0.8 * s.poison);
+    if (els.includes('poison')) {
+      const cap = player.atk * 0.8 * s.poison; // no rebaja un veneno más fuerte (p. ej. el de la Plaga)
+      if (e.poisonDps < cap) e.poisonDps = Math.min(e.poisonDps + player.atk * 0.1 * s.poison, cap);
+    }
   }
 
   function explode(x, y, rad, dmg, color, poison = 0) {
@@ -1026,6 +1400,11 @@
     const atk = player.atk;
     addText(e.x, e.y - e.r - 28, r.name, r.color, 1.15);
     Sfx.react();
+    runReacts++;
+    meta.stats.reactions++;
+    meta.stats.reactSeen[r.id] = true;
+    if (REACTIONS.every(x => meta.stats.reactSeen[x.id])) unlock('reactAll');
+    if (runReacts >= 50) unlock('react50');
     if (!seenReactions.has(r.id)) {
       seenReactions.add(r.id);
       toast = { text: `¡${r.name}!`, sub: `${EL[r.a].name} + ${EL[r.b].name}: ${r.desc}`, color: r.color, t: 2.6, max: 2.6 };
@@ -1041,8 +1420,14 @@
     } else if (r.id === 'freeze') {
       e.slow = 0; e.shock = 0;
       e.frozen = e.kind === 'boss' ? 0.7 : 1.6;
+      unfade(e);
       rings.push({ x: e.x, y: e.y, r0: e.r + 20, r1: e.r, t: 0.3, max: 0.3, color: r.color, w: 4 });
       Sfx.freeze();
+    } else if (r.id === 'corrode') {
+      e.shock = 0;
+      e.corrode = 4;
+      rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 30, t: 0.35, max: 0.35, color: r.color, w: 3 });
+      for (let i = 0; i < 10; i++) parts.push({ x: e.x + rand(-e.r, e.r), y: e.y + rand(-e.r, e.r), vx: rand(-30, 30), vy: rand(20, 70), life: rand(0.4, 0.7), max: 0.7, color: r.color, size: rand(2, 3.5) });
     } else if (r.id === 'combust') {
       e.burn = 0; e.burnDps = 0;
       explode(e.x, e.y, 85, atk * 1.5, r.color, atk * 0.15 * Math.max(1, player.sk.poison || 1));
@@ -1165,11 +1550,13 @@
     }
   }
   function burst(x, y, color, n, speed) {
+    if (lowQ()) n = Math.ceil(n * 0.4); // calidad baja: menos partículas
     for (let i = 0; i < n; i++) {
       const a = rand(0, TAU), s = rand(speed * 0.3, speed);
       parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.3, 0.7), max: 0.7, color, size: rand(2.5, 5.5) });
     }
-    if (parts.length > 500) parts.splice(0, parts.length - 500);
+    const cap = lowQ() ? 180 : 500;
+    if (parts.length > cap) parts.splice(0, parts.length - cap);
   }
 
   function updateFx(dt) {
@@ -1200,9 +1587,17 @@
       enemies.push(boss);
       banner = { text: '¡JEFE!', sub: B.name, color: '#ff5a5a', t: 2.2, max: 2.2 };
       Sfx.boss();
+      music('boss');
       return;
     }
     boss = null;
+    if (ALTAR_ROOMS.has(room)) { // sala tranquila antes del jefe
+      altar = { x: AX + AW / 2, y: AY + 340, used: false };
+      banner = { text: 'ALTAR', sub: 'Tócalo para recibir una bendición', color: '#ffd27a', t: 1.8, max: 1.8 };
+      music('menu');
+      return;
+    }
+    music('dungeon');
     const reach = bfs(grid, SPAWN_C, SPAWN_R, new Int16Array(COLS * ROWS));
     const cells = [];
     for (let i = 0; i < COLS * ROWS; i++) {
@@ -1212,9 +1607,12 @@
       if (r < 15 && Math.hypot(x - player.x, y - player.y) > 300) cells.push({ x, y });
     }
     shuffle(cells);
+    let elites = 0;
     roomEnemies(room).forEach((k, i) => {
       const p = cells[i % Math.max(1, cells.length)] || { x: AX + AW / 2, y: AY + 150 };
-      enemies.push(makeEnemy(k, p.x + rand(-5, 5), p.y + rand(-5, 5), i * 0.05));
+      const e = makeEnemy(k, k === 'totem' ? p.x : p.x + rand(-5, 5), k === 'totem' ? p.y : p.y + rand(-5, 5), i * 0.05);
+      if (room >= 6 && elites < 2 && Math.random() < 0.1 + room * 0.006) { makeElite(e); elites++; }
+      enemies.push(e);
     });
     banner = { text: 'SALA ' + room, sub: room === TOTAL_ROOMS - 1 ? 'Se oye algo enorme al otro lado…' : '', color: '#ffffff', t: 1.4, max: 1.4 };
   }
@@ -1222,9 +1620,12 @@
   function nextRoom() {
     for (const g of drops) collectDrop(g); // nada se pierde al cambiar de sala
     room++;
-    grid = genRocks(!!BOSSES[room]);
+    if (room >= 10) unlock('room10');
+    if (tut && room >= 2) tutDone();
+    roomHit = false;
+    grid = genRocks(!!BOSSES[room] || ALTAR_ROOMS.has(room));
     shots = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
-    rings = []; meteors = []; storm = null;
+    rings = []; meteors = []; storm = null; sing = null; altar = null;
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0 });
     cleared = false; doorAnim = 0; flowT = 0;
     spawnRoom();
@@ -1237,16 +1638,21 @@
     if (BOSSES[room]) heal(player.maxHp * 0.25);
     if (room >= TOTAL_ROOMS) { winTimer = 2.2; pendingLevels = 0; }
     else Sfx.door();
+    if (tut && room === 1) tut.step = 'door';
   }
 
   function newRun() {
     player = newPlayer();
     recalc();
-    room = 0; kills = 0; runTime = 0; winTimer = -1;
+    room = 0; kills = 0; runTime = 0; winTimer = -1; bossesKilled = 0; runEssence = 0;
     shake = 0; hurtFlash = 0; fade = 0; banner = null;
     toast = null; screenFlash = null;
     seenReactions.clear();
     pendingLevels = 0;
+    runUlts = 0; runReacts = 0;
+    // nada de la partida anterior: ni gemas en el suelo ni efectos a medias
+    drops = []; enemies = []; shots = []; bullets = []; parts = []; texts = []; bolts = []; volleys = [];
+    tutStart();
     nextRoom();
     resetJoy();
     showSchools();
@@ -1256,27 +1662,35 @@
     state = 'school';
     hud(false);
     lockUntil = performance.now() + 250;
-    const cards = Object.entries(SCHOOLS).map(([id, s], i) => `
-      <button class="card school" data-act="school" data-id="${id}" style="--c:${EL[id].color};animation-delay:${i * 70}ms">
-        <div class="ic">${s.icon}</div>
+    let n = 0;
+    const cards = Object.entries(SCHOOLS).map(([id, s], i) => {
+      const open = schoolOpen(id);
+      return `
+      <button class="card school${open ? '' : ' locked'}" data-act="${open ? 'school' : 'shop'}" data-id="${id}" style="--c:${EL[id].color};animation-delay:${i * 60}ms">
+        <div class="ic">${open ? s.icon : '🔒'}</div>
         <div class="tx">
           <div class="nm">${s.name}</div>
           <div class="ds">${s.desc}</div>
-          <div class="ult">${s.ultIcon} <b>${s.ult}</b>: ${s.ultDesc}</div>
+          ${open ? `<div class="ult">${s.ultIcon} <b>${s.ult}</b>: ${s.ultDesc}</div>` : `<div class="ult">Se desbloquea en el <b>Santuario</b> por ✨ ${s.cost}</div>`}
         </div>
-        <kbd>${i + 1}</kbd>
-      </button>`).join('');
+        ${open ? `<kbd>${++n}</kbd>` : ''}
+      </button>`;
+    }).join('');
     showOverlay(`
       <div class="panel">
         <div class="title gold">ELIGE TU ESCUELA</div>
         <div class="sub">Tu elemento base y tu hechizo definitivo</div>
         <div class="cards">${cards}</div>
+        <button class="btn ghost" data-act="menu" style="margin-top:calc(var(--u)*14px)">VOLVER</button>
       </div>`);
   }
 
   function pickSchool(id) {
+    if (!schoolOpen(id)) return;
+    const S = SCHOOLS[id];
     player.school = id;
-    player.sk[id] = 1;
+    if (S.el) player.sk[S.el] = 1;
+    for (const [k, v] of Object.entries(S.grant || {})) player.sk[k] = (player.sk[k] || 0) + v;
     recalc();
     Sfx.pick();
     hideOverlay();
@@ -1306,14 +1720,21 @@
     shake = 14;
     resetJoy();
     Sfx.die();
+    music('defeat');
   }
 
   // ================================================================
   //  Bucle
   // ================================================================
+  let intensityT = 0;
   function update(dt) {
     runTime += dt;
+    meta.stats.time += dt;
     updatePlayer(dt);
+    if ((intensityT -= dt) <= 0) { // la música sube de capas con más enemigos
+      intensityT = 0.5;
+      try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(clamp(enemies.length / 8, 0, 1)); } catch (_) { /* sin música */ }
+    }
     flowT -= dt;
     if (flowT <= 0) { flowT = 0.2; bfs(grid, cellC(player.x), cellR(player.y), flow); }
     for (const e of enemies) if (!e.dead) updateEnemy(e, dt);
@@ -1328,6 +1749,7 @@
 
     if (!cleared && enemies.length === 0) onCleared();
     if (cleared) doorAnim = Math.min(1, doorAnim + dt * 2);
+    if (altar && !altar.used && state === 'play' && dist(player, altar) < player.r + 26) openAltar();
     if (state === 'play' && cleared && room < TOTAL_ROOMS && player.y < AY - 24) {
       state = 'transition'; transPhase = 'out'; transT = 0; resetJoy();
     }
@@ -1351,9 +1773,12 @@
 
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min((now - last) / 1000, 1 / 30);
+    const raw = (now - last) / 1000;
+    const dt = Math.min(raw, 1 / 30);
     last = now;
     clock += dt;
+    fpsAcc += raw; fpsN++;
+    if (fpsAcc >= 0.5) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
     if (state === 'play') update(dt);
     else if (state === 'transition') updateTransition(dt);
     else if (state === 'dying') {
@@ -1361,6 +1786,7 @@
       updateFx(dt);
       if (deathT <= 0) showEnd(false);
     }
+    if (state !== 'play' && state !== 'dying') shake = 0; // que no tiemble detrás de los menús
     render();
     requestAnimationFrame(frame);
   }
@@ -1395,6 +1821,15 @@
     if (stroke) { ctx.lineWidth = Math.max(3, size / 5); ctx.strokeStyle = 'rgba(10,6,20,.85)'; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); }
     ctx.fillStyle = color;
     ctx.fillText(s, x, y);
+  }
+  function star(x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 4, rr = i % 2 ? r * 0.4 : r;
+      ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.closePath(); ctx.fill();
   }
   function shadow(e, lift = 0) {
     ellipse(e.x, e.y + e.r * 0.8 + lift, e.r * 0.95, e.r * 0.36, 'rgba(0,0,0,.32)');
@@ -1512,7 +1947,53 @@
         ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(end.x, end.y); ctx.stroke();
         ctx.lineCap = 'butt';
       }
+      if (e.kind === 'bomber' && e.state === 'fuse') { // radio de la explosión
+        const k = 1 - e.timer / 0.8;
+        ctx.fillStyle = `rgba(255,80,30,${0.1 + 0.18 * k})`;
+        ctx.beginPath(); ctx.arc(e.x, e.y, 80, 0, TAU); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,120,60,.8)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(e.x, e.y, 80 * k, 0, TAU); ctx.stroke();
+      }
     }
+  }
+
+  function drawAltar() {
+    if (!altar) return;
+    const { x, y } = altar, used = altar.used;
+    if (!used) { // haz de luz
+      const g = ctx.createRadialGradient(x, y - 10, 4, x, y - 10, 90);
+      g.addColorStop(0, `rgba(255,214,122,${0.35 + 0.1 * Math.sin(clock * 3)})`); g.addColorStop(1, 'rgba(255,214,122,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - 10, 90, 0, TAU); ctx.fill();
+    }
+    ellipse(x, y + 18, 30, 10, 'rgba(0,0,0,.35)');
+    ctx.fillStyle = '#4b3e6e'; rrect(x - 26, y - 2, 52, 22, 6); ctx.fill();
+    ctx.fillStyle = '#6a5a94'; rrect(x - 22, y - 8, 44, 12, 5); ctx.fill();
+    const cy = y - 26 + Math.sin(clock * 2.5) * 4;
+    ctx.globalAlpha = used ? 0.35 : 1;
+    ctx.fillStyle = '#ffd27a';
+    ctx.beginPath(); ctx.moveTo(x, cy - 16); ctx.lineTo(x + 10, cy); ctx.lineTo(x, cy + 14); ctx.lineTo(x - 10, cy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(x - 2, cy - 9, 3, 8);
+    ctx.globalAlpha = 1;
+    if (!used) for (let i = 0; i < 3; i++) {
+      const a = clock * 1.6 + i * TAU / 3;
+      circle(x + Math.cos(a) * 34, y - 14 + Math.sin(a) * 12, 2.5, '#fff1c4');
+    }
+  }
+
+  function drawSingularity() {
+    if (!sing) return;
+    const k = 1 - sing.t / sing.max, r = 22 + 10 * k;
+    const g = ctx.createRadialGradient(sing.x, sing.y, r * 0.5, sing.x, sing.y, r * 3.2);
+    g.addColorStop(0, 'rgba(199,125,255,.45)'); g.addColorStop(1, 'rgba(199,125,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sing.x, sing.y, r * 3.2, 0, TAU); ctx.fill();
+    ctx.strokeStyle = EL.arcane.color; ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      const a = clock * 6 + i * TAU / 3;
+      ctx.beginPath(); ctx.arc(sing.x, sing.y, r + 10 + i * 6, a, a + 1.6); ctx.stroke();
+    }
+    circle(sing.x, sing.y, r, '#07040d');
+    ctx.strokeStyle = '#efdcff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sing.x, sing.y, r, 0, TAU); ctx.stroke();
   }
 
   function drawDrops() {
@@ -1570,10 +2051,13 @@
     ctx.quadraticCurveTo(x - 2 + lean, y - p.r * 1.3, x - p.r * 0.75, y - 6);
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = col; ctx.fillRect(x - p.r * 0.72, y - 10, p.r * 1.44, 3.5); // cinta del color de la escuela
-    txt('✦', x - 2 + lean * 0.5, y - p.r * 1.15, 9, '#ffcf4a', 'center', false);
+    star(x - 2 + lean * 0.5, y - p.r * 1.15, 4, '#ffcf4a');
     ctx.globalAlpha = 1;
+    if (p.shield > 0) { // escudo arcano del altar
+      ctx.strokeStyle = `rgba(159,232,255,${0.5 + 0.3 * Math.sin(clock * 5)})`; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y - 4, p.r + 12, 0, TAU); ctx.stroke();
+    }
     // vida
-    ctx.globalAlpha = 1;
     const bw = 46, bx = p.x - bw / 2, by = p.y - p.r - 30, k = clamp(p.hp / p.maxHp, 0, 1);
     ctx.fillStyle = 'rgba(0,0,0,.6)'; rrect(bx - 1.5, by - 1.5, bw + 3, 9, 4.5); ctx.fill();
     ctx.fillStyle = k < 0.3 ? '#ff5050' : '#5ee36a'; rrect(bx, by, bw * k, 6, 3); ctx.fill();
@@ -1591,12 +2075,66 @@
     }
     if (e.alpha !== undefined) alpha *= e.alpha;
     ctx.globalAlpha = alpha;
-    const fly = e.kind === 'bat' ? 10 : 0;
+    const vs = e.vscale || 1;
+    ctx.save();
+    if (vs !== 1) { ctx.translate(e.x, e.y); ctx.scale(vs, vs); ctx.translate(-e.x, -e.y); }
+    const fly = e.kind === 'bat' ? 10 : e.kind === 'spirit' ? 8 + Math.sin(e.t * 3) * 3 : 0;
     shadow(e, fly * 0.3);
     const ang = angTo(e, player);
+    if (e.elite && !spawning) { // aura dorada
+      ctx.strokeStyle = `rgba(255,207,74,${0.55 + 0.25 * Math.sin(clock * 6 + e.seed)})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(e.x, e.y - fly, e.r + 6, 0, TAU); ctx.stroke();
+    }
 
     switch (e.kind) {
       case 'slime': drawSlime(e.x, e.y, e.r, e.color, e.t * 5 + e.seed, ang); break;
+      case 'bigslime':
+        drawSlime(e.x, e.y, e.r, e.color, e.t * 3.5 + e.seed, ang);
+        circle(e.x + e.r * 0.35, e.y + e.r * 0.2, e.r * 0.18, 'rgba(20,80,40,.6)'); // núcleo que se ve dentro
+        break;
+      case 'bomber': {
+        const fuse = e.state === 'fuse';
+        const blink = fuse && Math.sin(clock * (20 + (1 - e.timer / 0.8) * 40)) > 0;
+        const jx = fuse ? rand(-1.5, 1.5) : 0;
+        circle(e.x + jx, e.y, e.r + 2, '#5a1a08');
+        circle(e.x + jx, e.y, e.r, blink ? '#fff1d6' : e.color);
+        circle(e.x + jx - 4, e.y - 5, e.r * 0.35, 'rgba(255,255,255,.3)');
+        ctx.fillStyle = '#2a1206'; // cuernecillos
+        for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(e.x + jx + s * 6, e.y - e.r + 3); ctx.lineTo(e.x + jx + s * 10, e.y - e.r - 7); ctx.lineTo(e.x + jx + s * 2, e.y - e.r + 1); ctx.closePath(); ctx.fill(); }
+        eyes(e.x + jx + Math.cos(ang) * 4, e.y + Math.sin(ang) * 4, ang, 4, 2.6, '#ffe14a', '#3a0a00');
+        ctx.strokeStyle = '#3b2a1a'; ctx.lineWidth = 2; // mecha
+        ctx.beginPath(); ctx.moveTo(e.x + jx, e.y - e.r); ctx.quadraticCurveTo(e.x + jx + 6, e.y - e.r - 8, e.x + jx + 2, e.y - e.r - 12); ctx.stroke();
+        circle(e.x + jx + 2, e.y - e.r - 12, 2.5 + Math.random() * 1.5, '#ffd27a');
+        break;
+      }
+      case 'totem': {
+        const charge = e.timer < 0.3 ? 1 - e.timer / 0.3 : 0;
+        ctx.fillStyle = '#3d3354'; rrect(e.x - e.r, e.y - e.r - 10, e.r * 2, e.r * 2 + 10, 6); ctx.fill();
+        ctx.fillStyle = e.color; rrect(e.x - e.r + 3, e.y - e.r - 14, e.r * 2 - 6, e.r * 2 + 4, 6); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(e.x - e.r + 6, e.y - e.r - 11, 4, e.r * 2 - 4);
+        ctx.globalAlpha = alpha * (0.3 + 0.7 * charge);
+        circle(e.x, e.y - 4, 14, 'rgba(201,168,255,.6)');
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = charge > 0 ? '#ffffff' : '#c9a8ff'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+        ctx.beginPath(); // runa: rombo con dos patas
+        ctx.moveTo(e.x, e.y - 14); ctx.lineTo(e.x + 7, e.y - 6); ctx.lineTo(e.x, e.y + 2); ctx.lineTo(e.x - 7, e.y - 6); ctx.closePath();
+        ctx.moveTo(e.x - 4, e.y - 1); ctx.lineTo(e.x - 9, e.y + 6); ctx.moveTo(e.x + 4, e.y - 1); ctx.lineTo(e.x + 9, e.y + 6);
+        ctx.stroke();
+        break;
+      }
+      case 'spirit': {
+        const y = e.y - fly;
+        ctx.fillStyle = 'rgba(159,216,255,.85)';
+        ctx.beginPath();
+        ctx.arc(e.x, y, e.r, Math.PI, 0);
+        for (let i = 0; i <= 4; i++) { // cola ondulada
+          const px = e.x + e.r - i * (e.r * 2 / 4), py = y + e.r * 0.9 + (i % 2 ? -5 : 4) + Math.sin(e.t * 8 + i) * 2;
+          ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fill();
+        eyes(e.x + Math.cos(ang) * 3, y - 2 + Math.sin(ang) * 3, ang, 5, 3, '#1b2a44', null);
+        break;
+      }
       case 'bat': {
         const y = e.y - fly, flap = Math.sin(e.t * 22) * 0.5 + 0.5;
         ctx.fillStyle = '#4b2380';
@@ -1652,6 +2190,7 @@
     }
 
     if (e.flash > 0) { ctx.globalAlpha = 0.7 * alpha; circle(e.x, e.y - fly, e.r, '#fff'); }
+    ctx.restore();
     ctx.globalAlpha = 1;
     if (spawning) return;
     if (e.frozen > 0) { // bloque de hielo
@@ -1665,10 +2204,11 @@
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + rand(-7, 7), y0 + rand(-7, 7)); ctx.lineTo(x0 + rand(-10, 10), y0 + rand(-10, 10)); ctx.stroke();
     }
     if (e.poisonDps > 0) circle(e.x + e.r * 0.7, e.y - e.r * 0.7 - fly, 4, '#9dff6e');
+    if (e.corrode > 0) { ctx.strokeStyle = 'rgba(212,255,74,.8)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y - fly, e.r + 5, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
     if (e.kind !== 'boss') {
-      const bw = Math.max(28, e.r * 2), by = e.y - e.r - 12 - fly, k = clamp(e.hp / e.maxHp, 0, 1);
+      const bw = Math.max(28, e.r * 2), by = e.y - e.r - (e.kind === 'totem' ? 24 : 12) - fly, k = clamp(e.hp / e.maxHp, 0, 1);
       ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(e.x - bw / 2 - 1, by - 1, bw + 2, 6);
-      ctx.fillStyle = '#ff4d4d'; ctx.fillRect(e.x - bw / 2, by, bw * k, 4);
+      ctx.fillStyle = e.elite ? '#ffcf4a' : '#ff4d4d'; ctx.fillRect(e.x - bw / 2, by, bw * k, 4);
     }
   }
 
@@ -1775,6 +2315,17 @@
     }
   }
 
+  function drawMotes() {
+    for (let i = 0; i < 28; i++) {
+      const sp = 8 + (i % 5) * 5;
+      const x = ((i * 83.7 + Math.sin(clock * 0.5 + i) * 30) % W + W) % W;
+      const y = H - ((clock * sp + i * 137) % (H + 40));
+      ctx.globalAlpha = 0.3 + 0.25 * Math.sin(clock * 2 + i);
+      circle(x, y, 1.5 + (i % 3), i % 4 ? '#c77dff' : '#ffd27a');
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function drawRings() {
     for (const r of rings) {
       const k = 1 - r.t / r.max;
@@ -1865,6 +2416,12 @@
     ctx.fillStyle = '#2a2340'; rrect(bx, 30, bw, 18, 9); ctx.fill();
     if (k > 0) { ctx.fillStyle = '#ffd25a'; rrect(bx, 30, Math.max(18, bw * k), 18, 9); ctx.fill(); }
     txt(`SALA ${room} / ${TOTAL_ROOMS}`, bx, 72, 20, '#ffffff', 'left', false);
+    if (player.revives > 0) { // pluma de fénix disponible
+      ctx.save(); ctx.translate(bx + 190, 72); ctx.rotate(-0.6);
+      ellipse(0, 0, 4, 10, '#ff9a3d'); ellipse(0, -2, 2, 6, '#ffd27a');
+      ctx.strokeStyle = '#ffe9b0'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, 13); ctx.stroke();
+      ctx.restore();
+    }
     txt(`☠ ${kills}`, bx + bw, 72, 18, '#cfc6e8', 'right', false);
     // barra del jefe
     if (boss && !boss.dead) {
@@ -1873,7 +2430,24 @@
       ctx.fillStyle = boss.enraged ? '#ff3b3b' : '#e0453a'; rrect(x, y, w * kb, 20, 7); ctx.fill();
       txt(boss.name.toUpperCase(), AX + AW / 2, y + 10, 13, '#fff');
     }
-    if (room === 1 && !cleared) txt('Quieto = lanzas hechizos  ·  Moviéndote = esquivas', W / 2, H - 20, 15, 'rgba(255,255,255,.7)');
+    if (tut && TUT_TEXT[tut.step]) hint(TUT_TEXT[tut.step](), '#ffd27a');
+    else if (!settings.ultTip && player.mana >= 100 && enemies.length) {
+      hint(TOUCH ? '¡Definitivo listo! Toca el botón brillante' : '¡Definitivo listo! Pulsa Espacio', EL[player.school].color);
+      if (TOUCH) { // flecha hacia el botón
+        const bxu = settings.lefty ? 74 : W - 74, bob = Math.sin(clock * 8) * 6;
+        txt('▼', bxu, 828 + bob, 28, EL[player.school].color, 'center', true);
+      }
+    }
+  }
+
+  function hint(text, color) {
+    ctx.font = `800 17px ${FONT}`;
+    const w = Math.min(W - 40, ctx.measureText(text).width + 40), y = 770;
+    ctx.globalAlpha = 0.75 + 0.25 * Math.sin(clock * 4);
+    ctx.fillStyle = 'rgba(12,8,22,.85)'; rrect(W / 2 - w / 2, y - 22, w, 44, 22); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    txt(text, W / 2, y, 17, color, 'center', false);
+    ctx.globalAlpha = 1;
   }
 
   function drawVignette() {
@@ -1909,11 +2483,14 @@
     ctx.fillStyle = '#120e1c';
     ctx.fillRect(0, 0, W, H);
     ctx.save();
-    if (shake > 0) ctx.translate(rand(-shake, shake) * 0.6, rand(-shake, shake) * 0.6);
+    if (shake > 0 && settings.shake) ctx.translate(rand(-shake, shake) * 0.6, rand(-shake, shake) * 0.6);
     drawRoom();
+    if (!player) drawMotes(); // motas mágicas flotando detrás de los menús
     if (player) {
       drawTelegraphs();
       drawMeteorMarks();
+      drawAltar();
+      drawSingularity();
       drawDrops();
       const list = enemies.slice();
       if (player.hp > 0) list.push(player);
@@ -1941,13 +2518,14 @@
       drawJoystick();
     }
     if (fade > 0) { ctx.fillStyle = `rgba(10,7,18,${fade})`; ctx.fillRect(0, 0, W, H); }
+    if (settings.fps) txt(`${Math.round(fps)} FPS`, 10, H - 12, 13, '#9fe8ff', 'left', true);
   }
 
   // ================================================================
   //  Pantallas (DOM)
   // ================================================================
-  function showOverlay(html) { overlay.innerHTML = html; overlay.classList.remove('hidden'); }
-  function hideOverlay() { overlay.classList.add('hidden'); overlay.innerHTML = ''; }
+  function showOverlay(html, cls = '') { overlay.className = cls; overlay.innerHTML = html; }
+  function hideOverlay() { overlay.className = 'hidden'; overlay.innerHTML = ''; }
   function hud(show) {
     hudBtns.classList.toggle('hidden', !show);
     btnUlt.classList.toggle('hidden', !show);
@@ -1976,30 +2554,223 @@
       `<span class="chip" title="${k.name}">${k.icon}${player.sk[k.id] > 1 ? `<i>${player.sk[k.id]}</i>` : ''}</span>`).join('')}</div>`;
   }
 
+  // ---------- Intro: Doublelag Games ----------
+  let splashTimer = 0;
+  function showSplash() {
+    state = 'splash';
+    hud(false);
+    showOverlay(`
+      <div class="splash" data-act="skip">
+        <div class="dl-logo">
+          <img src="assets/doublelag-logo.png" alt="" onerror="this.style.display='none'">
+          <div class="dl-word">DOUBLELAG<span>GAMES</span></div>
+        </div>
+        <div class="dl-pres">presenta</div>
+      </div>`, 'solid');
+    clearTimeout(splashTimer);
+    splashTimer = setTimeout(showTapToStart, 2800);
+  }
+
+  // pantalla intermedia: el primer toque desbloquea el audio en móvil
+  function showTapToStart() {
+    clearTimeout(splashTimer);
+    if (state !== 'splash') return;
+    state = 'tap';
+    showOverlay(`
+      <div class="panel tap" data-act="start">
+        <div class="logo big">ARCANO</div>
+        <div class="tag">Roguelite de magia</div>
+        <div class="tap-hint">${TOUCH ? 'Toca para empezar' : 'Haz clic o pulsa una tecla'}</div>
+        <div class="by">Un juego de <b>Doublelag Games</b></div>
+      </div>`);
+  }
+
+  function startFromTap() {
+    Sfx.init();
+    showMenu();
+  }
+
   function showMenu() {
     state = 'menu';
     player = null; boss = null; room = 0;
     enemies = []; shots = []; bullets = []; drops = []; parts = []; texts = []; bolts = [];
-    rings = []; meteors = []; storm = null; toast = null; screenFlash = null;
+    rings = []; meteors = []; storm = null; sing = null; altar = null; toast = null; screenFlash = null;
     cleared = true; doorAnim = 1; fade = 0; shake = 0;
     grid = genRocks(false);
     hud(false);
+    music('menu');
     const b = store.get('best', null);
+    const done = ACHIEVEMENTS.filter(a => meta.ach[a.id]).length;
     showOverlay(`
-      <div class="panel">
+      <div class="panel menu">
         <div class="logo">ARCANO</div>
         <div class="tag">Roguelite de magia · ${TOTAL_ROOMS} salas · 4 jefes</div>
         <button class="btn primary menu-play" data-act="play">JUGAR</button>
-        ${b ? `<div class="best">Récord: ${b.school ? SCHOOLS[b.school].icon + ' ' : ''}${b.win ? '🏆 Mazmorra completada' : 'Sala ' + b.room} · Nivel ${b.lvl}</div>` : ''}
-        <div class="howto">
-          <div><b>Muévete</b> para esquivar</div>
-          <div><b>Quédate quieto</b> para lanzar hechizos</div>
-          <div><b>Combina elementos</b> para crear reacciones</div>
-          <div>Carga tu <b>hechizo definitivo</b> y suéltalo</div>
-          <div class="dim">Móvil: arrastra el dedo · PC: WASD/flechas · Espacio = definitivo · P = pausa</div>
+        <button class="btn ghost" data-act="shop">🏛️ Santuario <span class="ess">✨ ${meta.essence}</span></button>
+        <div class="btn-row">
+          <button class="btn ghost" data-act="stats">🏆 Logros <span class="cnt">${done}/${ACHIEVEMENTS.length}</span></button>
+          <button class="btn ghost" data-act="settings">⚙️ Ajustes</button>
         </div>
+        ${installEvt ? '<button class="btn ghost install" data-act="install">📲 Instalar en el móvil</button>' : ''}
+        ${b ? `<div class="best">Récord: ${b.school && SCHOOLS[b.school] ? SCHOOLS[b.school].icon + ' ' : ''}${b.win ? '🏆 Mazmorra completada' : 'Sala ' + b.room} · Nivel ${b.lvl}</div>` : ''}
+        <div class="howto">
+          <div><b>Muévete</b> para esquivar · <b>quieto</b> para lanzar hechizos</div>
+          <div><b>Combina elementos</b> y suelta tu <b>definitivo</b></div>
+        </div>
+        <div class="foot"><button class="link" data-act="credits">Doublelag Games</button> · v${VERSION}</div>
       </div>`);
   }
+
+  // ---------- Ajustes ----------
+  let settingsFrom = 'menu', notice = '';
+  const TOGGLES = [
+    ['vibration', '📳', 'Vibración', 'Al recibir un golpe (solo móvil)'],
+    ['shake', '💥', 'Temblor de pantalla', ''],
+    ['dmgNumbers', '🔢', 'Números de daño', ''],
+    ['lefty', '✋', 'Modo zurdo', 'El botón del definitivo pasa a la izquierda'],
+    ['fps', '📊', 'Mostrar FPS', ''],
+  ];
+  const slider = (k, ic, name) => `<label class="set-row"><span class="ic">${ic}</span><span class="tx"><b>${name}</b></span>
+      <input type="range" min="0" max="100" step="5" value="${Math.round(settings[k] * 100)}" data-set="${k}" aria-label="${name}"></label>`;
+
+  function showSettings(from) {
+    if (from) settingsFrom = from;
+    const st = state === 'settings' ? panelScroll() : 0;
+    state = 'settings';
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone;
+    showOverlay(`
+      <div class="panel shop settings">
+        <div class="title">AJUSTES</div>
+        ${notice ? `<div class="notice">${notice}</div>` : ''}
+        <div class="set-list">
+          ${slider('music', '🎵', 'Música')}
+          ${slider('sfx', '🔊', 'Efectos')}
+          ${TOGGLES.map(([k, ic, name, sub]) => `<button class="set-row" data-act="toggle" data-key="${k}">
+            <span class="ic">${ic}</span><span class="tx"><b>${name}</b>${sub ? `<i>${sub}</i>` : ''}</span>
+            <span class="sw ${settings[k] ? 'on' : ''}"></span></button>`).join('')}
+          <div class="set-row"><span class="ic">🎨</span><span class="tx"><b>Calidad gráfica</b><i>Baja = más fluido en móviles modestos</i></span>
+            <span class="seg"><button data-act="quality" data-v="alta" class="${settings.quality === 'alta' ? 'on' : ''}">Alta</button><button data-act="quality" data-v="baja" class="${settings.quality === 'baja' ? 'on' : ''}">Baja</button></span></div>
+          <button class="set-row" data-act="tutorial"><span class="ic">🎓</span><span class="tx"><b>Ver el tutorial otra vez</b>
+            <i>${settings.tutorial ? 'Toca para que salga en la próxima partida' : 'Saldrá en tu próxima partida ✓'}</i></span></button>
+        </div>
+        ${ios ? '<div class="dim">En iPhone: Compartir → «Añadir a pantalla de inicio» para jugar a pantalla completa</div>' : ''}
+        <div class="btn-row">
+          <button class="btn ghost" data-act="credits">Créditos</button>
+          <button class="btn ghost danger" data-act="reset">Borrar progreso</button>
+        </div>
+        <button class="btn primary sticky" data-act="back">VOLVER</button>
+      </div>`);
+    notice = '';
+    restoreScroll(st);
+  }
+
+  function applySettings() {
+    wrap.classList.toggle('lefty', settings.lefty);
+    Sfx.applyVolumes();
+    resize();
+  }
+
+  function toggleSetting(k) {
+    settings[k] = !settings[k];
+    saveSettings();
+    applySettings();
+    Sfx.click();
+    if (k === 'vibration' && settings.vibration) vibrate(40);
+    showSettings();
+  }
+
+  function resetProgress() {
+    const fresh = META_DEFAULT();
+    for (const k of Object.keys(meta)) delete meta[k];
+    Object.assign(meta, fresh);
+    saveMeta();
+    store.del('best');
+    settings.tutorial = false; settings.ultTip = false;
+    saveSettings();
+    notice = 'Progreso borrado: empiezas de cero';
+    showSettings();
+  }
+
+  // ---------- Créditos ----------
+  let creditsFrom = 'menu';
+  function showCredits(from) {
+    creditsFrom = from || 'menu';
+    state = 'credits';
+    showOverlay(`
+      <div class="panel credits">
+        <div class="dl-logo small">
+          <img src="assets/doublelag-logo.png" alt="" onerror="this.style.display='none'">
+          <div class="dl-word">DOUBLELAG<span>GAMES</span></div>
+        </div>
+        <div class="logo mid">ARCANO</div>
+        <div class="cred">
+          <div><span>Un juego de</span><b>Doublelag Games</b></div>
+          <div><span>Idea y dirección</span><b>Double</b></div>
+          <div><span>Música y sonido</span><b>Sintetizados en tiempo real</b></div>
+          <div><span>Versión</span><b>v${VERSION} · 2026</b></div>
+        </div>
+        <div class="sec">Sigue a Doublelag</div>
+        <div class="btn-row">
+          <a class="btn ghost yt" href="https://www.youtube.com/@Doublelag" target="_blank" rel="noopener">▶ Doublelag</a>
+          <a class="btn ghost yt" href="https://www.youtube.com/@DoublelagGTA6" target="_blank" rel="noopener">▶ Doublelag GTA6</a>
+        </div>
+        <div class="dim thanks">Gracias por jugar ❤️</div>
+        <button class="btn primary" data-act="back">VOLVER</button>
+      </div>`);
+  }
+
+  // ---------- Logros y estadísticas ----------
+  const fmtLong = s => s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min` : `${Math.floor(s / 60)} min`;
+  function showStats() {
+    state = 'stats';
+    const S = meta.stats;
+    const done = ACHIEVEMENTS.filter(a => meta.ach[a.id]).length;
+    const bests = Object.entries(SCHOOLS).map(([id, s]) => {
+      const b = S.best[id], w = S.winsBy[id] || 0;
+      return `<div class="sb ${schoolOpen(id) ? '' : 'off'}" style="--c:${EL[id].color}">
+          <span>${schoolOpen(id) ? s.icon : '🔒'}</span><b>${b ? (b > TOTAL_ROOMS ? '🏆' : 'Sala ' + b) : '—'}</b>
+          <i>${w ? w + (w > 1 ? ' victorias' : ' victoria') : s.name}</i></div>`;
+    }).join('');
+    const achs = ACHIEVEMENTS.map(a => {
+      const got = meta.ach[a.id];
+      return `<div class="shop-item ach ${got ? 'got' : ''}"><span class="ic">${got ? a.icon : '🔒'}</span>
+          <span class="tx"><b>${a.name}</b><i>${a.desc}</i></span><span class="price">${got ? '✓' : '✨ ' + a.reward}</span></div>`;
+    }).join('');
+    showOverlay(`
+      <div class="panel shop">
+        <div class="title gold">LOGROS</div>
+        <div class="sub">${done} de ${ACHIEVEMENTS.length} desbloqueados</div>
+        <div class="stats">
+          <div><span>Partidas</span><b>${meta.runs}</b></div>
+          <div><span>Victorias</span><b>${S.wins}</b></div>
+          <div><span>Bajas</span><b>${S.kills}</b></div>
+          <div><span>Jefes</span><b>${S.bosses}</b></div>
+          <div><span>Reacciones</span><b>${S.reactions}</b></div>
+          <div><span>Tiempo jugado</span><b>${fmtLong(S.time)}</b></div>
+        </div>
+        <div class="sec">Mejor sala por escuela</div>
+        <div class="sbests">${bests}</div>
+        <div class="sec">Logros</div>
+        <div class="shop-list">${achs}</div>
+        <button class="btn primary sticky" data-act="back">VOLVER</button>
+      </div>`);
+  }
+
+  function goBack() {
+    Sfx.click();
+    if (state === 'settings') return settingsFrom === 'pause' ? showPause() : showMenu();
+    if (state === 'credits') return creditsFrom === 'settings' ? showSettings() : showMenu();
+    showMenu();
+  }
+
+  function panelScroll() { const p = overlay.querySelector('.panel'); return p ? p.scrollTop : 0; }
+  function restoreScroll(st) { const p = overlay.querySelector('.panel'); if (p && st) p.scrollTop = st; }
+
+  // instalar como app (Android/Chrome); en iPhone se explica en Ajustes
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (state === 'menu') showMenu(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; if (state === 'menu') showMenu(); });
+
 
   function rollSkills(n) {
     const pool = SKILLS.filter(k => (player.sk[k.id] || 0) < k.max && (!k.cond || k.cond()));
@@ -2031,12 +2802,114 @@
           <kbd>${i + 1}</kbd>
         </button>`;
     }).join('');
+    const reroll = player.rerolls > 0 ? `<button class="btn ghost reroll" data-act="reroll">🍀 Cambiar cartas (${player.rerolls})</button>` : '';
     showOverlay(`
       <div class="panel">
         <div class="title gold">${title}</div>
         <div class="sub">Elige una habilidad</div>
         <div class="cards">${cards}</div>
+        ${reroll}
       </div>`);
+  }
+
+  // ---------- Altar (sala de descanso antes de cada jefe) ----------
+  function openAltar() {
+    altar.used = true;
+    state = 'altar';
+    resetJoy();
+    lockUntil = performance.now() + 380;
+    Sfx.level();
+    showOverlay(`
+      <div class="panel">
+        <div class="title gold">ALTAR</div>
+        <div class="sub">Elige una bendición antes del jefe</div>
+        <div class="cards">
+          <button class="card" data-act="altar" data-id="heal">
+            <div class="ic">⛲</div>
+            <div class="tx"><div class="nm">Fuente sagrada</div><div class="ds">Recuperas el 60% de la vida (${Math.ceil(player.hp)}/${player.maxHp})</div></div><kbd>1</kbd>
+          </button>
+          <button class="card" data-act="altar" data-id="bless" style="animation-delay:70ms">
+            <div class="ic">✨</div>
+            <div class="tx"><div class="nm">Bendición arcana</div><div class="ds">Subes un nivel ahora mismo</div></div><kbd>2</kbd>
+          </button>
+          ${player.mana >= 100 ? `<button class="card" data-act="altar" data-id="shield" style="animation-delay:140ms">
+            <div class="ic">🛡️</div>
+            <div class="tx"><div class="nm">Escudo arcano</div><div class="ds">Bloquea por completo el primer golpe del jefe</div></div><kbd>3</kbd>
+          </button>` : `<button class="card" data-act="altar" data-id="mana" style="animation-delay:140ms">
+            <div class="ic">${SCHOOLS[player.school].ultIcon}</div>
+            <div class="tx"><div class="nm">Ofrenda de maná</div><div class="ds">Tu ${SCHOOLS[player.school].ult} empieza el jefe cargado</div></div><kbd>3</kbd>
+          </button>`}
+        </div>
+      </div>`);
+  }
+
+  function pickAltar(id) {
+    hideOverlay();
+    state = 'play';
+    if (id === 'heal') heal(player.maxHp * 0.6);
+    else if (id === 'bless') { player.lvl++; pendingLevels++; }
+    else if (id === 'shield') player.shield = 1;
+    else { player.mana = 100; syncUlt(true); }
+    Sfx.pick();
+    burst(altar.x, altar.y - 20, '#ffd27a', 24, 200);
+  }
+
+  // ---------- Santuario: mejoras permanentes ----------
+  function showShop() {
+    const st = state === 'shop' ? panelScroll() : 0;
+    state = 'shop';
+    const rows = META_UPS.map(u => {
+      const lv = metaLv(u.id), maxed = lv >= u.max, cost = maxed ? 0 : u.cost[lv];
+      return `<button class="shop-item${maxed ? ' maxed' : ''}" data-act="buy" data-id="${u.id}" ${maxed || meta.essence < cost ? 'disabled' : ''}>
+          <span class="ic">${u.icon}</span>
+          <span class="tx"><b>${u.name}</b><i>${u.desc}</i><span class="pips">${'●'.repeat(lv)}${'○'.repeat(u.max - lv)}</span></span>
+          <span class="price">${maxed ? 'MÁX' : '✨ ' + cost}</span>
+        </button>`;
+    }).join('');
+    const schools = Object.entries(SCHOOLS).filter(([id]) => !schoolOpen(id)).map(([id, s]) => `
+        <button class="shop-item school" data-act="buyschool" data-id="${id}" style="--c:${EL[id].color}" ${meta.essence < s.cost ? 'disabled' : ''}>
+          <span class="ic">${s.icon}</span>
+          <span class="tx"><b>${s.name}</b><i>${s.ultIcon} ${s.ult}: ${s.ultDesc}</i></span>
+          <span class="price">✨ ${s.cost}</span>
+        </button>`).join('');
+    showOverlay(`
+      <div class="panel shop">
+        <div class="title gold">SANTUARIO</div>
+        <div class="sub">Mejoras permanentes · <b class="ess">✨ ${meta.essence} de esencia</b></div>
+        <div class="dim">La esencia se gana en cada partida: salas, bajas y jefes</div>
+        ${schools ? `<div class="sec">Escuelas</div><div class="shop-list">${schools}</div>` : ''}
+        <div class="sec">Mejoras</div>
+        <div class="shop-list">${rows}</div>
+        <button class="btn primary sticky" data-act="back">VOLVER</button>
+      </div>`);
+    restoreScroll(st);
+  }
+
+  function buyUpgrade(id) {
+    const u = META_UPS.find(x => x.id === id), lv = metaLv(id);
+    if (!u || lv >= u.max || meta.essence < u.cost[lv]) return;
+    meta.essence -= u.cost[lv];
+    meta.up[id] = lv + 1;
+    saveMeta();
+    Sfx.buy();
+    lockUntil = performance.now() + 300;
+    showShop();
+  }
+
+  function buySchool(id) {
+    const s = SCHOOLS[id];
+    if (!s || schoolOpen(id) || meta.essence < s.cost) return;
+    meta.essence -= s.cost;
+    meta.schools.push(id);
+    saveMeta();
+    Sfx.buy();
+    lockUntil = performance.now() + 300;
+    if (Object.keys(SCHOOLS).every(schoolOpen)) unlock('allSchools');
+    showShop();
+  }
+
+  function calcEssence(win) {
+    return Math.round(Math.max(0, room - 1) * 3 + kills * 0.4 + bossesKilled * 15 + (win ? 40 : 0));
   }
 
   function pickSkill(id) {
@@ -2055,6 +2928,9 @@
 
   function pause() {
     if (state !== 'play') return;
+    showPause();
+  }
+  function showPause() {
     state = 'paused';
     resetJoy();
     showOverlay(`
@@ -2065,13 +2941,14 @@
         <div class="sec">Reacciones</div>
         ${reactionList()}
         <button class="btn primary" data-act="resume" style="margin-top:calc(var(--u)*26px)">CONTINUAR</button>
-        <button class="btn ghost" data-act="menu">ABANDONAR</button>
+        <button class="btn ghost" data-act="settings-pause">⚙️ Ajustes</button>
+        <button class="btn quit" data-act="quit">Abandonar partida</button>
       </div>`);
   }
   function resume() { if (state !== 'paused') return; hideOverlay(); state = 'play'; last = performance.now(); }
   function togglePause() { if (state === 'play') pause(); else if (state === 'paused') resume(); }
 
-  function showEnd(win) {
+  function showEnd(win, quit = false) {
     state = win ? 'win' : 'over';
     hud(false);
     resetJoy();
@@ -2080,10 +2957,28 @@
     const cur = { room, lvl: player.lvl, win, school: player.school };
     const better = !prev || (win && !prev.win) || (!prev.win && (room > prev.room || (room === prev.room && player.lvl > prev.lvl)));
     if (better) store.set('best', cur);
+    runEssence = calcEssence(win);
+    meta.essence += runEssence;
+    meta.runs++;
+    const S = meta.stats;
+    S.essenceTotal += runEssence;
+    S.best[player.school] = Math.max(S.best[player.school] || 0, win ? TOTAL_ROOMS + 1 : room);
+    if (win) {
+      S.wins++;
+      S.winsBy[player.school] = (S.winsBy[player.school] || 0) + 1;
+      unlock('firstWin');
+      if (runTime < 360) unlock('speedrun');
+      if (Object.keys(SCHOOLS).every(id => S.winsBy[id])) unlock('winAll');
+      music('victory');
+    } else if (quit) music('menu');
+    saveMeta();
+    const title = win ? '¡VICTORIA!' : quit ? 'PARTIDA TERMINADA' : 'HAS CAÍDO';
+    const sub = win ? 'Has limpiado la mazmorra entera' : `${quit ? 'abandonaste' : 'caíste'} en la sala ${room} de ${TOTAL_ROOMS}`;
     showOverlay(`
       <div class="panel">
-        <div class="title ${win ? 'gold' : 'red'}">${win ? '¡VICTORIA!' : 'HAS CAÍDO'}</div>
-        <div class="sub">${SCHOOLS[player.school].icon} ${SCHOOLS[player.school].name} · ${win ? 'Has limpiado la mazmorra entera' : `caíste en la sala ${room} de ${TOTAL_ROOMS}`}</div>
+        <div class="title ${win ? 'gold' : 'red'}">${title}</div>
+        <div class="sub">${SCHOOLS[player.school].icon} ${SCHOOLS[player.school].name} · ${sub}</div>
+        <div class="earn">+✨ ${runEssence} de esencia <span>(tienes ${meta.essence})</span></div>
         <div class="stats">
           <div><span>Sala</span><b>${room}/${TOTAL_ROOMS}</b></div>
           <div><span>Nivel</span><b>${player.lvl}</b></div>
@@ -2093,7 +2988,10 @@
         ${better ? '<div class="newbest">¡Nuevo récord!</div>' : ''}
         ${skillChips()}
         <button class="btn primary" data-act="play" style="margin-top:calc(var(--u)*28px)">${win ? 'OTRA VEZ' : 'REINTENTAR'}</button>
-        <button class="btn ghost" data-act="menu">MENÚ</button>
+        <div class="btn-row">
+          <button class="btn ghost" data-act="shop">🏛️ SANTUARIO</button>
+          <button class="btn ghost" data-act="menu">MENÚ</button>
+        </div>
       </div>`);
   }
 
@@ -2102,11 +3000,48 @@
     if (!el) return;
     Sfx.init();
     const act = el.dataset.act;
-    if (act === 'play') { hideOverlay(); newRun(); }
-    else if (act === 'pick') { if (performance.now() >= lockUntil) pickSkill(el.dataset.id); }
-    else if (act === 'school') { if (performance.now() >= lockUntil) pickSchool(el.dataset.id); }
+    const now = performance.now(), ready = now >= lockUntil;
+    if (act === 'skip') showTapToStart();
+    else if (act === 'start') startFromTap();
+    else if (act === 'play') { hideOverlay(); newRun(); }
+    else if (act === 'pick') { if (ready) pickSkill(el.dataset.id); }
+    else if (act === 'school') { if (ready) pickSchool(el.dataset.id); }
+    else if (act === 'altar') { if (ready) pickAltar(el.dataset.id); }
+    else if (act === 'reroll') { if (ready && player.rerolls > 0) { player.rerolls--; Sfx.pick(); openLevelUp(); } }
     else if (act === 'resume') resume();
-    else if (act === 'menu') showMenu();
+    else if (act === 'quit') { // dos toques para no perder una partida por accidente
+      if (el.dataset.armed && ready) showEnd(false, true);
+      else { el.dataset.armed = '1'; el.classList.add('armed'); el.textContent = '¿Seguro? Toca otra vez para abandonar'; lockUntil = now + 400; }
+    }
+    else if (act === 'shop') { Sfx.click(); showShop(); }
+    else if (act === 'buy') { if (ready) buyUpgrade(el.dataset.id); }
+    else if (act === 'buyschool') { if (ready) buySchool(el.dataset.id); }
+    else if (act === 'stats') { Sfx.click(); showStats(); }
+    else if (act === 'settings') { Sfx.click(); showSettings('menu'); }
+    else if (act === 'settings-pause') { Sfx.click(); showSettings('pause'); }
+    else if (act === 'credits') { Sfx.click(); showCredits(state === 'settings' ? 'settings' : 'menu'); }
+    else if (act === 'toggle') toggleSetting(el.dataset.key);
+    else if (act === 'quality') { settings.quality = el.dataset.v; saveSettings(); applySettings(); Sfx.click(); showSettings(); }
+    else if (act === 'tutorial') { settings.tutorial = false; settings.ultTip = false; saveSettings(); Sfx.click(); showSettings(); }
+    else if (act === 'reset') {
+      if (el.dataset.armed && ready) resetProgress();
+      else { el.dataset.armed = '1'; el.classList.add('armed'); el.textContent = '¿Seguro? Se borra todo'; lockUntil = now + 400; }
+    }
+    else if (act === 'install') {
+      if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; if (state === 'menu') showMenu(); }); }
+    }
+    else if (act === 'back') goBack();
+    else if (act === 'menu') { Sfx.click(); showMenu(); }
+  });
+  // deslizadores de volumen
+  overlay.addEventListener('input', e => {
+    const k = e.target.dataset && e.target.dataset.set;
+    if (!k) return;
+    settings[k] = clamp(+e.target.value / 100, 0, 1);
+    saveSettings();
+    Sfx.init();
+    Sfx.applyVolumes();
+    if (k === 'sfx') Sfx.click();
   });
   // pointerdown (no click) para que funcione con otro dedo en el joystick
   btnUlt.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Sfx.init(); castUlt(); });
@@ -2136,7 +3071,7 @@
         render();
         return state;
       },
-      pick(i = 0) { const c = overlay.querySelectorAll('[data-act="pick"],[data-act="school"]')[i]; if (c) { lockUntil = 0; c.click(); } return state; },
+      pick(i = 0) { const c = overlay.querySelectorAll('[data-act="pick"],[data-act="school"]:not(.locked),[data-act="altar"]')[i]; if (c) { lockUntil = 0; c.click(); } return state; },
       ult() { player.mana = 100; castUlt(); },
       seen() { return [...seenReactions]; },
       give(id, n = 1) { for (let i = 0; i < n; i++) pickSkill(id); },
@@ -2146,6 +3081,7 @@
     });
   }
 
-  showMenu();
+  applySettings();
+  if (/[?&]debug\b/.test(location.search)) showMenu(); else showSplash();
   requestAnimationFrame(frame);
 })();
