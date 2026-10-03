@@ -2116,13 +2116,13 @@
   syncMute();
 
   // Acceso para depurar desde la consola (las herramientas que modifican la partida solo con ?debug)
-  window.__arquero = {
+  window.__arcano = {
     get state() { return state; }, get room() { return room; }, get player() { return player; },
     get enemies() { return enemies; }, get bullets() { return bullets; }, get grid() { return grid; },
     get kills() { return kills; },
   };
   if (/[?&]debug\b/.test(location.search)) {
-    Object.assign(window.__arquero, {
+    Object.assign(window.__arcano, {
       // avanza la simulación sin depender de requestAnimationFrame (pestañas ocultas, pruebas)
       step(sec, hold = []) {
         hold.forEach(k => keys.add(k));

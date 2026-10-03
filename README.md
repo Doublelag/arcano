@@ -23,4 +23,4 @@ Abre http://localhost:5191. Controles: arrastrar el dedo (joystick flotante) o W
 
 ## Depuración
 
-Con `?debug` en la URL, `window.__arquero` expone `step(seg)`, `pick(i)`, `give(id, n)`, `goto(sala)`, `toDoor()`, `god()`, `ult()` y `seen()` para simular partidas sin depender de `requestAnimationFrame`.
+Con `?debug` en la URL, `window.__arcano` expone `step(seg)`, `pick(i)`, `give(id, n)`, `goto(sala)`, `toDoor()`, `god()`, `ult()` y `seen()` para simular partidas sin depender de `requestAnimationFrame`.

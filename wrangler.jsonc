@@ -1,0 +1,10 @@
+// Cloudflare Workers con archivos estáticos. Solo se sube public/.
+// Publicar:  wrangler deploy
+{
+  "name": "arcano",
+  "compatibility_date": "2026-10-03",
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash"
+  }
+}
