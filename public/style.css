@@ -576,3 +576,135 @@ a.btn { text-decoration: none; text-align: center; }
 #achToast .tx b { font-size: max(10px, calc(var(--u) * 13px)); }
 .panel.tap { position: absolute; inset: 0; width: 100%; max-height: none; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .btn.quit.armed { background: rgba(255, 70, 70, .22); border-color: #ff5a5a; color: #ffd0d0; }
+
+.earn-parts { margin-top: calc(var(--u) * 4px); font-size: max(11px, calc(var(--u) * 14px)); opacity: .6; }
+
+/* ---------- HUD estilo Archero: pausa arriba a la izquierda, el sonido va en Ajustes ---------- */
+#hudBtns { left: calc(var(--u) * 14px); right: auto; top: calc(var(--u) * 15px); }
+#btnMute { display: none; }
+#btnPause {
+  width: calc(var(--u) * 50px);
+  height: calc(var(--u) * 50px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #5a4a8a, #2a1f48);
+  border: calc(var(--u) * 3px) solid #0c0816;
+  box-shadow: 0 calc(var(--u) * 3px) 0 #05030a, inset 0 calc(var(--u) * 2px) 0 rgba(255, 255, 255, .25);
+  font-size: calc(var(--u) * 20px);
+}
+
+/* ================================================================
+   Estilo Archero: botones gruesos con relieve, texto con contorno y ventanas emergentes
+   ================================================================ */
+:root {
+  --ink: #160c26;           /* contorno oscuro de botones y textos */
+}
+.btn {
+  position: relative;
+  border: calc(var(--u) * 3px) solid var(--ink);
+  border-radius: calc(var(--u) * 16px);
+  color: #fff;
+  letter-spacing: .03em;
+  text-shadow:
+    0 calc(var(--u) * 2.5px) 0 var(--ink), calc(var(--u) * 2px) 0 0 var(--ink),
+    calc(var(--u) * -2px) 0 0 var(--ink), 0 calc(var(--u) * -2px) 0 var(--ink);
+  box-shadow: 0 calc(var(--u) * 6px) 0 var(--ink), inset 0 calc(var(--u) * 3px) 0 rgba(255, 255, 255, .35), inset 0 calc(var(--u) * -4px) 0 rgba(0, 0, 0, .18);
+  transition: transform .06s;
+}
+.btn:active { transform: translateY(calc(var(--u) * 4px)); box-shadow: 0 calc(var(--u) * 2px) 0 var(--ink), inset 0 calc(var(--u) * 3px) 0 rgba(255, 255, 255, .35); }
+.btn.primary { background: linear-gradient(#ffe066, #ffb21f 55%, #f08a0c); color: #fff; }
+.btn.primary:active { box-shadow: 0 calc(var(--u) * 2px) 0 var(--ink), inset 0 calc(var(--u) * 3px) 0 rgba(255, 255, 255, .35); }
+.btn.ghost { background: linear-gradient(#5cb6ff, #2f7fe8 60%, #2462c4); color: #fff; }
+.btn.danger { background: linear-gradient(#ff7a7a, #e23b3b 60%, #b82424); color: #fff; }
+.btn.danger.armed { background: linear-gradient(#ffb0b0, #ff5a5a); }
+.btn.wide { width: 100%; margin-top: calc(var(--u) * 12px); font-size: calc(var(--u) * 18px); padding: calc(var(--u) * 12px); }
+.btn .ess, .btn .cnt { text-shadow: inherit; }
+.btn.sticky { box-shadow: 0 calc(var(--u) * -14px) calc(var(--u) * 18px) rgba(8, 6, 14, .9), 0 calc(var(--u) * 6px) 0 var(--ink), inset 0 calc(var(--u) * 3px) 0 rgba(255, 255, 255, .35); }
+.btn.quit { text-shadow: none; box-shadow: none; border-width: 1px; }
+.title, .logo + .tag { text-shadow: 0 calc(var(--u) * 3px) 0 var(--ink), calc(var(--u) * 2px) 0 0 var(--ink), calc(var(--u) * -2px) 0 0 var(--ink); }
+
+/* ---------- ventana emergente (Ajustes) ---------- */
+.popup {
+  width: 88%;
+  max-height: 96%;
+  display: flex;
+  flex-direction: column;
+  border: calc(var(--u) * 4px) solid var(--ink);
+  border-radius: calc(var(--u) * 22px);
+  background: linear-gradient(#3b2f66, #251d45);
+  box-shadow: 0 calc(var(--u) * 10px) 0 var(--ink), 0 calc(var(--u) * 20px) calc(var(--u) * 40px) rgba(0, 0, 0, .6), inset 0 calc(var(--u) * 3px) 0 rgba(255, 255, 255, .15);
+  animation: popIn .22s cubic-bezier(.2, 1.4, .4, 1) both;
+  overflow: hidden;
+}
+@keyframes popIn { from { transform: scale(.75); opacity: 0; } to { transform: none; opacity: 1; } }
+.pop-head {
+  position: relative;
+  padding: calc(var(--u) * 14px) calc(var(--u) * 60px);
+  text-align: center;
+  font-weight: 900;
+  font-size: calc(var(--u) * 32px);
+  letter-spacing: .06em;
+  color: #fff;
+  background: linear-gradient(#ffcb3d, #f08a0c);
+  border-bottom: calc(var(--u) * 4px) solid var(--ink);
+  text-shadow: 0 calc(var(--u) * 3px) 0 var(--ink), calc(var(--u) * 2px) 0 0 var(--ink), calc(var(--u) * -2px) 0 0 var(--ink), 0 calc(var(--u) * -2px) 0 var(--ink);
+}
+.pop-x {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--u) * 12px);
+  transform: translateY(-50%);
+  width: calc(var(--u) * 46px);
+  height: calc(var(--u) * 46px);
+  border-radius: 50%;
+  border: calc(var(--u) * 3px) solid var(--ink);
+  background: linear-gradient(#ff7a7a, #d62f2f);
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  font-size: calc(var(--u) * 22px);
+  cursor: pointer;
+  box-shadow: 0 calc(var(--u) * 3px) 0 var(--ink), inset 0 calc(var(--u) * 2px) 0 rgba(255, 255, 255, .4);
+}
+.pop-x:active { transform: translateY(-40%); }
+.pop-body { padding: calc(var(--u) * 18px); overflow-y: auto; text-align: center; }
+.pop-foot { margin-top: calc(var(--u) * 14px); font-size: max(11px, calc(var(--u) * 14px)); opacity: .55; }
+
+/* interruptores redondos con icono */
+.tgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 10px); margin-bottom: calc(var(--u) * 6px); }
+.ttile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 4px);
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: #fff;
+  cursor: pointer;
+}
+.ttile .ti {
+  display: grid;
+  place-items: center;
+  width: calc(var(--u) * 74px);
+  height: calc(var(--u) * 74px);
+  border-radius: 50%;
+  font-size: calc(var(--u) * 34px);
+  border: calc(var(--u) * 3px) solid var(--ink);
+  background: radial-gradient(circle at 35% 30%, #7fd0ff, #2f7fe8 70%);
+  box-shadow: 0 calc(var(--u) * 5px) 0 var(--ink), inset 0 calc(var(--u) * 3px) 0 rgba(255, 255, 255, .45);
+  transition: transform .08s;
+}
+.ttile:active .ti { transform: translateY(calc(var(--u) * 3px)); }
+.ttile.off .ti { background: radial-gradient(circle at 35% 30%, #8a8494, #4a4458 70%); filter: grayscale(1); opacity: .75; }
+.ttile .tl { font-weight: 800; font-size: max(11px, calc(var(--u) * 15px)); text-shadow: 0 2px 0 var(--ink); }
+.ttile .tst {
+  min-width: calc(var(--u) * 44px);
+  padding: 0 calc(var(--u) * 6px);
+  border-radius: calc(var(--u) * 8px);
+  font-weight: 900;
+  font-size: max(10px, calc(var(--u) * 13px));
+  background: #3ccf5a;
+  border: 2px solid var(--ink);
+}
+.ttile.off .tst { background: #8a8494; }

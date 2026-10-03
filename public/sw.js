@@ -1,6 +1,6 @@
 // Service worker de Arcano: red primero y caché como respaldo sin conexión.
 // Sube la versión solo si quieres forzar a borrar la caché vieja.
-const CACHE = 'arcano-v1';
+const CACHE = 'arcano-v2';
 
 const PRECACHE = [
   './',
@@ -9,6 +9,7 @@ const PRECACHE = [
   'game.js',
   'music.js',
   'biomes.js',
+  'equipment.js',
   'manifest.webmanifest',
   'icons/icon-32.png',
   'icons/icon-192.png',
@@ -56,7 +57,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     let res;
     try {
-      res = await fetch(req);
+      res = await fetch(req, { cache: 'no-cache' }); // revalida siempre: tras publicar nunca se mezclan versiones
     } catch (err) {
       // Sin conexión: tira de la caché
       return (await desdeCache(req)) || Response.error();

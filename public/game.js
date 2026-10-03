@@ -39,7 +39,7 @@
   // Ajustes del jugador (pantalla de Ajustes)
   const SETTINGS_DEFAULT = {
     music: 0.6, sfx: 0.8, vibration: true, shake: true, dmgNumbers: true,
-    lefty: false, quality: 'alta', fps: false, tutorial: false, ultTip: false,
+    lefty: false, quality: 'alta', fps: false, tutorial: false, ultTip: false, seenHz: {},
   };
   const settings = Object.assign({}, SETTINGS_DEFAULT, store.get('settings', {}));
   const saveSettings = () => store.set('settings', settings);
@@ -114,7 +114,18 @@
     kill() { if (this.gate('kill', 40)) { this.tone(420, 0.12, 'square', 0.05, 0.35); this.noise(0.12, 0.06, 900); } },
     hurt() { this.tone(180, 0.25, 'sawtooth', 0.12, 0.45); this.noise(0.15, 0.1, 600); },
     eshot() { if (this.gate('eshot', 70)) this.tone(330, 0.08, 'sawtooth', 0.03, 0.7); },
-    gem() { if (this.gate('gem', 28)) this.tone(1100 + Math.random() * 300, 0.05, 'sine', 0.05); },
+    gemN: 0, gemT: 0,
+    gem() { // racha: cada gema seguida sube una nota y suena como una melodía
+      const now = performance.now();
+      if (now - this.gemT > 650) this.gemN = 0;
+      this.gemT = now;
+      if (!this.gate('gem', 22)) return;
+      const scale = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31];
+      const f = 660 * Math.pow(2, scale[Math.min(this.gemN++, scale.length - 1)] / 12);
+      this.tone(f, 0.09, 'sine', 0.06);
+      this.tone(f * 2, 0.05, 'triangle', 0.018);
+    },
+    xpFill() { if (this.gate('xpFill', 40)) this.tone(1800 + Math.random() * 400, 0.03, 'sine', 0.025); },
     level() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.14, 'triangle', 0.09, 1, i * 0.07)); },
     pick() { this.tone(880, 0.1, 'triangle', 0.08, 1.5); },
     door() { this.tone(196, 0.35, 'triangle', 0.1, 2); },
@@ -173,9 +184,9 @@
   const SCHOOLS = {
     fire:   { name: 'Piromante',    el: 'fire',   icon: '🔥', ultIcon: '☄️', ult: 'Meteoro',  desc: 'Tus hechizos queman', ultDesc: 'Un meteorito arrasa la zona con más enemigos' },
     ice:    { name: 'Criomante',    el: 'ice',    icon: '❄️', ultIcon: '🌨️', ult: 'Ventisca', desc: 'Tus hechizos ralentizan', ultDesc: 'Congela a todos los enemigos y borra sus disparos' },
-    bolt:   { name: 'Electromante', el: 'bolt',   icon: '⚡', ultIcon: '🌩️', ult: 'Tormenta', desc: 'Tus hechizos electrocutan y saltan', ultDesc: 'Diez rayos caen sobre los enemigos' },
-    poison: { name: 'Pestilente',   el: 'poison', icon: '☠️', ultIcon: '☣️', ult: 'Plaga', cost: 150, desc: 'Tus hechizos envenenan', ultDesc: 'Envenena a todos: los que mueran revientan y contagian' },
-    arcane: { name: 'Arcanista',    el: null, grant: { front: 1, atkspd: 1 }, icon: '🔮', ultIcon: '🌌', ult: 'Singularidad', cost: 250, desc: 'Sin elemento, pero +1 proyectil y más cadencia', ultDesc: 'Un agujero negro atrae a los enemigos y estalla' },
+    bolt:   { name: 'Electromante', el: 'bolt',   icon: '⚡', ultIcon: '🌩️', ult: 'Tormenta', desc: 'Tus hechizos electrocutan y saltan', ultDesc: 'Ocho rayos caen sobre los enemigos' },
+    poison: { name: 'Pestilente',   el: 'poison', icon: '☠️', ultIcon: '☣️', ult: 'Plaga', cost: 300, desc: 'Tus hechizos envenenan', ultDesc: 'Envenena a todos: los que mueran revientan y contagian' },
+    arcane: { name: 'Arcanista',    el: null, grant: { front: 1, atkspd: 1 }, icon: '🔮', ultIcon: '🌌', ult: 'Singularidad', cost: 500, desc: 'Sin elemento, pero +1 proyectil y más cadencia', ultDesc: 'Un agujero negro atrae a los enemigos y estalla' },
   };
   const REACTIONS = [
     { id: 'vapor',   a: 'fire', b: 'ice',    name: 'VAPOR',       color: '#e8f7ff', desc: 'Golpe de daño triple' },
@@ -187,42 +198,55 @@
 
   // Mejoras permanentes del Santuario (se compran con esencia entre partidas)
   const META_UPS = [
-    { id: 'vida',   icon: '❤️', name: 'Vitalidad eterna', desc: '+10 de vida máxima',                max: 5, cost: [30, 60, 100, 150, 220] },
-    { id: 'poder',  icon: '💥', name: 'Poder ancestral',  desc: '+6% de daño',                       max: 5, cost: [40, 80, 130, 190, 260] },
-    { id: 'mana',   icon: '💠', name: 'Reserva de maná',  desc: '+15 de maná al empezar',            max: 4, cost: [30, 60, 100, 150] },
-    { id: 'sabio',  icon: '📜', name: 'Sabiduría',        desc: '+10% de experiencia',               max: 3, cost: [50, 110, 180] },
-    { id: 'suerte', icon: '🍀', name: 'Suerte',           desc: '+1 cambio de cartas por partida',   max: 3, cost: [40, 90, 160] },
-    { id: 'paso',   icon: '👟', name: 'Paso ligero',      desc: '+4% de velocidad',                  max: 3, cost: [35, 75, 130] },
-    { id: 'fenix',  icon: '🕊️', name: 'Pluma de fénix',   desc: 'Revives una vez por partida con 50% de vida', max: 1, cost: [300] },
+    { id: 'vida',   icon: '❤️', name: 'Vitalidad eterna', desc: '+10 de vida máxima',                max: 5, cost: [40, 80, 140, 220, 320] },
+    { id: 'poder',  icon: '💥', name: 'Poder ancestral',  desc: '+6% de daño',                       max: 5, cost: [60, 120, 200, 300, 420] },
+    { id: 'mana',   icon: '💠', name: 'Reserva de maná',  desc: '+15 de maná al empezar',            max: 4, cost: [40, 80, 140, 220] },
+    { id: 'sabio',  icon: '📜', name: 'Sabiduría',        desc: '+10% de experiencia',               max: 3, cost: [70, 150, 260] },
+    { id: 'suerte', icon: '🍀', name: 'Suerte',           desc: '+1 cambio de cartas por partida',   max: 3, cost: [60, 130, 220] },
+    { id: 'paso',   icon: '👟', name: 'Paso ligero',      desc: '+4% de velocidad',                  max: 3, cost: [50, 110, 180] },
+    { id: 'fenix',  icon: '🕊️', name: 'Pluma de fénix',   desc: 'Revives una vez por partida con 50% de vida', max: 1, cost: [500] },
   ];
   const ALTAR_ROOMS = new Set([4, 9, 14, 19]); // salas de descanso justo antes de cada jefe
 
+  // Trampas del suelo: solo dañan al jugador
+  const HZ = { SPIKES: 1, POISON: 2, ICE: 3, LAVA: 4 };
+  const HZ_INFO = {
+    1: { name: '¡PINCHOS!', tip: 'Suben y bajan: crúzalos cuando estén escondidos', color: '#d8d8e8' },
+    2: { name: '¡CHARCO VENENOSO!', tip: 'Te ralentiza mientras lo pisas', color: '#b06bff' },
+    3: { name: '¡HIELO!', tip: 'Resbala: frenas y giras más despacio', color: '#9fe8ff' },
+    4: { name: '¡LAVA!', tip: 'Quema mientras la pisas', color: '#ff8a3d' },
+  };
+  const BIOME_HAZARD = { pradera: 0, cripta: HZ.POISON, cristal: HZ.ICE, volcan: HZ.LAVA };
+  const BOSS_TITLES = { 5: 'Guardián de la pradera', 10: 'Monarca de la cripta', 15: 'Tirano de la gruta helada', 20: 'Corazón del volcán' };
+
   // Logros: dan esencia al desbloquearse
   const ACHIEVEMENTS = [
-    { id: 'firstUlt',    icon: '✨', name: 'Primer conjuro',      desc: 'Lanza tu primer hechizo definitivo',     reward: 10 },
-    { id: 'boss1',       icon: '🗿', name: 'Rompepiedras',        desc: 'Derrota al Gólem de Piedra',             reward: 20 },
-    { id: 'room10',      icon: '🚪', name: 'Explorador',          desc: 'Llega a la sala 10',                     reward: 20 },
-    { id: 'boss2',       icon: '👑', name: 'Regicida viscoso',    desc: 'Derrota al Rey Slime',                   reward: 30 },
-    { id: 'boss3',       icon: '🌙', name: 'Duelo de magos',      desc: 'Derrota al Brujo Sombrío',               reward: 40 },
-    { id: 'boss4',       icon: '😈', name: 'Señor de nada',       desc: 'Derrota al Señor de la Mazmorra',        reward: 60 },
-    { id: 'firstWin',    icon: '🏆', name: 'Archimago',           desc: 'Completa la mazmorra',                   reward: 100 },
-    { id: 'reactAll',    icon: '⚗️', name: 'Alquimista',          desc: 'Provoca las 5 reacciones elementales',   reward: 40 },
-    { id: 'react50',     icon: '💥', name: 'Reacción en cadena',  desc: '50 reacciones en una sola partida',      reward: 40 },
-    { id: 'untouchable', icon: '🛡️', name: 'Intocable',           desc: 'Derrota a un jefe sin recibir daño',     reward: 50 },
-    { id: 'lvl15',       icon: '📈', name: 'Erudito',             desc: 'Alcanza el nivel 15 en una partida',     reward: 30 },
-    { id: 'phoenix',     icon: '🕊️', name: 'Renacido',            desc: 'Vuelve a la vida con la pluma de fénix', reward: 20 },
-    { id: 'elites',      icon: '⭐', name: 'Cazaélites',          desc: 'Derrota a 25 enemigos élite en total',   reward: 40 },
-    { id: 'kills1000',   icon: '💀', name: 'Exterminador',        desc: 'Derrota a 1000 enemigos en total',       reward: 60 },
-    { id: 'allSchools',  icon: '📚', name: 'Biblioteca completa', desc: 'Desbloquea todas las escuelas',          reward: 50 },
-    { id: 'speedrun',    icon: '⏱️', name: 'Contrarreloj',        desc: 'Gana en menos de 6 minutos',             reward: 80 },
-    { id: 'winAll',      icon: '🌈', name: 'Maestro de escuelas', desc: 'Gana con las 5 escuelas',                reward: 150 },
+    { id: 'firstUlt',    icon: '✨', name: 'Primer conjuro',      desc: 'Lanza tu primer hechizo definitivo',     reward: 5 },
+    { id: 'boss1',       icon: '🗿', name: 'Rompepiedras',        desc: 'Derrota al Gólem de Piedra',             reward: 10 },
+    { id: 'room10',      icon: '🚪', name: 'Explorador',          desc: 'Llega a la sala 10',                     reward: 10 },
+    { id: 'boss2',       icon: '👑', name: 'Regicida viscoso',    desc: 'Derrota al Rey Slime',                   reward: 15 },
+    { id: 'boss3',       icon: '🌙', name: 'Duelo de magos',      desc: 'Derrota al Brujo Sombrío',               reward: 20 },
+    { id: 'boss4',       icon: '😈', name: 'Señor de nada',       desc: 'Derrota al Señor de la Mazmorra',        reward: 30 },
+    { id: 'firstWin',    icon: '🏆', name: 'Archimago',           desc: 'Completa la mazmorra',                   reward: 50 },
+    { id: 'reactAll',    icon: '⚗️', name: 'Alquimista',          desc: 'Provoca las 5 reacciones elementales',   reward: 20 },
+    { id: 'react50',     icon: '💥', name: 'Reacción en cadena',  desc: '50 reacciones en una sola partida',      reward: 20 },
+    { id: 'untouchable', icon: '🛡️', name: 'Intocable',           desc: 'Derrota a un jefe sin recibir daño',     reward: 25 },
+    { id: 'lvl15',       icon: '📈', name: 'Erudito',             desc: 'Alcanza el nivel 15 en una partida',     reward: 15 },
+    { id: 'phoenix',     icon: '🕊️', name: 'Renacido',            desc: 'Vuelve a la vida con la pluma de fénix', reward: 10 },
+    { id: 'elites',      icon: '⭐', name: 'Cazaélites',          desc: 'Derrota a 25 enemigos élite en total',   reward: 20 },
+    { id: 'kills1000',   icon: '💀', name: 'Exterminador',        desc: 'Derrota a 1000 enemigos en total',       reward: 30 },
+    { id: 'allSchools',  icon: '📚', name: 'Biblioteca completa', desc: 'Desbloquea todas las escuelas',          reward: 25 },
+    { id: 'speedrun',    icon: '⏱️', name: 'Contrarreloj',        desc: 'Gana en menos de 4 min 30 s',             reward: 40 },
+    { id: 'winAll',      icon: '🌈', name: 'Maestro de escuelas', desc: 'Gana con las 5 escuelas',                reward: 75 },
+    { id: 'chests',      icon: '🗝️', name: 'Cazatesoros',         desc: 'Abre 5 cofres en total',                 reward: 15 },
+    { id: 'pact',        icon: '😈', name: 'Trato hecho',         desc: 'Sella un pacto oscuro en un altar',      reward: 10 },
   ];
 
   const BOSSES = {
     5:  { tier: 1, name: 'Gólem de Piedra',      hp: 480,  r: 40, speed: 55, color: '#8f8270', bullet: '#ffb347', pats: ['ring', 'charge', 'aimed'] },
     10: { tier: 2, name: 'Rey Slime',            hp: 1150, r: 42, speed: 65, color: '#57c75e', bullet: '#b6ff6b', pats: ['summon', 'ring', 'charge', 'aimed'] },
-    15: { tier: 3, name: 'Brujo Sombrío',        hp: 2100, r: 34, speed: 45, color: '#6d4bd8', bullet: '#c58bff', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'] },
-    20: { tier: 4, name: 'Señor de la Mazmorra', hp: 3600, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff6a3d', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'] },
+    15: { tier: 3, name: 'Brujo Sombrío',        hp: 2600, r: 34, speed: 45, color: '#6d4bd8', bullet: '#c58bff', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'] },
+    20: { tier: 4, name: 'Señor de la Mazmorra', hp: 4700, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff6a3d', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'] },
   };
 
   const SKILLS = [
@@ -241,7 +265,7 @@
     { id: 'heal',     icon: '⚗️', name: 'Poción',           max: 99, w: 1.4, desc: 'Recuperas el 40% de la vida', cond: () => player.hp < player.maxHp * 0.75 },
     { id: 'fire',     icon: '🔥', name: 'Runa de fuego',    max: 2, w: 1.1, el: true, desc: 'Tus hechizos queman durante 2,5 s' },
     { id: 'ice',      icon: '❄️', name: 'Runa de hielo',    max: 2, w: 1.1, el: true, desc: 'Tus hechizos ralentizan a los enemigos' },
-    { id: 'bolt',     icon: '⚡', name: 'Runa de rayo',     max: 2, w: 1.1, el: true, desc: 'Electrocutan y pueden saltar a 2 enemigos' },
+    { id: 'bolt',     icon: '⚡', name: 'Runa de rayo',     max: 2, w: 1.1, el: true, desc: 'Electrocutan y a veces saltan a 2 enemigos' },
     { id: 'poison',   icon: '☠️', name: 'Runa de veneno',   max: 2, w: 1,   el: true, desc: 'Daño continuo que se acumula con cada impacto' },
     { id: 'orbs',     icon: '🌀', name: 'Orbes guardianes', max: 3, w: 0.9, desc: 'Un orbe gira a tu alrededor y daña al contacto' },
     { id: 'blood',    icon: '🦇', name: 'Drenar vida',      max: 3, w: 0.8, desc: 'Cada baja te cura un 2% de la vida máxima' },
@@ -297,6 +321,14 @@
   let rings = [], meteors = [], storm = null, sing = null, screenFlash = null, toast = null;
   let altar = null, bossesKilled = 0, runEssence = 0;
   let roomHit = false, runUlts = 0, runReacts = 0;   // para logros
+  const hz = new Uint8Array(COLS * ROWS), hzOff = new Float32Array(COLS * ROWS); // trampas del suelo
+  let hzClock = 0;
+  let chest = null, chestsThisRun = 0, runBonusEss = 0, pickSource = 'level';
+  let bonusPicks = []; // elecciones de habilidad que no suben de nivel: 'chest' | 'pact' | 'bless'
+  let cine = null; // entrada cinematográfica del jefe
+  // HUD animado: la barra de experiencia se llena con retraso y con chispas que vuelan hasta ella
+  const hudFx = { xpShow: 0, lvlShow: 1, hold: 0, flash: 0, pulse: 0, wait: 0 };
+  let flyers = [], hudParts = [];
   let tut = null;                                     // tutorial de la primera partida
   let fps = 60, fpsAcc = 0, fpsN = 0;
   let slowT = 0; // cámara lenta (al matar a un jefe)
@@ -308,7 +340,7 @@
   // progreso permanente: esencia, mejoras compradas y escuelas desbloqueadas
   const META_DEFAULT = () => ({
     essence: 0, up: {}, schools: ['fire', 'ice', 'bolt'], runs: 0, ach: {},
-    stats: { kills: 0, wins: 0, bosses: 0, elites: 0, reactions: 0, ults: 0, time: 0, essenceTotal: 0, best: {}, winsBy: {}, reactSeen: {} },
+    stats: { kills: 0, wins: 0, bosses: 0, elites: 0, reactions: 0, ults: 0, time: 0, essenceTotal: 0, chests: 0, pacts: 0, best: {}, winsBy: {}, reactSeen: {} },
   });
   const meta = loadMeta();
   function loadMeta() {
@@ -613,7 +645,7 @@
       atk: 10, rate: 1.5, crit: 0.05, critMul: 2, speed: 190, dodge: 0,
       cd: 0, still: 0, inv: 0, face: -Math.PI / 2, moving: false, orbA: 0, walkT: 0,
       school: 'fire', mana: 30 + 15 * metaLv('mana'), castFx: 0,
-      revives: metaLv('fenix'), rerolls: metaLv('suerte'), shield: 0,
+      revives: metaLv('fenix'), rerolls: metaLv('suerte'), shield: 0, vx: 0, vy: 0, trapCd: 0,
     };
   }
 
@@ -682,7 +714,7 @@
       sing = { x: best.x, y: best.y, t: 2, max: 2, tick: 0 };
       Sfx.whistle();
     } else {
-      storm = { n: 10, t: 0 };
+      storm = { n: 8, t: 0 };
       for (const b of bullets) if (dist(b, player) < 170) { b.dead = true; sparks(b.x, b.y, EL.bolt.color, 2); }
       bullets = bullets.filter(b => !b.dead);
       screenFlash = { color: '255,240,150', t: 0.25, max: 0.25 };
@@ -743,7 +775,7 @@
         const e = pick(live);
         bolts.push({ x1: e.x + rand(-40, 40), y1: AY - 30, x2: e.x, y2: e.y, life: 0.25, sky: true });
         rings.push({ x: e.x, y: e.y, r0: 6, r1: 50, t: 0.25, max: 0.25, color: EL.bolt.color, w: 4 });
-        damageEnemy(e, player.atk * 4.5, false, EL.bolt.color);
+        damageEnemy(e, player.atk * 3.2, false, EL.bolt.color);
         if (!e.dead) e.shock = 2;
         Sfx.zap();
         shake = Math.max(shake, 4);
@@ -775,15 +807,28 @@
       player.xp -= xpNeed(player.lvl);
       player.lvl++;
       pendingLevels++;
-      Sfx.level();
-      rings.push({ x: player.x, y: player.y, r0: 10, r1: 70, t: 0.5, max: 0.5, color: '#ffd25a', w: 5 });
-      burst(player.x, player.y, '#ffd25a', 18, 200);
       if (player.lvl >= 15) unlock('lvl15');
     }
   }
 
-  function hurtPlayer(dmg) {
-    if (player.inv > 0 || state !== 'play') return;
+  function hurtPlayer(dmg, src) {
+    if (state !== 'play') return;
+    const trap = src === 'trap';
+    if (trap) { // las trampas tienen su propio ritmo: no gastan escudo ni esquiva, ni dan invulnerabilidad
+      if (player.trapCd > 0 || winTimer > 0) return;
+      player.trapCd = 0.6;
+      dmg = Math.max(1, Math.round(dmg));
+      player.hp -= dmg;
+      roomHit = true;
+      shake = Math.max(shake, 4);
+      hurtFlash = 0.2;
+      addText(player.x, player.y - 34, '-' + dmg, '#ff8a5a', 1);
+      Sfx.hurt();
+      vibrate(30);
+      if (player.hp <= 0) { if (player.revives > 0) revive(); else { player.hp = 0; die(); } }
+      return;
+    }
+    if (player.inv > 0) return;
     if (Math.random() < player.dodge) {
       player.inv = 0.3;
       addText(player.x, player.y - 34, 'ESQUIVA', '#9be7ff', 0.9);
@@ -879,13 +924,26 @@
     const p = player;
     const [mx, my] = moveInput();
     p.moving = mx !== 0 || my !== 0;
+    const ground = hzAt(p.x, p.y);
+    const spd = p.speed * (ground === HZ.POISON ? 0.6 : 1);
+    if (ground === HZ.ICE) { // en el hielo se acelera y se frena despacio
+      const k = Math.min(1, dt * 4);
+      p.vx += (mx * spd - p.vx) * k; p.vy += (my * spd - p.vy) * k;
+    } else { p.vx = mx * spd; p.vy = my * spd; }
+    const ox = p.x, oy = p.y;
+    p.x += p.vx * dt; p.y += p.vy * dt;
     if (p.moving) {
-      p.x += mx * p.speed * dt; p.y += my * p.speed * dt;
       p.face = Math.atan2(my, mx); p.walkT += dt; p.still = 0;
       if (tut && tut.step === 'move' && (tut.t += dt) > 0.6) tut.step = 'shoot';
     } else p.still += dt;
     collideRocks(p);
     clampArena(p, cleared && room < TOTAL_ROOMS);
+    // en el hielo solo se pierde la velocidad que choca contra la roca, no la que la roza
+    if (ground === HZ.ICE && dt > 0) { p.vx = (p.x - ox) / dt; p.vy = (p.y - oy) / dt; }
+    if (p.trapCd > 0) p.trapCd -= dt;
+    const ci = cellIndex(p.x, p.y), now = ci < 0 ? 0 : hz[ci]; // la casilla en la que estás ahora
+    if (now === HZ.SPIKES && spikePhase(ci) === 2) hurtPlayer(10 * dmgMul(), 'trap');
+    else if (now === HZ.LAVA) hurtPlayer(7 * dmgMul(), 'trap');
     if (p.inv > 0) p.inv -= dt;
     if (p.cd > 0) p.cd -= dt;
     if (p.castFx > 0) p.castFx -= dt;
@@ -931,7 +989,7 @@
   //  Enemigos
   // ================================================================
   function makeEnemy(kind, x, y, delay = 0) {
-    const d = ENEMIES[kind], hm = 1 + 0.2 * (room - 1);
+    const d = ENEMIES[kind], hm = 1 + 0.2 * (room - 1) + 0.006 * (room - 1) * (room - 1);
     const tint = window.ArcanoBiomes ? BIOME_TINT[window.ArcanoBiomes.forRoom(Math.max(1, room))] : null;
     return {
       kind, x, y, r: d.r, hp: d.hp * hm, maxHp: d.hp * hm, speed: d.speed * rand(0.92, 1.08),
@@ -1493,7 +1551,7 @@
       }
     }
     if (!e.dead) applyElements(e, ar.els);
-    if (ar.els.includes('bolt') && Math.random() < 0.25 * player.sk.bolt) chainLightning(e, ar.dmg * 0.5);
+    if (ar.els.includes('bolt') && Math.random() < 0.16 * player.sk.bolt) chainLightning(e, ar.dmg * 0.4);
 
     if (ar.rico > 0) {
       let best = null, bd = 280 * 280;
@@ -1557,19 +1615,34 @@
   }
 
   function collectDrop(g) {
-    if (g.type === 'gem') { addXp(g.v); Sfx.gem(); }
-    else heal(player.maxHp * 0.15);
+    if (g.type === 'gem') {
+      addXp(g.v);
+      Sfx.gem();
+      const col = g.v >= 5 ? '#5ab8ff' : '#5df2a0';
+      sparks(player.x, player.y - 6, col, 3);
+      if (state === 'play') flyers.push({ x0: player.x, y0: player.y - 10, t: 0, dur: rand(0.32, 0.45), col, side: rand(-1, 1) });
+      hudFx.hold = 0.3; // la barra espera a que lleguen las chispas
+    } else heal(player.maxHp * 0.15);
   }
 
   function updateDrops(dt) {
     const fr = Math.pow(0.02, dt);
+    let k = 0;
     for (const g of drops) {
       g.t += dt;
       const d = dist(g, player);
-      if (cleared || d < 70 || g.magnet) {
-        g.magnet = true;
-        const a = angTo(g, player), sp = 380 + g.t * 300;
-        g.vx = Math.cos(a) * sp; g.vy = Math.sin(a) * sp;
+      if ((cleared || d < 70) && !g.magnet) { // empieza el imán: cada gema con su pequeño retraso
+        g.magnet = true; g.mt = -(cleared ? 0.2 + (k++) * 0.035 : 0); g.curl = rand(-1, 1) * 260;
+      }
+      if (g.magnet) {
+        g.mt += dt;
+        if (g.mt < 0) { g.vx *= fr; g.vy = g.vy * fr - 30; } // flota hacia arriba un instante
+        else {
+          const a = angTo(g, player), sp = 260 + g.mt * 900;
+          const curl = g.curl * Math.max(0, 1 - g.mt * 2.5); // espiral que se cierra
+          g.vx = Math.cos(a) * sp - Math.sin(a) * curl; g.vy = Math.sin(a) * sp + Math.cos(a) * curl;
+          if (g.type === 'gem' && Math.random() < dt * 30) parts.push({ x: g.x, y: g.y, vx: 0, vy: 0, life: 0.25, max: 0.25, color: g.v >= 5 ? '#5ab8ff' : '#5df2a0', size: 2 });
+        }
       } else { g.vx *= fr; g.vy *= fr; }
       g.x += g.vx * dt; g.y += g.vy * dt;
       if (!g.magnet) { g.x = clamp(g.x, AX + 8, AX + AW - 8); g.y = clamp(g.y, AY + 8, AY + AH - 8); }
@@ -1614,8 +1687,91 @@
     if (banner) { banner.t -= dt; if (banner.t <= 0) banner = null; }
     if (toast) { toast.t -= dt; if (toast.t <= 0) toast = null; }
     if (screenFlash) { screenFlash.t -= dt; if (screenFlash.t <= 0) screenFlash = null; }
+    if (cine) { cine.t -= dt; if (cine.t <= 0) { cine = null; hazardHints(); } }
     shake = Math.max(0, shake - dt * 40);
     if (hurtFlash > 0) hurtFlash -= dt;
+  }
+
+  // ================================================================
+  //  Trampas y cofres
+  // ================================================================
+  function cellIndex(x, y) {
+    const c = Math.floor((x - AX) / CELL), r = Math.floor((y - AY) / CELL);
+    return c < 0 || c >= COLS || r < 0 || r >= ROWS ? -1 : r * COLS + c;
+  }
+  function hzAt(x, y) { const i = cellIndex(x, y); return i < 0 ? 0 : hz[i]; }
+  // pinchos: 0 escondidos, 1 avisando, 2 arriba (ciclo de 3 s desfasado por grupo)
+  function spikePhase(i) {
+    if (i < 0) return 0;
+    const t = (hzClock + hzOff[i]) % 3;
+    return t > 2.1 ? 2 : t > 1.4 ? 1 : 0; // 1,4 s escondidos, 0,7 s avisando, 0,9 s arriba
+  }
+
+  function placeHazards(bossDef) {
+    hz.fill(0);
+    hzOff.fill(0);
+    const special = BIOME_HAZARD[biomeId() || 'cripta'] || 0;
+    // nunca en la zona de aparición ni delante de la puerta
+    const blocked = (c, r) => (r >= 15 && c >= 3 && c <= 8) || (r <= 2 && c >= 3 && c <= 8);
+    const cluster = (type, size, c, r) => {
+      const off = rand(0, 3);
+      for (let k = 0; k < size * 4 && size > 0; k++) {
+        const i = r * COLS + c;
+        if (!blocked(c, r) && !grid[i] && !hz[i]) { hz[i] = type; hzOff[i] = off; size--; }
+        const d = pick(DIR4);
+        c = clamp(c + d[0], 0, COLS - 1); r = clamp(r + d[1], 1, ROWS - 1);
+      }
+    };
+    if (bossDef) { // arena temática de cada jefe
+      if (bossDef.tier === 1) for (const [c, r] of [[3, 9], [8, 9], [5, 4], [6, 13]]) cluster(HZ.SPIKES, 2, c, r);
+      else if (bossDef.tier === 2) for (const [c, r] of [[2, 3], [9, 3], [1, 15], [10, 15], [5, 9]]) cluster(HZ.POISON, 4, c, r);
+      else if (bossDef.tier === 3) { cluster(HZ.ICE, 16, 5, 9); cluster(HZ.ICE, 8, 2, 4); cluster(HZ.ICE, 8, 9, 4); }
+      else {
+        for (let r = 6; r <= 13; r++) for (const c of [0, 1, 10, 11]) { const i = r * COLS + c; if (!grid[i]) hz[i] = HZ.LAVA; }
+        cluster(HZ.SPIKES, 3, 5, 4); cluster(HZ.SPIKES, 3, 6, 12);
+      }
+      return;
+    }
+    if (room < 3 || ALTAR_ROOMS.has(room) || Math.random() > 0.6) return;
+    const n = randi(2, 3);
+    for (let k = 0; k < n; k++) {
+      const type = special && Math.random() < 0.55 ? special : HZ.SPIKES;
+      const size = type === HZ.ICE ? randi(6, 10) : type === HZ.SPIKES ? randi(2, 4) : randi(3, 6);
+      cluster(type, size, randi(1, COLS - 2), randi(3, 13));
+    }
+  }
+
+  // la primera vez que aparece cada trampa, un aviso explicándola
+  function hazardHints() {
+    const seen = settings.seenHz || (settings.seenHz = {});
+    for (const t of [1, 2, 3, 4]) {
+      if (seen[t] || !hz.includes(t)) continue;
+      seen[t] = true; saveSettings();
+      toast = { text: HZ_INFO[t].name, sub: HZ_INFO[t].tip, color: HZ_INFO[t].color, t: 3, max: 3 };
+      return;
+    }
+  }
+
+  function placeChest(cells) {
+    const spot = cells.find(p => { const i = cellIndex(p.x, p.y); return i >= 0 && !hz[i] && p.y > AY + 160 && p.y < AY + 540; });
+    if (!spot) return;
+    chest = { x: spot.x, y: spot.y, opened: false, openT: 0 };
+    chestsThisRun++;
+  }
+
+  function openChest() {
+    chest.opened = true;
+    chest.openT = 0;
+    Sfx.ach();
+    burst(chest.x, chest.y - 10, '#ffd25a', 34, 260);
+    rings.push({ x: chest.x, y: chest.y, r0: 10, r1: 90, t: 0.5, max: 0.5, color: '#ffd25a', w: 5 });
+    for (let i = 0; i < 5; i++) drops.push({ type: 'gem', v: 5, x: chest.x, y: chest.y - 8, vx: rand(-170, 170), vy: rand(-200, -40), t: 0 });
+    heal(player.maxHp * 0.15);
+    runBonusEss += 5;
+    addText(chest.x, chest.y - 40, '+✨ 5', '#ffcf4a', 1.1);
+    bonusPicks.push('chest');
+    meta.stats.chests++;
+    if (meta.stats.chests >= 5) unlock('chests');
   }
 
   // ================================================================
@@ -1624,13 +1780,17 @@
   function spawnRoom() {
     enemies = [];
     const B = BOSSES[room];
+    placeHazards(B);
     if (B) {
       boss = makeBoss(B);
+      boss.spawnT = boss.spawnMax = 2.4; // aparece durante la entrada cinematográfica
       enemies.push(boss);
-      banner = { text: '¡JEFE!', sub: B.name, color: '#ff5a5a', t: 2.2, max: 2.2 };
+      cine = { t: 2.7, max: 2.7, name: B.name, title: BOSS_TITLES[room] || '', color: B.bullet };
+      banner = null;
+      shake = Math.max(shake, 6);
       Sfx.boss();
       music('boss');
-      return;
+      return; // los avisos de trampas salen al acabar la entrada
     }
     boss = null;
     if (ALTAR_ROOMS.has(room)) { // sala tranquila antes del jefe
@@ -1650,6 +1810,7 @@
     }
     shuffle(cells);
     let elites = 0;
+    if (room >= 2 && chestsThisRun < 3 && Math.random() < 0.2) placeChest(cells.slice().reverse());
     roomEnemies(room).forEach((k, i) => {
       const p = cells[i % Math.max(1, cells.length)] || { x: AX + AW / 2, y: AY + 150 };
       const e = makeEnemy(k, k === 'totem' ? p.x : p.x + rand(-5, 5), k === 'totem' ? p.y : p.y + rand(-5, 5), i * 0.05);
@@ -1657,10 +1818,12 @@
       enemies.push(e);
     });
     banner = { text: 'SALA ' + room, sub: room === TOTAL_ROOMS - 1 ? 'Se oye algo enorme al otro lado…' : '', color: '#ffffff', t: 1.4, max: 1.4 };
+    if (chest) banner.sub = 'Hay un cofre: limpia la sala para abrirlo';
+    hazardHints();
     if (room % 5 === 1 && Biomes()) { // nuevo capítulo = nuevo bioma
       try {
         const info = Biomes().info(biomeId());
-        banner = { text: 'CAPÍTULO ' + Math.ceil(room / 5), sub: info.name, color: info.accent || '#ffd27a', t: 2.2, max: 2.2 };
+        banner = { text: 'CAPÍTULO ' + Math.ceil(room / 5), sub: info.name + (chest ? ' · hay un cofre' : ''), color: info.accent || '#ffd27a', t: 2.2, max: 2.2 };
       } catch (_) { /* sin biomas */ }
     }
   }
@@ -1674,8 +1837,9 @@
     grid = genRocks(!!BOSSES[room] || ALTAR_ROOMS.has(room));
     roomBgDirty = true;
     shots = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
-    rings = []; meteors = []; storm = null; sing = null; altar = null;
-    Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0 });
+    rings = []; meteors = []; storm = null; sing = null; altar = null; chest = null; cine = null;
+    hz.fill(0);
+    Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0, vx: 0, vy: 0 });
     cleared = false; doorAnim = 0; flowT = 0;
     spawnRoom();
   }
@@ -1700,6 +1864,8 @@
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
     runSeed = Math.floor(Math.random() * 1e9);
+    chestsThisRun = 0; bonusPicks = []; runBonusEss = 0; hzClock = 0;
+    Object.assign(hudFx, { xpShow: 0, lvlShow: 1, hold: 0, flash: 0, pulse: 0, wait: 0 }); flyers = []; hudParts = [];
     slowT = 0;
     // nada de la partida anterior: ni gemas en el suelo ni efectos a medias
     drops = []; enemies = []; shots = []; bullets = []; parts = []; texts = []; bolts = []; volleys = [];
@@ -1804,6 +1970,11 @@
     if (!cleared && enemies.length === 0) onCleared();
     if (cleared) doorAnim = Math.min(1, doorAnim + dt * 2);
     if (altar && !altar.used && state === 'play' && dist(player, altar) < player.r + 26) openAltar();
+    hzClock += dt;
+    if (chest) {
+      if (chest.opened) chest.openT += dt;
+      else if (cleared && state === 'play' && dist(player, chest) < player.r + 22) openChest();
+    }
     if (state === 'play' && cleared && room < TOTAL_ROOMS && player.y < AY - 24) {
       state = 'transition'; transPhase = 'out'; transT = 0; resetJoy();
     }
@@ -1811,7 +1982,47 @@
       winTimer -= dt;
       if (winTimer <= 0) { showEnd(true); return; }
     }
-    if (pendingLevels > 0 && state === 'play' && winTimer < 0) openLevelUp();
+    updateHud(dt);
+    if (pendingLevels > 0 && state === 'play' && winTimer < 0 && (hudFx.lvlShow > player.lvl - pendingLevels || hudFx.wait > 1.5)) {
+      hudFx.wait = 0;
+      openLevelUp('level');
+    }
+    else if (bonusPicks.length && state === 'play' && winTimer < 0 && !(bonusPicks[0] === 'chest' && chest && chest.opened && chest.openT < 0.8)) {
+      openLevelUp(bonusPicks[0]); // el cofre espera a que se vea la apertura
+    }
+  }
+
+  // barra de experiencia: se llena tras recibir las chispas; al completarse, destello, sonido y nivel
+  function updateHud(dt) {
+    hudFx.flash = Math.max(0, hudFx.flash - dt * 2);
+    hudFx.pulse = Math.max(0, hudFx.pulse - dt * 4);
+    hudFx.wait = pendingLevels > 0 && hudFx.lvlShow <= player.lvl - pendingLevels ? hudFx.wait + dt : 0;
+    for (const f of flyers) {
+      f.t += dt;
+      if (f.t >= f.dur && !f.done) { f.done = true; hudFx.pulse = 1; Sfx.xpFill(); for (let i = 0; i < 3; i++) hudSpark(xpBarEnd(), 40, '#ffe08a'); }
+    }
+    flyers = flyers.filter(f => !f.done);
+    for (const q of hudParts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 300 * dt; q.life -= dt; }
+    hudParts = hudParts.filter(q => q.life > 0);
+    if (hudFx.hold > 0) { hudFx.hold -= dt; return; }
+    const target = hudFx.lvlShow < player.lvl ? 1 : clamp(player.xp / xpNeed(player.lvl), 0, 1);
+    hudFx.xpShow += (target - hudFx.xpShow) * Math.min(1, dt * 9);
+    if (hudFx.lvlShow < player.lvl && hudFx.xpShow > 0.98) { // ¡nivel!
+      hudFx.lvlShow++;
+      hudFx.xpShow = 0;
+      hudFx.flash = 1; hudFx.pulse = 1;
+      Sfx.level();
+      for (let i = 0; i < 22; i++) hudSpark(XPB.x + Math.random() * XPB.w, XPB.y + XPB.h / 2, i % 3 ? '#ffd25a' : '#ffffff');
+      rings.push({ x: player.x, y: player.y, r0: 10, r1: 70, t: 0.5, max: 0.5, color: '#ffd25a', w: 5 });
+      burst(player.x, player.y, '#ffd25a', 18, 200);
+      addText(player.x, player.y - 50, '¡NIVEL ' + hudFx.lvlShow + '!', '#ffd25a', 1.2);
+    }
+  }
+  const XPB = { x: 112, y: 28, w: 412, h: 24 }; // barra de experiencia del HUD (la pausa va a su izquierda)
+  function xpBarEnd() { return XPB.x + Math.max(14, XPB.w * hudFx.xpShow); }
+  function hudSpark(x, y, color) {
+    const a = rand(-Math.PI, 0), sp = rand(60, 220);
+    hudParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.35, 0.7), max: 0.7, color, size: rand(1.5, 3.2) });
   }
 
   function updateTransition(dt) {
@@ -2004,6 +2215,7 @@
     roomBg = null;
     try {
       roomBg = Biomes().render({ grid, biome: biomeId(), seed: (runSeed * 31 + room * 7919) >>> 0, scale: canvas.width / W, doorX0: DOOR_X0, doorX1: DOOR_X1 });
+      if (roomBg) { const g = roomBg.getContext('2d'); g.setTransform(canvas.width / W, 0, 0, canvas.width / W, 0, 0); paintHazardBase(g); }
     } catch (_) { roomBg = null; }
   }
   function drawRoom() {
@@ -2150,6 +2362,163 @@
         ctx.beginPath(); ctx.arc(e.x, e.y, 80 * k, 0, TAU); ctx.stroke();
       }
     }
+  }
+
+  // ---- trampas: la parte fija se pinta una vez en el fondo de la sala; cada frame solo se anima ----
+  function hzSame(i, dc, dr) {
+    const c = i % COLS + dc, r = ((i / COLS) | 0) + dr;
+    return c >= 0 && c < COLS && r >= 0 && r < ROWS && hz[r * COLS + c] === hz[i];
+  }
+  function rpath(g, x, y, w, h, r) { // subtrazo de rectángulo redondeado (sin beginPath)
+    r = Math.min(r, w / 2, h / 2);
+    g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  // una sola ruta por tipo: las celdas vecinas se funden en un charco continuo
+  function poolPath(g, t, inset, rad) {
+    g.beginPath();
+    for (let i = 0; i < hz.length; i++) {
+      if (hz[i] !== t) continue;
+      const x = AX + (i % COLS) * CELL, y = AY + ((i / COLS) | 0) * CELL;
+      rpath(g, x + inset, y + inset, CELL - inset * 2, CELL - inset * 2, rad);
+      if (hzSame(i, 1, 0)) g.rect(x + CELL / 2, y + inset, CELL, CELL - inset * 2);
+      if (hzSame(i, 0, 1)) g.rect(x + inset, y + CELL / 2, CELL - inset * 2, CELL);
+      if (hzSame(i, 1, 0) && hzSame(i, 0, 1) && hzSame(i, 1, 1)) g.rect(x + CELL / 2, y + CELL / 2, CELL, CELL);
+    }
+  }
+  function paintHazardBase(g) {
+    if (!hz.some(t => t)) return;
+    g.save();
+    // veneno
+    if (hz.includes(HZ.POISON)) {
+      poolPath(g, HZ.POISON, 2, 14); g.fillStyle = 'rgba(60,16,80,.8)'; g.fill();
+      poolPath(g, HZ.POISON, 6, 11); g.fillStyle = 'rgba(140,70,210,.6)'; g.fill();
+    }
+    // hielo
+    if (hz.includes(HZ.ICE)) {
+      poolPath(g, HZ.ICE, 1, 9); g.fillStyle = 'rgba(200,244,255,.42)'; g.fill();
+      g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1.5;
+      for (let i = 0; i < hz.length; i++) {
+        if (hz[i] !== HZ.ICE) continue;
+        const x = AX + (i % COLS) * CELL, y = AY + ((i / COLS) | 0) * CELL;
+        g.beginPath(); g.moveTo(x + 9, y + 27); g.lineTo(x + 20, y + 14); g.moveTo(x + 19, y + 31); g.lineTo(x + 29, y + 19); g.stroke();
+      }
+    }
+    // lava: costra, magma y vetas brillantes recortadas dentro del charco
+    if (hz.includes(HZ.LAVA)) {
+      poolPath(g, HZ.LAVA, 1, 12); g.fillStyle = '#3a1206'; g.fill();
+      poolPath(g, HZ.LAVA, 5, 10); g.fillStyle = '#e0520f'; g.fill();
+      g.save(); g.clip();
+      g.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < hz.length; i++) {
+        if (hz[i] !== HZ.LAVA) continue;
+        const x = AX + (i % COLS) * CELL + 8 + (i * 13) % 24, y = AY + ((i / COLS) | 0) * CELL + 8 + (i * 7) % 24;
+        const lg = g.createRadialGradient(x, y, 1, x, y, 22);
+        lg.addColorStop(0, 'rgba(255,230,140,.75)'); lg.addColorStop(1, 'rgba(255,120,30,0)');
+        g.fillStyle = lg; g.fillRect(x - 22, y - 22, 44, 44);
+      }
+      g.restore();
+    }
+    // placas de pinchos: losa metálica con ranuras y remaches (se lee como trampa aunque estén escondidos)
+    for (let i = 0; i < hz.length; i++) {
+      if (hz[i] !== HZ.SPIKES) continue;
+      const x = AX + (i % COLS) * CELL, y = AY + ((i / COLS) | 0) * CELL;
+      g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); rpath(g, x + 3, y + 5, CELL - 6, CELL - 6, 7); g.fill();
+      g.fillStyle = '#8c8698'; g.beginPath(); rpath(g, x + 3, y + 3, CELL - 6, CELL - 6, 7); g.fill();
+      g.fillStyle = '#a8a2b4'; g.beginPath(); rpath(g, x + 5, y + 5, CELL - 10, CELL - 12, 6); g.fill();
+      g.strokeStyle = '#5a5466'; g.lineWidth = 1.5; g.beginPath(); rpath(g, x + 3, y + 3, CELL - 6, CELL - 6, 7); g.stroke();
+      g.fillStyle = '#3c3646';
+      for (const [hx, hy] of SPIKE_HOLES) { g.fillRect(x + hx - 4, y + hy + 1, 8, 3); }  // ranuras
+      g.fillStyle = '#d8d4e2';
+      for (const [rx, ry] of [[6, 6], [34, 6], [6, 34], [34, 34]]) { g.beginPath(); g.arc(x + rx, y + ry, 1.6, 0, TAU); g.fill(); } // remaches
+    }
+    g.restore();
+  }
+  const SPIKE_HOLES = [[13, 13], [27, 13], [13, 27], [27, 27]];
+
+  function drawHazards() {
+    if (!roomBg) paintHazardBase(ctx); // sin fondo horneado (respaldo): se pinta cada frame
+    for (let i = 0; i < hz.length; i++) {
+      const t = hz[i];
+      if (!t) continue;
+      const x = AX + (i % COLS) * CELL, y = AY + ((i / COLS) | 0) * CELL;
+      if (t === HZ.SPIKES) {
+        const ph = spikePhase(i);
+        if (ph === 1) { ctx.fillStyle = `rgba(255,60,60,${0.3 + 0.2 * Math.sin(hzClock * 26)})`; rrect(x + 3, y + 3, CELL - 6, CELL - 6, 7); ctx.fill(); }
+        const h = ph === 2 ? 15 : ph === 1 ? 5 : 2.5; // escondidos asoman las puntas
+        for (const [hx0, hy0] of SPIKE_HOLES) {
+          const hx = x + hx0, hy = y + hy0 + 2;
+          ctx.fillStyle = ph === 2 ? '#d6d6e4' : '#6e6878';
+          ctx.beginPath(); ctx.moveTo(hx - 4.5, hy); ctx.lineTo(hx, hy - h); ctx.lineTo(hx + 4.5, hy); ctx.closePath(); ctx.fill();
+          if (ph === 2) {
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.moveTo(hx - 1.2, hy - 1); ctx.lineTo(hx, hy - h); ctx.lineTo(hx + 0.8, hy - 1); ctx.closePath(); ctx.fill();
+          }
+        }
+      } else if (t === HZ.POISON) {
+        const b = (hzClock * 0.8 + i * 0.37) % 1; // burbujas
+        circle(x + 12 + (i * 7) % 16, y + 28 - b * 14, 2.5 * (1 - b) + 0.5, 'rgba(160,255,120,.7)');
+      } else if (t === HZ.LAVA) {
+        if (!lowQ() && i % 2 === 0) glow(x + 20, y + 20, 40, '#ff7a1a', 0.3 + 0.1 * Math.sin(hzClock * 3 + i));
+        const b = (hzClock * 0.6 + i * 0.29) % 1;
+        if (b < 0.6) circle(x + 10 + (i * 11) % 20, y + 12 + (i * 5) % 16, 3 * (1 - b / 0.6) + 1, 'rgba(255,240,180,.85)');
+      }
+    }
+  }
+
+  function drawChest() {
+    if (!chest) return;
+    const { x, y } = chest;
+    const ready = cleared && !chest.opened;
+    const bob = ready ? Math.abs(Math.sin(clock * 5)) * -4 : 0;
+    if (ready || (chest.opened && chest.openT < 1.5)) glow(x, y - 8, 46, '#ffd25a', chest.opened ? Math.max(0, 1 - chest.openT / 1.5) : 0.5);
+    ctx.drawImage(shadowSpr, x - 26, y + 6, 52, 18);
+    const by = y - 4 + bob;
+    ctx.fillStyle = '#5a3414'; rrect(x - 20, by - 8, 40, 24, 5); ctx.fill();          // cuerpo
+    ctx.fillStyle = '#8a5424'; rrect(x - 18, by - 6, 36, 18, 4); ctx.fill();
+    ctx.fillStyle = '#ffcf4a'; ctx.fillRect(x - 20, by - 1, 40, 3); ctx.fillRect(x - 3, by - 8, 6, 24);  // herrajes
+    if (chest.opened) { // tapa abierta y rayos de luz
+      ctx.fillStyle = '#2a1606'; ctx.fillRect(x - 18, by - 12, 36, 6); // interior
+      ctx.fillStyle = '#6a3c18'; rrect(x - 20, by - 24, 40, 14, 5); ctx.fill();
+      ctx.fillStyle = '#ffcf4a'; ctx.fillRect(x - 20, by - 15, 40, 2);
+      if (chest.openT < 1.5) {
+        ctx.globalAlpha = Math.max(0, 1 - chest.openT / 1.5);
+        ctx.fillStyle = 'rgba(255,230,150,.6)';
+        for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(x + k * 5, by - 8); ctx.lineTo(x + k * 18 - 6, by - 70); ctx.lineTo(x + k * 18 + 6, by - 70); ctx.closePath(); ctx.fill(); }
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      ctx.fillStyle = '#6a3c18'; rrect(x - 21, by - 18, 42, 13, 6); ctx.fill();         // tapa cerrada
+      ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(x - 17, by - 16, 34, 3);
+      ctx.fillStyle = '#ffcf4a'; ctx.fillRect(x - 21, by - 9, 42, 3);
+      circle(x, by - 2, 4, ready ? '#fff1b0' : '#2a1606');                              // cerradura
+      if (ready && Math.sin(clock * 3) > 0.9) star(x + 14, by - 20, 4, '#ffffff');
+    }
+  }
+
+  // entrada del jefe: franjas de cine, nombre y título
+  function drawCine() {
+    if (!cine) return;
+    const age = cine.max - cine.t;
+    const k = clamp(Math.min(age / 0.35, cine.t / 0.4), 0, 1);
+    ctx.fillStyle = '#07050c';
+    ctx.fillRect(0, 94, W, 70 * k);                          // franja de arriba (tapa el muro, no la arena)
+    const low = (H - (AY + AH)) * k;
+    ctx.fillRect(0, H - low, W, low);                        // la de abajo no invade la arena: el jugador se ve
+    const a = clamp(Math.min((age - 0.3) / 0.3, cine.t / 0.4), 0, 1);
+    if (a <= 0) return;
+    ctx.globalAlpha = a;
+    const slide = (1 - Math.min(1, (age - 0.3) / 0.4)) * 40;
+    // placa oscura detrás del nombre para que se lea sobre cualquier suelo
+    const pg = ctx.createLinearGradient(0, 380, 0, 500);
+    pg.addColorStop(0, 'rgba(7,5,12,0)'); pg.addColorStop(0.25, 'rgba(7,5,12,.82)'); pg.addColorStop(0.75, 'rgba(7,5,12,.82)'); pg.addColorStop(1, 'rgba(7,5,12,0)');
+    ctx.fillStyle = pg; ctx.fillRect(0, 380, W, 120);
+    const nm = cine.name.toUpperCase();
+    if (!cine.size) { ctx.font = `800 46px ${FONT}`; cine.size = Math.min(46, Math.floor(46 * (W - 60) / ctx.measureText(nm).width)); }
+    txt(nm, W / 2 - slide, 424, cine.size, cine.color);
+    ctx.fillStyle = cine.color; ctx.fillRect(W / 2 - 120 + slide, 448, 240, 2);
+    txt(cine.title, W / 2 + slide, 470, 19, '#f2e6ff');
+    ctx.globalAlpha = 1;
   }
 
   function drawAltar() {
@@ -2608,7 +2977,7 @@
   }
 
   function drawToast() {
-    if (!toast) return;
+    if (!toast || cine) return;
     const a = clamp(Math.min(toast.t, toast.max - toast.t) / 0.25, 0, 1);
     ctx.globalAlpha = a;
     ctx.fillStyle = 'rgba(12,8,22,.82)'; rrect(W / 2 - 220, 140, 440, 66, 18); ctx.fill();
@@ -2659,30 +3028,70 @@
   }
 
   function drawHUD() {
-    ctx.fillStyle = '#120e1c';
-    ctx.fillRect(0, 0, W, 94);
-    // nivel
-    circle(48, 50, 30, '#a84a00');
-    circle(48, 48, 30, '#ffb547');
-    txt('NV', 48, 34, 12, '#5a2a00', 'center', false);
-    txt(String(player.lvl), 48, 56, 26, '#2a1300', 'center', false);
-    // experiencia
-    const bx = 92, bw = 310, k = clamp(player.xp / xpNeed(player.lvl), 0, 1);
-    ctx.fillStyle = '#2a2340'; rrect(bx, 30, bw, 18, 9); ctx.fill();
-    if (k > 0) { ctx.fillStyle = '#ffd25a'; rrect(bx, 30, Math.max(18, bw * k), 18, 9); ctx.fill(); }
-    txt(`SALA ${room} / ${TOTAL_ROOMS}`, bx, 72, 20, '#ffffff', 'left', false);
+    // franja superior con degradado (el juego se intuye por debajo)
+    const hg = ctx.createLinearGradient(0, 0, 0, 96);
+    hg.addColorStop(0, '#0c0816'); hg.addColorStop(1, '#16102a');
+    ctx.fillStyle = hg; ctx.fillRect(0, 0, W, 94);
+    ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(0, 93, W, 1);
+    const { x: bx, y: by, w: bw, h: bh } = XPB;
+    // barra de experiencia: marco con relieve, relleno dorado con brillo que recorre la barra
+    ctx.fillStyle = '#05030a'; rrect(bx - 3, by - 3, bw + 6, bh + 6, 13); ctx.fill();
+    ctx.fillStyle = '#2a2042'; rrect(bx, by, bw, bh, 11); ctx.fill();
+    const fw = Math.max(0, bw * hudFx.xpShow);
+    if (fw > 2) {
+      const fg = ctx.createLinearGradient(0, by, 0, by + bh);
+      fg.addColorStop(0, '#fff1a8'); fg.addColorStop(0.45, '#ffd04a'); fg.addColorStop(1, '#e08a12');
+      ctx.fillStyle = fg; rrect(bx, by, Math.max(bh, fw), bh, 11); ctx.fill();
+      ctx.save(); rrect(bx, by, Math.max(bh, fw), bh, 11); ctx.clip();
+      const sx = bx + ((clock * 260) % (bw + 160)) - 80; // reflejo que recorre la barra
+      const sg = ctx.createLinearGradient(sx - 40, 0, sx + 40, 0);
+      sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, 'rgba(255,255,255,.45)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sg; ctx.fillRect(sx - 40, by, 80, bh);
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(bx + 6, by + 3, Math.max(0, fw - 12), 3);
+      ctx.restore();
+      glow(bx + fw, by + bh / 2, 22 + hudFx.pulse * 18, '#ffd25a', 0.5 + hudFx.pulse * 0.5); // punta encendida
+    }
+    if (hudFx.flash > 0) { ctx.globalAlpha = hudFx.flash; ctx.fillStyle = '#ffffff'; rrect(bx, by, bw, bh, 11); ctx.fill(); ctx.globalAlpha = 1; }
+    // insignia de nivel encima del inicio de la barra
+    const lp = 1 + hudFx.pulse * 0.18 + hudFx.flash * 0.25;
+    ctx.save(); ctx.translate(bx, by + bh / 2); ctx.scale(lp, lp);
+    if (hudFx.flash > 0) glow(0, 0, 50, '#ffd25a', hudFx.flash);
+    circle(0, 3, 27, '#7a3a00');
+    ball(0, 0, 26, '#ffb547', false);
+    ctx.strokeStyle = '#5a2a00'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 26, 0, TAU); ctx.stroke();
+    txt('NV', 0, -11, 11, '#5a2a00', 'center', false);
+    txt(String(hudFx.lvlShow), 0, 7, 24, '#ffffff', 'center', true);
+    ctx.restore();
+    // chispas que vuelan desde las gemas hasta la punta de la barra
+    for (const f of flyers) {
+      const t = Math.min(1, f.t / f.dur), e = t * t; // acelera al final
+      const tx = xpBarEnd(), ty = by + bh / 2;
+      const cx = (f.x0 + tx) / 2 + f.side * 140, cy = (f.y0 + ty) / 2;
+      const x = (1 - e) * (1 - e) * f.x0 + 2 * (1 - e) * e * cx + e * e * tx;
+      const y = (1 - e) * (1 - e) * f.y0 + 2 * (1 - e) * e * cy + e * e * ty;
+      glow(x, y, 14, f.col, 0.9);
+      circle(x, y, 3.2, '#ffffff');
+    }
+    const op = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const q of hudParts) { ctx.globalAlpha = clamp(q.life / q.max, 0, 1); circle(q.x, q.y, q.size, q.color); }
+    ctx.globalCompositeOperation = op; ctx.globalAlpha = 1;
+    // segunda fila: sala en el centro, esencia y bajas a la derecha
+    txt(`SALA ${room} / ${TOTAL_ROOMS}`, W / 2, 75, 17, '#e9e3ff', 'center', true);
+    txt(`✨ ${calcEssence(false)}`, W - 16, 75, 17, '#ffcf4a', 'right', true);
+    txt(`☠ ${kills}`, bx + 40, 75, 16, '#cfc6e8', 'left', true);
     if (player.revives > 0) { // pluma de fénix disponible
-      ctx.save(); ctx.translate(bx + 190, 72); ctx.rotate(-0.6);
+      ctx.save(); ctx.translate(W - 96, 75); ctx.rotate(-0.6);
       ellipse(0, 0, 4, 10, '#ff9a3d'); ellipse(0, -2, 2, 6, '#ffd27a');
       ctx.strokeStyle = '#ffe9b0'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, 13); ctx.stroke();
       ctx.restore();
     }
-    txt(`☠ ${kills}`, bx + bw, 72, 18, '#cfc6e8', 'right', false);
     // barra del jefe
     if (boss && !boss.dead) {
       const x = AX + 30, w = AW - 60, y = AY - 28, kb = clamp(boss.hp / boss.maxHp, 0, 1);
       ctx.fillStyle = 'rgba(0,0,0,.75)'; rrect(x - 2, y - 2, w + 4, 24, 8); ctx.fill();
       ctx.fillStyle = boss.enraged ? '#ff3b3b' : '#e0453a'; rrect(x, y, w * kb, 20, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(x + w / 2 - 1, y, 2, 20); // a la mitad se enfurece
       txt(boss.name.toUpperCase(), AX + AW / 2, y + 10, 13, '#fff');
     }
     if (tut && TUT_TEXT[tut.step]) hint(TUT_TEXT[tut.step](), '#ffd27a');
@@ -2742,6 +3151,8 @@
     drawRoom();
     if (!player) drawMotes(); // motas mágicas flotando detrás de los menús
     if (player) {
+      drawHazards();
+      drawChest();
       drawTelegraphs();
       drawMeteorMarks();
       drawAltar();
@@ -2753,6 +3164,11 @@
       list.sort((a, b) => a.y - b.y);
       for (const o of list) (o === player ? drawPlayer() : drawEnemy(o));
       if (player.hp > 0) drawOrbs();
+      const pci = cellIndex(player.x, player.y);
+      if (player.hp > 0 && pci >= 0 && hz[pci] === HZ.SPIKES && spikePhase(pci) === 1) {
+        ctx.strokeStyle = `rgba(255,70,70,${0.6 + 0.4 * Math.sin(hzClock * 26)})`; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(player.x, player.y + 12, 24, 10, 0, 0, TAU); ctx.stroke();
+      }
       drawShots();
       drawBullets();
       drawRings();
@@ -2771,6 +3187,7 @@
       drawHUD();
       drawVignette();
       drawBanner();
+      drawCine();
       drawToast();
       drawJoystick();
     }
@@ -2868,6 +3285,7 @@
     player = null; boss = null; room = 0;
     enemies = []; shots = []; bullets = []; drops = []; parts = []; texts = []; bolts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null; toast = null; screenFlash = null;
+    chest = null; cine = null; hz.fill(0);
     cleared = true; doorAnim = 1; fade = 0; shake = 0;
     grid = genRocks(false);
     menuBiome = null; roomBgDirty = true;
@@ -2896,49 +3314,57 @@
       </div>`);
   }
 
-  // ---------- Ajustes ----------
+  // ---------- Ajustes (ventana emergente con botones redondos, estilo Archero) ----------
   let settingsFrom = 'menu', notice = '';
+  // [clave, icono, nombre]; música y sonido son interruptores como en Archero
   const TOGGLES = [
-    ['vibration', '📳', 'Vibración', 'Al recibir un golpe (solo móvil)'],
-    ['shake', '💥', 'Temblor de pantalla', ''],
-    ['dmgNumbers', '🔢', 'Números de daño', ''],
-    ['lefty', '✋', 'Modo zurdo', 'El botón del definitivo pasa a la izquierda'],
-    ['fps', '📊', 'Mostrar FPS', ''],
+    ['music', '🎵', 'Música'], ['sfx', '🔊', 'Sonido'], ['vibration', '📳', 'Vibración'],
+    ['shake', '💥', 'Temblor'], ['dmgNumbers', '🔢', 'Daño'], ['hd', '✨', 'Gráficos HD'],
+    ['lefty', '✋', 'Zurdo'], ['fps', '📊', 'FPS'],
   ];
-  const slider = (k, ic, name) => `<label class="set-row"><span class="ic">${ic}</span><span class="tx"><b>${name}</b></span>
-      <input type="range" min="0" max="100" step="5" value="${Math.round(settings[k] * 100)}" data-set="${k}" aria-label="${name}"></label>`;
+  const toggleOn = k => k === 'music' || k === 'sfx' ? settings[k] > 0 : k === 'hd' ? settings.quality !== 'baja' : !!settings[k];
 
   function showSettings(from) {
     if (from) settingsFrom = from;
-    const st = state === 'settings' ? panelScroll() : 0;
     state = 'settings';
     const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone;
+    const tiles = TOGGLES.map(([k, ic, name]) => {
+      const on = toggleOn(k);
+      return `<button class="ttile ${on ? 'on' : 'off'}" data-act="tset" data-key="${k}" aria-pressed="${on}">
+          <span class="ti">${ic}</span><span class="tl">${name}</span><span class="tst">${on ? 'SÍ' : 'NO'}</span></button>`;
+    }).join('');
     showOverlay(`
-      <div class="panel shop settings">
-        <div class="title">AJUSTES</div>
-        ${notice ? `<div class="notice">${notice}</div>` : ''}
-        <div class="set-list">
-          <button class="set-row" data-act="mute"><span class="ic">${Sfx.muted ? '🔇' : '🔊'}</span><span class="tx"><b>Sonido</b>${Sfx.muted ? '<i>Silenciado</i>' : ''}</span>
-            <span class="sw ${Sfx.muted ? '' : 'on'}"></span></button>
-          ${slider('music', '🎵', 'Música')}
-          ${slider('sfx', '🔊', 'Efectos')}
-          ${TOGGLES.map(([k, ic, name, sub]) => `<button class="set-row" data-act="toggle" data-key="${k}">
-            <span class="ic">${ic}</span><span class="tx"><b>${name}</b>${sub ? `<i>${sub}</i>` : ''}</span>
-            <span class="sw ${settings[k] ? 'on' : ''}"></span></button>`).join('')}
-          <div class="set-row"><span class="ic">🎨</span><span class="tx"><b>Calidad gráfica</b><i>Baja = más fluido en móviles modestos</i></span>
-            <span class="seg"><button data-act="quality" data-v="alta" class="${settings.quality === 'alta' ? 'on' : ''}">Alta</button><button data-act="quality" data-v="baja" class="${settings.quality === 'baja' ? 'on' : ''}">Baja</button></span></div>
-          <button class="set-row" data-act="tutorial"><span class="ic">🎓</span><span class="tx"><b>Ver el tutorial otra vez</b>
-            <i>${settings.tutorial ? 'Toca para que salga en la próxima partida' : 'Saldrá en tu próxima partida ✓'}</i></span></button>
+      <div class="popup">
+        <div class="pop-head"><span>AJUSTES</span><button class="pop-x" data-act="back" aria-label="Cerrar">✕</button></div>
+        <div class="pop-body">
+          ${notice ? `<div class="notice">${notice}</div>` : ''}
+          <div class="tgrid">${tiles}</div>
+          <div class="btn-row">
+            <button class="btn ghost" data-act="tutorial">🎓 ${settings.tutorial ? 'Tutorial' : 'Tutorial ✓'}</button>
+            <button class="btn ghost" data-act="credits">⭐ Créditos</button>
+          </div>
+          ${settingsFrom === 'pause' ? '' : '<button class="btn danger wide" data-act="reset">Borrar progreso</button>'}
+          ${ios ? '<div class="dim">En iPhone: Compartir → «Añadir a pantalla de inicio» para jugar a pantalla completa. Hazlo cuanto antes: en iOS antiguos el progreso de Safari no siempre pasa a la app.</div>' : ''}
+          <div class="pop-foot">Arcano v${VERSION} · Doublelag Games</div>
         </div>
-        ${ios ? '<div class="dim">En iPhone: Compartir → «Añadir a pantalla de inicio» para jugar a pantalla completa. Hazlo cuanto antes: en iOS antiguos el progreso de Safari no siempre pasa a la app.</div>' : ''}
-        <div class="btn-row">
-          <button class="btn ghost" data-act="credits">Créditos</button>
-          ${settingsFrom === 'pause' ? '' : '<button class="btn ghost danger" data-act="reset">Borrar progreso</button>'}
-        </div>
-        <button class="btn primary sticky" data-act="back">VOLVER</button>
       </div>`);
     notice = '';
-    restoreScroll(st);
+  }
+
+  // interruptores de la ventana de ajustes
+  function toggleTile(k) {
+    if (k === 'music' || k === 'sfx') {
+      const keep = k + 'Vol';
+      if (settings[k] > 0) { settings[keep] = settings[k]; settings[k] = 0; }
+      else settings[k] = settings[keep] || SETTINGS_DEFAULT[k];
+      Sfx.init();
+    } else if (k === 'hd') settings.quality = settings.quality === 'baja' ? 'alta' : 'baja';
+    else settings[k] = !settings[k];
+    saveSettings();
+    applySettings();
+    Sfx.click();
+    if (k === 'vibration' && settings.vibration) vibrate(40);
+    showSettings();
   }
 
   function applySettings() {
@@ -2962,7 +3388,7 @@
     Object.assign(meta, fresh);
     saveMeta();
     store.del('best');
-    settings.tutorial = false; settings.ultTip = false;
+    settings.tutorial = false; settings.ultTip = false; settings.seenHz = {};
     saveSettings();
     notice = 'Progreso borrado: empiezas de cero';
     showSettings();
@@ -3063,13 +3489,14 @@
     return out;
   }
 
-  function openLevelUp() {
+  function openLevelUp(src = pickSource) {
+    pickSource = src;
     const opts = rollSkills(3);
-    if (!opts.length) { pendingLevels = 0; return; }
+    if (!opts.length) { if (src === 'level') pendingLevels = 0; else bonusPicks = []; return; }
     state = 'levelup';
     resetJoy();
     lockUntil = performance.now() + 380; // evita elegir sin querer con el dedo aún en pantalla
-    const title = `¡NIVEL ${player.lvl - pendingLevels + 1}!`;
+    const title = { chest: '¡COFRE!', pact: '¡PACTO!', bless: '¡BENDICIÓN!' }[src] || `¡NIVEL ${player.lvl - pendingLevels + 1}!`;
     const cards = opts.map((k, i) => {
       const lv = player.sk[k.id] || 0;
       const pips = k.max > 1 && k.max < 50 ? `<div class="pips">${'★'.repeat(lv + 1)}${'☆'.repeat(k.max - lv - 1)}</div>` : '';
@@ -3109,7 +3536,7 @@
           </button>
           <button class="card" data-act="altar" data-id="bless" style="animation-delay:70ms">
             <div class="ic">✨</div>
-            <div class="tx"><div class="nm">Bendición arcana</div><div class="ds">Subes un nivel ahora mismo</div></div><kbd>2</kbd>
+            <div class="tx"><div class="nm">Bendición arcana</div><div class="ds">Eliges una habilidad ahora mismo</div></div><kbd>2</kbd>
           </button>
           ${player.mana >= 100 ? `<button class="card" data-act="altar" data-id="shield" style="animation-delay:140ms">
             <div class="ic">🛡️</div>
@@ -3118,6 +3545,10 @@
             <div class="ic">${SCHOOLS[player.school].ultIcon}</div>
             <div class="tx"><div class="nm">Ofrenda de maná</div><div class="ds">Tu ${SCHOOLS[player.school].ult} empieza el jefe cargado</div></div><kbd>3</kbd>
           </button>`}
+          ${player.maxHp >= 80 ? `<button class="card pact" data-act="altar" data-id="pact" style="animation-delay:210ms">
+            <div class="ic">😈</div>
+            <div class="tx"><div class="nm">Pacto oscuro</div><div class="ds">Pierdes el 20% de la vida máxima a cambio de 2 habilidades ahora</div></div><kbd>4</kbd>
+          </button>` : ''}
         </div>
       </div>`);
   }
@@ -3126,8 +3557,19 @@
     hideOverlay();
     state = 'play';
     if (id === 'heal') heal(player.maxHp * 0.6);
-    else if (id === 'bless') { player.lvl++; pendingLevels++; if (player.lvl >= 15) unlock('lvl15'); }
+    else if (id === 'bless') bonusPicks.push('bless');
     else if (id === 'shield') player.shield = 1;
+    else if (id === 'pact') {
+      player.maxHp = Math.max(40, Math.round(player.maxHp * 0.8));
+      player.hp = Math.min(player.hp, player.maxHp);
+      bonusPicks.push('pact', 'pact'); // dos habilidades sin subir de nivel (no encarece la experiencia)
+      meta.stats.pacts++;
+      unlock('pact');
+      burst(player.x, player.y, '#b0203a', 30, 240);
+      screenFlash = { color: '120,0,30', t: 0.5, max: 0.5 };
+      toast = { text: 'PACTO SELLADO', sub: 'Tu vida máxima baja… pero tu poder crece', color: '#ff5a7a', t: 2.4, max: 2.4 };
+      Sfx.boss();
+    }
     else { player.mana = 100; syncUlt(true); }
     Sfx.pick();
     burst(altar.x, altar.y - 20, '#ffd27a', 24, 200);
@@ -3187,8 +3629,17 @@
     showShop();
   }
 
+  function essenceParts(win) {
+    return [
+      ['Salas', Math.max(0, room - 1) * 1.5],
+      ['Bajas', kills * 0.15],
+      ['Jefes', bossesKilled * 8],
+      ['Cofres', runBonusEss],
+      ['Victoria', win ? 25 : 0],
+    ].map(([k, v]) => [k, Math.round(v)]).filter(([, v]) => v > 0);
+  }
   function calcEssence(win) {
-    return Math.round(Math.max(0, room - 1) * 3 + kills * 0.4 + bossesKilled * 15 + (win ? 40 : 0));
+    return essenceParts(win).reduce((a, [, v]) => a + v, 0);
   }
 
   function pickSkill(id) {
@@ -3200,7 +3651,8 @@
     }
     recalc();
     Sfx.pick();
-    pendingLevels = Math.max(0, pendingLevels - 1);
+    if (pickSource === 'level') pendingLevels = Math.max(0, pendingLevels - 1);
+    else bonusPicks.shift();
     hideOverlay();
     state = 'play';
   }
@@ -3246,7 +3698,7 @@
       S.wins++;
       S.winsBy[player.school] = (S.winsBy[player.school] || 0) + 1;
       unlock('firstWin');
-      if (runTime < 360) unlock('speedrun');
+      if (runTime < 270) unlock('speedrun');
       if (Object.keys(SCHOOLS).every(id => S.winsBy[id])) unlock('winAll');
       music('victory');
     } else if (quit) music('menu');
@@ -3258,6 +3710,7 @@
         <div class="title ${win ? 'gold' : 'red'}">${title}</div>
         <div class="sub">${SCHOOLS[player.school].icon} ${SCHOOLS[player.school].name} · ${sub}</div>
         <div class="earn">+✨ ${runEssence} de esencia <span>(tienes ${meta.essence})</span></div>
+        <div class="earn-parts">${essenceParts(win).map(([k, v]) => `${k} +${v}`).join(' · ')}</div>
         <div class="stats">
           <div><span>Sala</span><b>${room}/${TOTAL_ROOMS}</b></div>
           <div><span>Nivel</span><b>${player.lvl}</b></div>
@@ -3287,7 +3740,7 @@
     else if (act === 'pick') { if (ready) pickSkill(el.dataset.id); }
     else if (act === 'school') { if (ready) pickSchool(el.dataset.id); }
     else if (act === 'altar') { if (ready) pickAltar(el.dataset.id); }
-    else if (act === 'reroll') { if (ready && player.rerolls > 0) { player.rerolls--; Sfx.pick(); openLevelUp(); } }
+    else if (act === 'reroll') { if (ready && player.rerolls > 0) { player.rerolls--; Sfx.pick(); openLevelUp(pickSource); } }
     else if (act === 'resume') resume();
     else if (act === 'quit') { // dos toques para no perder una partida por accidente
       if (el.dataset.armed && ready) showEnd(false, true);
@@ -3301,9 +3754,10 @@
     else if (act === 'settings-pause') { Sfx.click(); showSettings('pause'); lockUntil = now + 350; }
     else if (act === 'credits') { Sfx.click(); showCredits(state === 'settings' ? 'settings' : 'menu'); lockUntil = now + 350; }
     else if (act === 'toggle') { if (ready) toggleSetting(el.dataset.key); }
+    else if (act === 'tset') { if (ready) toggleTile(el.dataset.key); }
     else if (act === 'mute') { if (ready) { Sfx.init(); Sfx.setMuted(!Sfx.muted); syncMute(); Sfx.click(); showSettings(); } }
     else if (act === 'quality') { if (ready) { settings.quality = el.dataset.v; saveSettings(); applySettings(); Sfx.click(); showSettings(); } }
-    else if (act === 'tutorial') { if (ready) { settings.tutorial = false; settings.ultTip = false; saveSettings(); Sfx.click(); showSettings(); } }
+    else if (act === 'tutorial') { if (ready) { settings.tutorial = false; settings.ultTip = false; settings.seenHz = {}; saveSettings(); Sfx.click(); showSettings(); } }
     else if (act === 'reset') {
       if (el.dataset.armed && ready) resetProgress();
       else { el.dataset.armed = '1'; el.classList.add('armed'); el.textContent = '¿Seguro? Se borra todo'; lockUntil = now + 400; }
@@ -3357,6 +3811,12 @@
       pick(i = 0) { const c = overlay.querySelectorAll('[data-act="pick"],[data-act="school"]:not(.locked),[data-act="altar"]')[i]; if (c) { lockUntil = 0; c.click(); } return state; },
       ult() { player.mana = 100; castUlt(); },
       seen() { return [...seenReactions]; },
+      hazards() { const n = {}; for (const t of hz) if (t) n[t] = (n[t] || 0) + 1; return n; },
+      hzCells(t) { const out = []; for (let i = 0; i < hz.length; i++) if (hz[i] === t) out.push({ x: AX + (i % COLS) * CELL + 20, y: AY + ((i / COLS) | 0) * CELL + 20, i }); return out; },
+      spike(i) { return spikePhase(i); },
+      clear() { for (const e of enemies) e.dead = true; },
+      chest() { return chest && { ...chest }; },
+      forceChest() { const cells = []; for (let i = 0; i < COLS * ROWS; i++) if (!grid[i]) cells.push({ x: AX + (i % COLS) * CELL + 20, y: AY + ((i / COLS) | 0) * CELL + 20 }); placeChest(cells.filter(p => p.y > AY + 200)); return !!chest; },
       give(id, n = 1) { for (let i = 0; i < n; i++) pickSkill(id); },
       goto(n) { room = n - 1; nextRoom(); state = 'play'; hideOverlay(); },
       toDoor() { player.x = AX + AW / 2; player.y = AY - 30; },
@@ -3364,6 +3824,7 @@
     });
   }
 
+  if (Sfx.muted) { settings.musicVol = settings.music || SETTINGS_DEFAULT.music; settings.sfxVol = settings.sfx || SETTINGS_DEFAULT.sfx; settings.music = 0; settings.sfx = 0; saveSettings(); Sfx.setMuted(false); }
   applySettings();
   if (/[?&]debug\b/.test(location.search)) showMenu(); else showSplash();
   requestAnimationFrame(frame);
