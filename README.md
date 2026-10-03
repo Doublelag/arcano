@@ -1,13 +1,17 @@
-# Arquero
+# Arcano
 
-Roguelite de mazmorras estilo **Archero** para móvil y PC. HTML5 + canvas, sin dependencias ni build.
+Roguelite de mazmorras **de magia** para móvil y PC (inspirado en Archero). HTML5 + canvas, sin dependencias ni build.
 
-- **Muévete** para esquivar, **quédate quieto** y disparas solo al enemigo más cercano.
-- 20 salas generadas al azar (rocas simétricas, siempre con camino a la puerta).
-- Jefes en las salas 5, 10, 15 y 20: Gólem de Piedra, Rey Slime, Brujo Sombrío y Señor de la Mazmorra (con fase de furia al 50%).
-- 5 enemigos: slime, murciélago, arquero goblin, jabalí (embiste) y hechicero (anillos de balas).
-- Cada nivel: elige 1 de 3 habilidades entre 21 (flecha frontal, disparo múltiple, diagonales, rebote, atravesar, fuego, hielo, veneno, rayo, espadas giratorias, sed de sangre…).
-- Sonido sintetizado con WebAudio, récord guardado en el navegador.
+- **Muévete** para esquivar, **quédate quieto** y lanzas hechizos al enemigo más cercano.
+- **Escuelas de magia**: al empezar eliges Piromante 🔥, Criomante ❄️ o Electromante ⚡ (elemento base + hechizo definitivo).
+- **Reacciones elementales** al combinar runas sobre un enemigo:
+  - Fuego + Hielo = **Vapor** (golpe de daño triple)
+  - Fuego + Rayo = **Sobrecarga** (explosión en área)
+  - Hielo + Rayo = **Congelación** (bloquea al enemigo, recibe +30% daño)
+  - Fuego + Veneno = **Combustión** (nube tóxica que contagia)
+- **Hechizo definitivo** con maná (bajas, daño al jefe y regeneración): Meteoro, Ventisca o Tormenta. Botón abajo a la derecha o `Espacio`/`E`.
+- 20 salas generadas al azar, jefes en las salas 5, 10, 15 y 20 (con fase de furia al 50%).
+- 22 habilidades: proyectiles extra, eco arcano, abanico, salto arcano, runas elementales, orbes guardianes, canalización…
 
 ## Jugar en local
 
@@ -15,14 +19,8 @@ Roguelite de mazmorras estilo **Archero** para móvil y PC. HTML5 + canvas, sin 
 python -m http.server 5191 --directory public
 ```
 
-Y abre http://localhost:5191. Controles: arrastrar el dedo (joystick flotante) o WASD/flechas. `P`/`Esc` pausa, `1`-`3` eligen carta.
+Abre http://localhost:5191. Controles: arrastrar el dedo (joystick flotante) o WASD/flechas. `P`/`Esc` pausa, `1`-`3` eligen carta.
 
 ## Depuración
 
-Con `?debug` en la URL, `window.__arquero` expone `step(seg)`, `pick(i)`, `give(id, n)`, `goto(sala)`, `toDoor()` y `god()` para simular partidas sin depender de `requestAnimationFrame`.
-
-## Archivos
-
-- `public/index.html`: contenedor
-- `public/style.css`: pantallas (menú, cartas de habilidad, pausa, fin)
-- `public/game.js`: todo el juego (datos, IA, físicas, render, UI)
+Con `?debug` en la URL, `window.__arquero` expone `step(seg)`, `pick(i)`, `give(id, n)`, `goto(sala)`, `toDoor()`, `god()`, `ult()` y `seen()` para simular partidas sin depender de `requestAnimationFrame`.

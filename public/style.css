@@ -219,3 +219,69 @@ canvas { display: block; touch-action: none; }
   border-radius: calc(var(--u) * 10px);
 }
 .empty { opacity: .5; margin-top: calc(var(--u) * 18px); }
+
+/* ---------- hechizo definitivo ---------- */
+.ult-btn {
+  position: absolute;
+  right: calc(var(--u) * 26px);
+  bottom: calc(var(--u) * 52px);
+  width: calc(var(--u) * 96px);
+  height: calc(var(--u) * 96px);
+  padding: calc(var(--u) * 6px);
+  border: none;
+  border-radius: 50%;
+  background: conic-gradient(var(--c, #c77dff) calc(var(--p, 0) * 1%), rgba(255, 255, 255, .12) 0);
+  opacity: .85;
+  touch-action: none;
+  cursor: pointer;
+}
+.ult-btn .in {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #1d1630;
+  font-size: calc(var(--u) * 40px);
+  filter: grayscale(.7) brightness(.7);
+}
+.ult-btn.ready { opacity: 1; animation: ultPulse 1s ease-in-out infinite; }
+.ult-btn.ready .in { filter: none; background: radial-gradient(circle, var(--c) -60%, #1d1630 72%); }
+@keyframes ultPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 var(--c); }
+  50% { transform: scale(1.07); box-shadow: 0 0 calc(var(--u) * 26px) 0 var(--c); }
+}
+
+/* ---------- escuelas, combos y reacciones ---------- */
+.card.school { border-color: var(--c); }
+.card.school .ic { background: radial-gradient(circle, var(--c) -80%, rgba(0, 0, 0, .3) 70%); }
+.card .ult { margin-top: calc(var(--u) * 6px); font-size: calc(var(--u) * 15px); opacity: .9; line-height: 1.3; }
+.card .ult b { color: #ffcf4a; }
+.card.hot { border-color: #ffcf4a; box-shadow: 0 0 calc(var(--u) * 16px) rgba(255, 207, 74, .35); }
+.card .combo { margin-top: calc(var(--u) * 4px); color: #ffcf4a; font-weight: 800; font-size: calc(var(--u) * 15px); }
+.sec {
+  margin-top: calc(var(--u) * 22px);
+  font-size: calc(var(--u) * 14px);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .55;
+}
+.reacts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 8px);
+  margin-top: calc(var(--u) * 8px);
+  text-align: left;
+}
+.react {
+  padding: calc(var(--u) * 8px) calc(var(--u) * 10px);
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: calc(var(--u) * 12px);
+  opacity: .45;
+  font-size: calc(var(--u) * 14px);
+}
+.react.on { opacity: 1; border-color: var(--c); }
+.react span { font-size: calc(var(--u) * 15px); }
+.react b { display: block; color: var(--c); font-size: calc(var(--u) * 15px); }
+.react i { font-style: normal; opacity: .75; font-size: calc(var(--u) * 13px); }
