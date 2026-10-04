@@ -40,8 +40,10 @@
   const SETTINGS_DEFAULT = {
     music: 0.6, sfx: 0.8, vibration: true, shake: true, dmgNumbers: true,
     lefty: false, quality: 'alta', fps: false, tutorial: false, ultTip: false, seenHz: {},
+    tips: {}, // avisos únicos ya vistos (aff, opp, anima, mix)
   };
   const settings = Object.assign({}, SETTINGS_DEFAULT, store.get('settings', {}));
+  settings.tips = Object.assign({}, typeof settings.tips === 'object' && settings.tips); // copia propia, nunca la de SETTINGS_DEFAULT
   const saveSettings = () => store.set('settings', settings);
   const lowQ = () => settings.quality === 'baja';
 
@@ -86,9 +88,9 @@
       o.connect(g); g.connect(this.sfxBus);
       o.start(t); o.stop(t + dur + 0.02);
     },
-    noise(dur, vol = 0.1, freq = 1500) {
+    noise(dur, vol = 0.1, freq = 1500, delay = 0) {
       if (!this.ctx || this.muted) return;
-      const c = this.ctx, t = c.currentTime;
+      const c = this.ctx, t = c.currentTime + delay;
       if (!this.nbuf) {
         this.nbuf = c.createBuffer(1, c.sampleRate * 0.6, c.sampleRate);
         const d = this.nbuf.getChannelData(0);
@@ -101,13 +103,46 @@
       s.start(t); s.stop(t + dur);
     },
     shoot() { if (this.gate('shoot', 60)) this.tone(520, 0.09, 'sine', 0.05, 1.8); },
+    // voz del disparo de cada forma: { f, type, slide, f2?, vol?, noise? } (comparte compuerta con shoot)
+    shootV(v) {
+      if (!v) return this.shoot();
+      if (!this.gate('shoot', 60)) return;
+      this.tone(v.f, 0.09, v.type || 'sine', v.vol || 0.05, v.slide || 1);
+      if (v.f2) this.tone(v.f2, 0.09, v.type || 'sine', (v.vol || 0.05) * 0.7, v.slide || 1);
+      if (v.noise) this.noise(0.03, 0.03, 6000);
+    },
     react() { if (this.gate('react', 80)) { this.tone(660, 0.18, 'triangle', 0.08, 1.6); this.noise(0.15, 0.06, 3000); } },
     freeze() { this.tone(1400, 0.35, 'sine', 0.07, 0.5); this.noise(0.3, 0.06, 6000); },
     zap() { if (this.gate('zap', 50)) { this.noise(0.14, 0.14, 5000); this.tone(220, 0.12, 'sawtooth', 0.05, 0.5); } },
     whistle() { this.tone(1500, 0.7, 'sine', 0.05, 0.25); },
     plague() { this.noise(0.6, 0.1, 400); this.tone(140, 0.6, 'sawtooth', 0.06, 0.6); },
     blast() { if (this.gate('blast', 60)) { this.noise(0.35, 0.16, 700); this.tone(120, 0.3, 'sine', 0.14, 0.4); } },
-    fuse() { if (this.gate('fuse', 120)) this.tone(900, 0.06, 'square', 0.03); },
+    sizzle() { if (this.gate('sizzle', 120)) this.tone(900, 0.06, 'square', 0.03); }, // mecha del diablillo
+    // Afinidad sellada: dos notas que se juntan y un cristal
+    fuse() { this.tone(392, 0.3, 'triangle', 0.07, 1.5); this.tone(587, 0.3, 'triangle', 0.07); this.tone(1175, 0.35, 'sine', 0.05, 1, 0.18); this.noise(0.2, 0.04, 4000, 0.18); },
+    // Despertar listo: tres notas (tónica, tercera y quinta) en el tono de la forma
+    formReady(key = 440) { [1, 1.26, 1.5].forEach((m, i) => this.tone(key * m, 0.16, 'triangle', 0.08, 1, i * 0.08)); },
+    // carga de la transformación: sierra que sube de 220 a 880 Hz en 0,9 s y tres soplos de ruido crecientes
+    awakenCharge() {
+      if (!this.ctx || this.muted) return;
+      const c = this.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(880, t + 0.9);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.85); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
+      o.connect(g); g.connect(this.sfxBus);
+      o.start(t); o.stop(t + 1);
+      [0, 0.3, 0.6].forEach((d, i) => this.noise(0.25, 0.03 + i * 0.03, 1500 * (i + 1), d));
+    },
+    // estallido: 1º despertar = acorde; 2º = arpegio de 5 notas; Eclipse = grave y arpegio menor que baja
+    awakenBoom(st, key = 440, eclipse = false) {
+      if (eclipse) {
+        this.tone(55, 1.5, 'sine', 0.15);
+        [622, 466, 370, 311].forEach((f, i) => this.tone(f, 0.5, 'triangle', 0.08, 1, i * 0.09));
+      } else if (st >= 2) [1, 1.25, 1.5, 2, 2.5].forEach((m, i) => this.tone(key * m, 0.6, 'sine', 0.07, 1, i * 0.06));
+      else [1, 1.5, 2].forEach(m => this.tone(key * m, 0.6, 'sine', 0.07));
+      this.boom();
+    },
+    mix() { this.tone(990, 0.18, 'triangle', 0.08, 1.6); }, // se activa una Mezcla
     buy() { [660, 880, 1320].forEach((f, i) => this.tone(f, 0.1, 'triangle', 0.08, 1, i * 0.06)); },
     ultReady() { this.tone(880, 0.12, 'sine', 0.07); this.tone(1320, 0.2, 'sine', 0.07, 1, 0.1); },
     hit() { if (this.gate('hit', 35)) this.noise(0.05, 0.07, 2400); },
@@ -194,6 +229,7 @@
     { id: 'freeze',  a: 'ice',  b: 'bolt',   name: 'CONGELACIÓN', color: '#9fefff', desc: 'Congela al enemigo' },
     { id: 'combust', a: 'fire', b: 'poison', name: 'COMBUSTIÓN',  color: '#c6ff5a', desc: 'Nube tóxica que contagia' },
     { id: 'corrode', a: 'bolt', b: 'poison', name: 'CORROSIÓN',   color: '#d4ff4a', desc: 'Recibe +40% de daño 4 s' },
+    { id: 'necro',   a: 'ice',  b: 'poison', name: 'NECROSIS',    color: '#5fffd0', desc: 'Detona el veneno de golpe' },
   ];
 
   // Mejoras permanentes del Santuario (se compran con esencia entre partidas)
@@ -228,7 +264,7 @@
     { id: 'boss3',       icon: '🌙', name: 'Duelo de magos',      desc: 'Derrota al Brujo Sombrío',               reward: 20 },
     { id: 'boss4',       icon: '😈', name: 'Señor de nada',       desc: 'Derrota al Señor de la Mazmorra',        reward: 30 },
     { id: 'firstWin',    icon: '🏆', name: 'Archimago',           desc: 'Completa la mazmorra',                   reward: 50 },
-    { id: 'reactAll',    icon: '⚗️', name: 'Alquimista',          desc: 'Provoca las 5 reacciones elementales',   reward: 20 },
+    { id: 'reactAll',    icon: '⚗️', name: 'Alquimista',          desc: 'Provoca las 6 reacciones elementales',   reward: 20 },
     { id: 'react50',     icon: '💥', name: 'Reacción en cadena',  desc: '50 reacciones en una sola partida',      reward: 20 },
     { id: 'untouchable', icon: '🛡️', name: 'Intocable',           desc: 'Derrota a un jefe sin recibir daño',     reward: 25 },
     { id: 'lvl15',       icon: '📈', name: 'Erudito',             desc: 'Alcanza el nivel 15 en una partida',     reward: 15 },
@@ -240,6 +276,14 @@
     { id: 'winAll',      icon: '🌈', name: 'Maestro de escuelas', desc: 'Gana con las 5 escuelas',                reward: 75 },
     { id: 'chests',      icon: '🗝️', name: 'Cazatesoros',         desc: 'Abre 5 cofres en total',                 reward: 15 },
     { id: 'pact',        icon: '😈', name: 'Trato hecho',         desc: 'Sella un pacto oscuro en un altar',      reward: 10 },
+    // Despertar: se cobran una sola vez (100 de esencia en total)
+    { id: 'awaken1',     icon: '🌅', name: 'Despertar',           desc: 'Despierta una forma por primera vez',    reward: 5 },
+    { id: 'awaken2',     icon: '🔆', name: 'Alma doble',          desc: 'Alcanza una forma combinada',            reward: 10 },
+    { id: 'hybrids',     icon: '🧭', name: 'Cuatro caminos',      desc: 'Descubre las 4 formas híbridas',         reward: 15 },
+    { id: 'eclipse',     icon: '🌑', name: 'Equilibrio roto',     desc: 'Despierta la forma prohibida',           reward: 15 },
+    { id: 'forms10',     icon: '📖', name: 'Grimorio de formas',  desc: 'Descubre las 10 formas',                 reward: 25 },
+    { id: 'formWins',    icon: '🎭', name: 'Mil caras',           desc: 'Gana con las 5 formas combinadas',       reward: 20 },
+    { id: 'mixes8',      icon: '🧪', name: 'Mezclador',           desc: 'Descubre las 8 Mezclas',                 reward: 10 },
   ];
 
   const BOSSES = {
@@ -342,7 +386,25 @@
   const META_DEFAULT = () => ({
     essence: 0, up: {}, schools: ['fire', 'ice', 'bolt'], runs: 0, ach: {}, gear: { inv: [], eq: {}, next: 1 },
     stats: { kills: 0, wins: 0, bosses: 0, elites: 0, reactions: 0, ults: 0, time: 0, essenceTotal: 0, chests: 0, pacts: 0, best: {}, winsBy: {}, reactSeen: {} },
+    // Grimorio: f = formas descubiertas, w = ganadas, e = despertadas pronto, m = Mezclas (máscaras de bits);
+    // n = despertares por forma (10 dígitos, tope 9); k = [suma sala 1º, nº 1º, suma sala 2º, nº 2º]; t = título elegido
+    grim: { f: 1, w: 0, e: 0, m: 0, n: '0000000000', k: [0, 0, 0, 0], t: -1 },
   });
+  // la cookie lleva el Grimorio compacto: "f.w.e.m.n.k0-k1-k2-k3.t" (sin comillas ni llaves que codificar)
+  const grimPack = g => [g.f, g.w, g.e, g.m, g.n, g.k.map(Math.round).join('-'), g.t].join('.');
+  function grimUnpack(s) {
+    const [f, w, e, m, n, k, t] = String(s).split('.');
+    return { f: +f, w: +w, e: +e, m: +m, n, k: String(k || '').split('-').map(Number), t: +t };
+  }
+  function grimValid(src) { // tipos seguros aunque el guardado venga roto o de otra versión
+    const g = META_DEFAULT().grim, s = src && typeof src === 'object' ? src : {};
+    for (const k of ['f', 'w', 'e', 'm']) if (Number.isInteger(s[k]) && s[k] >= 0) g[k] = s[k];
+    g.f |= 1; // el Aprendiz siempre está descubierto
+    if (typeof s.n === 'string' && /^\d{10}$/.test(s.n)) g.n = s.n;
+    if (Array.isArray(s.k) && s.k.length === 4 && s.k.every(v => Number.isFinite(v) && v >= 0)) g.k = s.k.slice();
+    if (Number.isInteger(s.t) && s.t >= -1 && s.t < 10) g.t = s.t;
+    return g;
+  }
   const meta = loadMeta();
   function loadMeta() {
     let saved = store.get('meta', null);
@@ -366,16 +428,23 @@
     m.schools = Array.isArray(s.schools) ? [...new Set(['fire', 'ice', 'bolt', ...s.schools])].filter(id => SCHOOLS[id]) : d.schools;
     m.stats = Object.assign(META_DEFAULT().stats, s.stats);
     for (const k of ['best', 'winsBy', 'reactSeen']) m.stats[k] = Object.assign({}, s.stats && s.stats[k]);
+    m.grim = grimValid(typeof s.grim === 'string' ? grimUnpack(s.grim) : s.grim); // un guardado antiguo carga el de por defecto
     if (!(m.essence >= 0)) m.essence = 0;
     return m;
   }
+  // copia para la cookie (no admite más de ~4 KB): equipo y Grimorio van compactos; si aun así no cabe, el equipo se queda fuera
+  function cookieValue() {
+    const inv = meta.gear.inv.map(it => `${it.uid}.${it.base}.${it.r}`).join(',');
+    const grim = grimPack(meta.grim);
+    let v = encodeURIComponent(JSON.stringify(Object.assign({}, meta, { gear: { inv, eq: meta.gear.eq, next: meta.gear.next }, grim })));
+    if (v.length > 3800) v = encodeURIComponent(JSON.stringify(Object.assign({}, meta, { gear: undefined, grim })));
+    return v.length <= 3800 ? v : '';
+  }
   function saveMeta() {
     store.set('meta', meta);
-    try { // la cookie no admite más de ~4 KB: el equipo va compacto y, si aun así no cabe, se queda fuera
-      const inv = meta.gear.inv.map(it => `${it.uid}.${it.base}.${it.r}`).join(',');
-      let v = encodeURIComponent(JSON.stringify(Object.assign({}, meta, { gear: { inv, eq: meta.gear.eq, next: meta.gear.next } })));
-      if (v.length > 3800) v = encodeURIComponent(JSON.stringify(Object.assign({}, meta, { gear: undefined })));
-      if (v.length <= 3800) document.cookie = 'arcano_meta=' + v + ';max-age=31536000;path=/;SameSite=Lax';
+    try {
+      const v = cookieValue();
+      if (v) document.cookie = 'arcano_meta=' + v + ';max-age=31536000;path=/;SameSite=Lax';
     } catch (_) { /* sin cookies */ }
   }
   const metaLv = id => meta.up[id] || 0;
@@ -679,6 +748,8 @@
       cd: 0, still: 0, inv: 0, face: -Math.PI / 2, moving: false, orbA: 0, walkT: 0,
       school: 'fire', mana: Math.min(100, 30 + 15 * metaLv('mana') + gear.manaStart), castFx: 0,
       revives: metaLv('fenix'), rerolls: metaLv('suerte'), shield: 0, vx: 0, vy: 0, trapCd: 0,
+      tr: {},      // rasgos de la forma despertada (vacío = valores de siempre)
+      god: false,  // solo depuración: inmune a todo, también a las trampas
     };
   }
 
@@ -687,6 +758,39 @@
     if (!player || player.mana >= 100) return;
     player.mana = Math.min(100, player.mana + v * (1 + 0.35 * (player.sk.channel || 0)) * (1 + 0.4 * perkLv('manaRegen')));
     if (player.mana >= 100) { Sfx.ultReady(); addText(player.x, player.y - 50, '¡DEFINITIVO LISTO!', EL[player.school].color, 0.8); }
+  }
+
+  // Congelar. Los jefes tienen rendimientos decrecientes: tras cada congelación quedan inmunes
+  // (frzImm = duración + 2 s) salvo a lo que fuerza (definitivos). Devuelve si se ha congelado.
+  function freezeEnemy(e, t, tb, force) {
+    if (e.kind === 'boss') {
+      if (e.frzImm > 0 && !force) return false;
+      e.frozen = tb; e.frzImm = tb + 2;
+    } else e.frozen = Math.max(e.frozen, t);
+    unfade(e);
+    return true;
+  }
+
+  // Fichas: topes de efectos en cadena (estallidos, arcos...) que se recargan solas
+  const TOK_MAX = { blast: 3, arc: 5, implode: 6, comet: 6, spark: 4, shard: 1 };
+  const TOK_RATE = { blast: 10, arc: 5, implode: 6, comet: 6, spark: 4, shard: 1 / 0.15 }; // por segundo
+  const tok = Object.assign({}, TOK_MAX);
+  const takeTok = k => tok[k] >= 1 ? (tok[k]--, true) : false;
+  function rechargeTok(dt) { for (const k in TOK_MAX) tok[k] = Math.min(TOK_MAX[k], tok[k] + TOK_RATE[k] * dt); }
+
+  // Proyectil secundario (esquirlas, divisiones): nofx = no reacciona, no encadena, no activa rasgos ni crea más.
+  // Se apila en shotQ y entra en shots al acabar updateShots; con 140 en pantalla no se crea.
+  const SHOT_CAP = 140;
+  let shotQ = [];
+  function spawnSub(x, y, a, dmg, els, o) {
+    if (shots.length + shotQ.length >= SHOT_CAP) return null;
+    const main = els && els[0] && EL[els[0]] ? els[0] : 'arcane';
+    const s = Object.assign({
+      x, y, vx: Math.cos(a) * SHOT_SPEED, vy: Math.sin(a) * SHOT_SPEED, dmg, life: 0.21, hit: new Set(),
+      pierce: 0, rico: 0, wall: 0, els: els || [], col: EL[main].color, col2: null, nofx: true,
+    }, o);
+    shotQ.push(s);
+    return s;
   }
 
   function liveEnemies() { return enemies.filter(e => !e.dead && e.spawnT <= 0); }
@@ -721,9 +825,8 @@
     } else if (player.school === 'ice') {
       for (const e of live) {
         // los bloques no se rompen todos a la vez: el estallido va crujiendo en cascada
-        e.frozen = e.kind === 'boss' ? 1.8 : rand(2.8, 3.3);
+        freezeEnemy(e, rand(2.8, 3.3), 1.8, true);
         e.shatter = true;
-        unfade(e);
         e.slow = Math.max(e.slow, 3);
         damageEnemy(e, player.atk * 5, false, EL.ice.color, true);
       }
@@ -848,6 +951,7 @@
   }
 
   function hurtPlayer(dmg, src) {
+    if (player.god) return; // depuración: ni golpes ni trampas
     if (state !== 'play') return;
     const trap = src === 'trap';
     if (trap) { // las trampas tienen su propio ritmo: no gastan escudo ni esquiva, ni dan invulnerabilidad
@@ -1033,7 +1137,7 @@
       spawnT: 0.75 + delay, spawnMax: 0.75 + delay, t: 0, seed: rand(0, TAU), flash: 0,
       state: kind === 'archer' ? 'move' : 'idle', timer: rand(0.6, 1.6), aim: 0, tx: x, ty: y,
       vx: 0, vy: 0, knock: 0, burn: 0, burnDps: 0, poisonDps: 0, dotT: 0.5, slow: 0, orbCd: 0, dead: false,
-      shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0,
+      shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0, frzImm: 0, corrMul: 0,
       heavy: kind === 'totem', alpha: kind === 'spirit' ? 1 : undefined, spin: rand(0, TAU),
       vscale: kind === 'bigslime' ? 1.4 : 1, // se dibuja más grande de lo que ocupa (cabe por pasillos de 1 celda)
     };
@@ -1057,7 +1161,7 @@
       aim: 0, spin: 0, acc: 0, alpha: 1, ringN: 12 + B.tier * 3, enraged: false,
       spawnT: 1, spawnMax: 1, t: 0, seed: 0, flash: 0, tx: 0, ty: 0, vx: 0, vy: 0, knock: 0,
       burn: 0, burnDps: 0, poisonDps: 0, dotT: 0.5, slow: 0, orbCd: 0, dead: false,
-      shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0, heavy: true,
+      shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0, frzImm: 0, corrMul: 0, heavy: true,
     };
   }
 
@@ -1121,6 +1225,7 @@
     if (e.shock > 0) e.shock -= dt;
     if (e.reactCd > 0) e.reactCd -= dt;
     if (e.corrode > 0) e.corrode -= dt;
+    if (e.frzImm > 0) e.frzImm -= dt; // inmunidad a congelar (jefes): corre también mientras está congelado
     if (e.plague > 0) {
       e.plague -= dt;
       if (Math.random() < dt * 18) parts.push({ x: e.x + rand(-e.r, e.r), y: e.y, vx: 0, vy: -40, life: 0.4, max: 0.4, color: EL.poison.color, size: 2 });
@@ -1213,7 +1318,7 @@
           if (dist(e, player) < 72) { e.state = 'fuse'; e.timer = 0.8; }
         } else {
           if (Math.random() < dt * 20) sparks(e.x, e.y - e.r, '#ffd27a', 1);
-          Sfx.fuse();
+          Sfx.sizzle();
           if (e.timer <= 0) { bomberBlast(e, true); return; }
         }
         break;
@@ -1420,8 +1525,8 @@
   // ---------- Daño a enemigos ----------
   function damageEnemy(e, dmg, crit, color, small) {
     if (e.dead) return;
-    if (e.frozen > 0) dmg *= 1.3; // los congelados reciben más daño
-    if (e.corrode > 0) dmg *= 1.4; // corrosión (rayo + veneno)
+    if (e.frozen > 0) dmg *= player.tr.frozenMul || 1.3; // los congelados reciben más daño
+    if (e.corrode > 0) dmg *= e.corrMul || 1.4; // corrosión (rayo + veneno)
     e.hp -= dmg;
     e.flash = 0.08;
     if (e.kind === 'boss') gainMana(dmg / e.maxHp * 90);
@@ -1496,13 +1601,13 @@
     if (detonated && !e.dead) killEnemy(e); // selfBlast: no cuenta como baja tuya
   }
 
-  function chainLightning(src, dmg) {
+  function chainLightning(src, dmg, n = 2, r = 200) {
     const near = enemies
       .filter(o => o !== src && !o.dead && o.spawnT <= 0)
       .map(o => ({ o, d: dist(o, src) }))
-      .filter(x => x.d < 200)
+      .filter(x => x.d < r)
       .sort((a, b) => a.d - b.d)
-      .slice(0, 2);
+      .slice(0, n);
     for (const { o } of near) {
       bolts.push({ x1: src.x, y1: src.y, x2: o.x, y2: o.y, life: 0.18 });
       damageEnemy(o, dmg, false, '#9fe8ff', true);
@@ -1512,14 +1617,15 @@
   }
 
   // ---------- Elementos y reacciones ----------
-  function applyElements(e, els) {
-    const s = player.sk;
-    if (els.includes('fire')) { e.burn = 2.5; e.burnDps = Math.max(e.burnDps, player.atk * 0.35 * s.fire); }
-    if (els.includes('ice')) e.slow = 1.8;
+  // mul: multiplica lo que suma el veneno por impacto. Un elemento sin runa (esquirlas, charcos) cuenta como Nv1
+  function applyElements(e, els, mul = 1) {
+    const s = player.sk, tr = player.tr;
+    if (els.includes('fire')) { e.burn = tr.burnT || 2.5; e.burnDps = Math.max(e.burnDps, player.atk * (tr.burnK || 0.35) * (s.fire || 1)); }
+    if (els.includes('ice')) e.slow = tr.slowT || 1.8;
     if (els.includes('bolt')) e.shock = 2;
     if (els.includes('poison')) {
-      const cap = player.atk * 0.8 * s.poison; // no rebaja un veneno más fuerte (p. ej. el de la Plaga)
-      if (e.poisonDps < cap) e.poisonDps = Math.min(e.poisonDps + player.atk * 0.1 * s.poison, cap);
+      const lv = s.poison || 1, cap = player.atk * (tr.poisonCap || 0.8) * lv; // no rebaja un veneno más fuerte (p. ej. el de la Plaga)
+      if (e.poisonDps < cap) e.poisonDps = Math.min(e.poisonDps + player.atk * (tr.poisonK || 0.1) * lv * mul, cap);
     }
   }
 
@@ -1537,7 +1643,8 @@
   }
 
   function react(r, e) {
-    e.reactCd = 1;
+    const tr = player.tr;
+    e.reactCd = e.kind === 'boss' ? 1 : (tr.reactCd || 1);
     const atk = player.atk;
     addText(e.x, e.y - e.r - 28, r.name, r.color, 1.15);
     Sfx.react();
@@ -1554,24 +1661,39 @@
       e.burn = 0; e.burnDps = 0; e.slow = 0;
       for (let i = 0; i < 16; i++) parts.push({ x: e.x + rand(-12, 12), y: e.y, vx: rand(-40, 40), vy: rand(-140, -60), life: rand(0.4, 0.8), max: 0.8, color: '#e8f7ff', size: rand(3, 6) });
       rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 40, t: 0.3, max: 0.3, color: r.color, w: 4 });
-      damageEnemy(e, atk * 3, true, r.color);
+      damageEnemy(e, atk * (tr.vaporK || 3), true, r.color);
     } else if (r.id === 'overload') {
       e.shock = 0;
-      explode(e.x, e.y, 95, atk * 2.2, r.color);
+      explode(e.x, e.y, tr.overR || 95, atk * (tr.overK || 2.2), r.color);
     } else if (r.id === 'freeze') {
       e.slow = 0; e.shock = 0;
-      e.frozen = e.kind === 'boss' ? 0.7 : 1.6;
-      unfade(e);
+      freezeEnemy(e, tr.freezeT || 1.6, tr.freezeBossT || 0.7);
       rings.push({ x: e.x, y: e.y, r0: e.r + 20, r1: e.r, t: 0.3, max: 0.3, color: r.color, w: 4 });
       Sfx.freeze();
     } else if (r.id === 'corrode') {
       e.shock = 0;
-      e.corrode = 4;
+      e.corrMul = tr.corrMul || 1.4;
+      e.corrode = tr.corrT || 4;
       rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 30, t: 0.35, max: 0.35, color: r.color, w: 3 });
       for (let i = 0; i < 10; i++) parts.push({ x: e.x + rand(-e.r, e.r), y: e.y + rand(-e.r, e.r), vx: rand(-30, 30), vy: rand(20, 70), life: rand(0.4, 0.7), max: 0.7, color: r.color, size: rand(2, 3.5) });
     } else if (r.id === 'combust') {
       e.burn = 0; e.burnDps = 0;
-      explode(e.x, e.y, 85, atk * 1.5, r.color, atk * 0.15 * Math.max(1, player.sk.poison || 1));
+      explode(e.x, e.y, tr.combR || 85, atk * (tr.combK || 1.5), r.color, atk * 0.15 * Math.max(1, player.sk.poison || 1));
+    } else if (r.id === 'necro') {
+      // NECROSIS (hielo + veneno): el veneno acumulado revienta de golpe (con tope) y la mitad salta a los de al lado
+      const pd = e.poisonDps, half = pd * 0.5, spread = tr.necroSpread || 70;
+      e.poisonDps = 0;
+      rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 40, t: 0.3, max: 0.3, color: r.color, w: 4 });
+      for (let i = 0; i < 10; i++) {
+        const a = rand(0, TAU), v = rand(60, 180);
+        parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.3, 0.55), max: 0.55, color: '#eafffa', size: rand(2, 3.5) });
+      }
+      Sfx.tone(1100, 0.25, 'sine', 0.06, 0.5);
+      if (half > 0) for (const o of enemies) {
+        if (o === e || o.dead || o.spawnT > 0) continue;
+        if (Math.hypot(o.x - e.x, o.y - e.y) < spread + o.r) o.poisonDps = Math.max(o.poisonDps, half);
+      }
+      damageEnemy(e, clamp(pd * (tr.necroK || 3), 1.5 * atk, (tr.necroCap || 4) * atk), true, r.color);
     }
   }
 
@@ -1590,13 +1712,16 @@
       const sp = Math.hypot(ar.vx, ar.vy) || 1;
       e.kx = (e.kx || 0) + ar.vx / sp * 80; e.ky = (e.ky || 0) + ar.vy / sp * 80;
     }
-    if (!e.dead && e.reactCd <= 0) {
+    // nofx (esquirlas y proyectiles secundarios): sin reacciones, sin cadena y sin rasgos; solo daño y elementos
+    if (!ar.nofx && !e.dead && e.reactCd <= 0) {
       for (const r of REACTIONS) {
+        if (r.id === 'freeze' && e.frzImm > 0) continue; // jefe aún inmune a congelar: no gasta sus estados
         if ((ar.els.includes(r.a) && had[r.b]) || (ar.els.includes(r.b) && had[r.a])) { react(r, e); break; }
       }
     }
     if (!e.dead) applyElements(e, ar.els);
-    if (ar.els.includes('bolt') && Math.random() < 0.16 * player.sk.bolt) chainLightning(e, ar.dmg * 0.4);
+    const tr = player.tr;
+    if (!ar.nofx && ar.els.includes('bolt') && Math.random() < (tr.chainP || 0.16) * (player.sk.bolt || 1)) chainLightning(e, ar.dmg * (tr.chainK || 0.4), tr.chainN || 2, tr.chainR || 200);
 
     if (ar.rico > 0) {
       let best = null, bd = 280 * 280;
@@ -1647,6 +1772,7 @@
       }
     }
     shots = shots.filter(a => !a.dead);
+    if (shotQ.length) { shots = shots.concat(shotQ); shotQ = []; } // secundarios creados durante el bucle
   }
 
   function updateBullets(dt) {
@@ -1909,7 +2035,7 @@
     roomHit = false;
     grid = genRocks(!!BOSSES[room] || ALTAR_ROOMS.has(room));
     roomBgDirty = true;
-    shots = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
+    shots = []; shotQ = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null; chest = null; cine = null;
     hz.fill(0);
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0, vx: 0, vy: 0 });
@@ -1943,7 +2069,8 @@
     Object.assign(hudFx, { xpShow: 0, lvlShow: 1, hold: 0, flash: 0, pulse: 0, wait: 0 }); flyers = []; hudParts = [];
     slowT = 0;
     // nada de la partida anterior: ni gemas en el suelo ni efectos a medias
-    drops = []; enemies = []; shots = []; bullets = []; parts = []; texts = []; bolts = []; volleys = [];
+    drops = []; enemies = []; shots = []; shotQ = []; bullets = []; parts = []; texts = []; bolts = []; volleys = [];
+    Object.assign(tok, TOK_MAX);
     tutStart();
     state = 'school';
     try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(0); } catch (_) { /* sin música */ }
@@ -2040,6 +2167,7 @@
     separate();
     updateShots(dt);
     updateUlts(dt);
+    rechargeTok(dt);
     updateBullets(dt);
     updateDrops(dt);
     updateFx(dt);
@@ -2967,24 +3095,24 @@
   function drawShots() {
     // orbes mágicos con estela (el color sale del elemento del hechizo)
     for (const a of shots) {
-      const col = a.col;
-      const sp = Math.hypot(a.vx, a.vy) || 1, ux = a.vx / sp, uy = a.vy / sp;
+      const col = a.col, k = a.nofx ? 0.6 : 1; // las esquirlas, más pequeñas
+      const sp = Math.hypot(a.vx, a.vy) || 1, ux = a.vx / sp * k, uy = a.vy / sp * k;
       // estela afilada
       const op = ctx.globalCompositeOperation;
       ctx.globalCompositeOperation = 'lighter';
       ctx.strokeStyle = rgba(col, 0.5); ctx.lineCap = 'round';
-      ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x - ux * 16, a.y - uy * 16); ctx.stroke();
-      ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x - ux * 30, a.y - uy * 30); ctx.stroke();
+      ctx.lineWidth = 7 * k; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x - ux * 16, a.y - uy * 16); ctx.stroke();
+      ctx.lineWidth = 3.5 * k; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x - ux * 30, a.y - uy * 30); ctx.stroke();
       ctx.lineCap = 'butt';
       ctx.globalCompositeOperation = op;
-      glow(a.x, a.y, 17, col, 0.9);
-      circle(a.x, a.y, 5.5, col);
+      glow(a.x, a.y, 17 * k, col, 0.9);
+      circle(a.x, a.y, 5.5 * k, col);
       if (a.col2) { // segundo elemento: chispa orbitando
         const t = clock * 25;
         glow(a.x + Math.cos(t) * 8, a.y + Math.sin(t) * 8, 6, a.col2);
         circle(a.x + Math.cos(t) * 8, a.y + Math.sin(t) * 8, 2.4, a.col2);
       }
-      circle(a.x, a.y, 2.8, '#fff');
+      circle(a.x, a.y, 2.8 * k, '#fff');
     }
   }
 
@@ -3471,7 +3599,7 @@
     Object.assign(meta, fresh);
     saveMeta();
     store.del('best');
-    settings.tutorial = false; settings.ultTip = false; settings.seenHz = {};
+    settings.tutorial = false; settings.ultTip = false; settings.seenHz = {}; settings.tips = {};
     saveSettings();
     notice = 'Progreso borrado: empiezas de cero';
     showSettings();
@@ -3972,7 +4100,7 @@
     }
     else if (act === 'mute') { if (ready) { Sfx.init(); Sfx.setMuted(!Sfx.muted); syncMute(); Sfx.click(); showSettings(); } }
     else if (act === 'quality') { if (ready) { settings.quality = el.dataset.v; saveSettings(); applySettings(); Sfx.click(); showSettings(); } }
-    else if (act === 'tutorial') { if (ready) { settings.tutorial = false; settings.ultTip = false; settings.seenHz = {}; saveSettings(); Sfx.click(); showSettings(); } }
+    else if (act === 'tutorial') { if (ready) { settings.tutorial = false; settings.ultTip = false; settings.seenHz = {}; settings.tips = {}; saveSettings(); Sfx.click(); showSettings(); } }
     else if (act === 'reset') {
       if (el.dataset.armed && ready) resetProgress();
       else { el.dataset.armed = '1'; el.classList.add('armed'); el.textContent = '¿Seguro? Se borra todo'; lockUntil = now + 400; }
@@ -4006,9 +4134,10 @@
   window.__arcano = {
     get state() { return state; }, get room() { return room; }, get player() { return player; },
     get enemies() { return enemies; }, get bullets() { return bullets; }, get grid() { return grid; },
-    get kills() { return kills; },
+    get kills() { return kills; }, get shots() { return shots; },
   };
   if (/[?&]debug\b/.test(location.search)) {
+    const rnd0 = Math.random;
     Object.assign(window.__arcano, {
       // avanza la simulación sin depender de requestAnimationFrame (pestañas ocultas, pruebas)
       step(sec, hold = []) {
@@ -4037,7 +4166,34 @@
       give(id, n = 1) { for (let i = 0; i < n; i++) pickSkill(id); },
       goto(n) { room = n - 1; nextRoom(); state = 'play'; hideOverlay(); },
       toDoor() { player.x = AX + AW / 2; player.y = AY - 30; },
-      god(v = true) { player.inv = v ? 1e9 : 0; },
+      god(v = true) { player.inv = v ? 1e9 : 0; player.god = !!v; },
+      // azar con semilla para pruebas repetibles; seed(null) devuelve el Math.random original
+      seed(n) {
+        if (n == null) { Math.random = rnd0; return; }
+        let a = n | 0;
+        Math.random = () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; // mulberry32
+      },
+      // partida nueva con esa escuela (aunque esté bloqueada: solo para esta partida, no se guarda)
+      school(id) {
+        hideOverlay(); newRun();
+        const had = meta.schools;
+        if (!had.includes(id)) meta.schools = [...had, id];
+        pickSchool(id);
+        meta.schools = had;
+        return state;
+      },
+      grim(reset) { if (reset) { meta.grim = META_DEFAULT().grim; saveMeta(); } return meta.grim; },
+      cookie() { return cookieValue(); }, // lo que se guardaría en la cookie ('' = no cabe)
+      sfx(name, ...args) { Sfx.init(); Sfx[name](...args); return !!Sfx.ctx; }, // probar un sonido: sfx('awakenBoom', 2, 523)
+      // impacto de prueba sobre enemies[i] con esos elementos (o = campos extra del disparo, p. ej. { nofx: true })
+      hit(i, els, o) {
+        const e = enemies[i];
+        if (!e || e.dead) return null;
+        shotHit(Object.assign({ x: e.x, y: e.y, vx: 0, vy: -SHOT_SPEED, dmg: player.atk, hit: new Set(), pierce: 0, rico: 0, wall: 0, els }, o), e);
+        return { hp: e.hp, dead: e.dead, poisonDps: e.poisonDps, slow: e.slow, frozen: e.frozen, frzImm: e.frzImm, reactCd: e.reactCd };
+      },
+      sub(n = 1, els = ['ice']) { let k = 0; for (let i = 0; i < n; i++) if (spawnSub(player.x, player.y, -Math.PI / 2 + rand(-0.6, 0.6), player.atk * 0.6, els)) k++; return k; },
+      tok, // referencia fija (Object.assign no copia getters)
     });
   }
 

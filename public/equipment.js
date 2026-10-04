@@ -38,10 +38,10 @@
 
   // ---------- perks (el juego implementa los efectos) ----------
   const PERKS = {
-    'startRune:fire':   { name: 'Brasa eterna',     desc1: 'Empiezas cada partida con la Runa de fuego',            desc2: 'Empiezas cada partida con la Runa de fuego a nivel 2' },
-    'startRune:ice':    { name: 'Corazón helado',   desc1: 'Empiezas cada partida con la Runa de hielo',            desc2: 'Empiezas cada partida con la Runa de hielo a nivel 2' },
-    'startRune:bolt':   { name: 'Chispa viva',      desc1: 'Empiezas cada partida con la Runa de rayo',             desc2: 'Empiezas cada partida con la Runa de rayo a nivel 2' },
-    'startRune:poison': { name: 'Sangre de víbora', desc1: 'Empiezas cada partida con la Runa de veneno',           desc2: 'Empiezas cada partida con la Runa de veneno a nivel 2' },
+    'startRune:fire':   { name: 'Brasa eterna',     desc1: 'Empiezas con la Runa de fuego (fija tu Afinidad si cabe)', desc2: 'Empiezas con la Runa de fuego a nivel 2 (fija tu Afinidad si cabe)' },
+    'startRune:ice':    { name: 'Corazón helado',   desc1: 'Empiezas con la Runa de hielo (fija tu Afinidad si cabe)', desc2: 'Empiezas con la Runa de hielo a nivel 2 (fija tu Afinidad si cabe)' },
+    'startRune:bolt':   { name: 'Chispa viva',      desc1: 'Empiezas con la Runa de rayo (fija tu Afinidad si cabe)', desc2: 'Empiezas con la Runa de rayo a nivel 2 (fija tu Afinidad si cabe)' },
+    'startRune:poison': { name: 'Sangre de víbora', desc1: 'Empiezas con la Runa de veneno (fija tu Afinidad si cabe)', desc2: 'Empiezas con la Runa de veneno a nivel 2 (fija tu Afinidad si cabe)' },
     'extraShot':        { name: 'Disparo gemelo',   desc1: '+1 proyectil frontal (−12% de daño por proyectil)',      desc2: '+2 proyectiles frontales (−12% de daño por proyectil)' },
     'roomShield':       { name: 'Égida',            desc1: 'Empiezas cada sala con un escudo que absorbe un golpe', desc2: 'Escudo al empezar cada sala y te curas un 10% de la vida al limpiarla' },
     'lifeOnKill':       { name: 'Sed de sangre',    desc1: 'Cada baja te cura un 1% de la vida máxima',             desc2: 'Cada baja te cura un 2% de la vida máxima' },
