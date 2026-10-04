@@ -28,9 +28,11 @@
   const shuffle = arr => { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
   const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
+  // quiet (bots de prueba): no se guarda nada ni salen avisos de logro; el progreso se restaura al acabar
+  let quiet = false;
   const store = {
     get(k, d) { try { const v = localStorage.getItem('arcano.' + k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } },
-    set(k, v) { try { localStorage.setItem('arcano.' + k, JSON.stringify(v)); } catch (_) { /* sin almacenamiento */ } },
+    set(k, v) { if (quiet) return; try { localStorage.setItem('arcano.' + k, JSON.stringify(v)); } catch (_) { /* sin almacenamiento */ } },
     del(k) { try { localStorage.removeItem('arcano.' + k); } catch (_) { /* sin almacenamiento */ } },
   };
 
@@ -390,6 +392,7 @@
   // Despertar: cinemática, esquirlas de Eclipse, espera de la oferta, música retenida, cola de avisos, charcos...
   let awakenFx = null, eclipseFx = null, awakenWait = 0, musicHoldT = 0, toastQ = [], bannerNext = null, flashNext = null;
   let pools = [], amb = [], ash = [], pactRun = false, roomReactA = 0, ambT = 0, fxDepth = 0, netLog = [];
+  let runGrim0 = null; // páginas del Grimorio al empezar la partida (para "Nueva página" en el final)
 
   const dmgMul = () => 1 + 0.07 * (room - 1);
   const xpNeed = lvl => 6 + (lvl - 1) * 5;
@@ -453,6 +456,7 @@
     return v.length <= 3800 ? v : '';
   }
   function saveMeta() {
+    if (quiet) return;
     store.set('meta', meta);
     try {
       const v = cookieValue();
@@ -494,6 +498,7 @@
     meta.essence += a.reward;
     meta.stats.essenceTotal += a.reward;
     saveMeta();
+    if (quiet) return;
     achQueue.push(a);
     nextAch();
   }
@@ -537,7 +542,7 @@
     if (e.code === 'Escape' && state === 'levelup' && pickSource === 'awaken') awakenLater(); // Escape = "Aún no"
     else if (e.code === 'Escape' || e.code === 'KeyP') {
       if (state === 'play' || state === 'paused') togglePause();
-      else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item'].includes(state)) goBack();
+      else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item', 'grimoire'].includes(state)) goBack();
       else if (state === 'school') showMenu();
     }
     const onButton = document.activeElement && document.activeElement.tagName === 'BUTTON';
@@ -556,7 +561,7 @@
     const f = loadMeta();
     for (const k of Object.keys(meta)) delete meta[k];
     Object.assign(meta, f);
-    if (state === 'menu') showMenu(); else if (state === 'shop') showShop(); else if (state === 'stats') showStats();
+    if (state === 'menu') showMenu(); else if (state === 'shop') showShop(); else if (state === 'stats') showStats(); else if (state === 'grimoire') showGrimoire();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -2404,6 +2409,7 @@
     toast = null; screenFlash = null;
     toastQ = []; bannerNext = null; flashNext = null; awakenFx = null; eclipseFx = null; musicHoldT = 0;
     pactRun = false; pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; fxDepth = 0; netLog = [];
+    runGrim0 = grimPages();
     seenReactions.clear();
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
@@ -3865,10 +3871,11 @@
 
   function reactionList() {
     return `<div class="reacts">${REACTIONS.map(r => {
-      const on = hasEl(r.a) && hasEl(r.b);
-      return `<div class="react ${on ? 'on' : ''}" style="--c:${r.color}">
+      const on = hasEl(r.a) && hasEl(r.b), aff = player.aff;
+      const shut = !on && !!FX() && aff.length >= 2 && !(aff.includes(r.a) && aff.includes(r.b)); // fuera de tu Afinidad sellada
+      return `<div class="react ${on ? 'on' : shut ? 'shut' : ''}" style="--c:${r.color}">
         <span>${SKILLS.find(k => k.id === r.a).icon}+${SKILLS.find(k => k.id === r.b).icon}</span>
-        <b>${r.name}</b><i>${on ? r.desc : 'Bloqueada'}</i></div>`;
+        <b>${r.name}</b><i>${on ? r.desc : shut ? 'Cerrada esta partida' : 'Bloqueada'}</i></div>`;
     }).join('')}</div>`;
   }
 
@@ -3926,7 +3933,7 @@
     backArmed = !!(history.state && history.state.arcano);
     if (state === 'levelup' && pickSource === 'awaken') awakenLater(); // Atrás en el panel del despertar = "Aún no"
     else if (state === 'play' || state === 'paused') togglePause();
-    else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item'].includes(state)) goBack();
+    else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item', 'grimoire'].includes(state)) goBack();
     else if (state === 'school') showMenu();
     else if (state === 'menu' || state === 'splash' || state === 'tap') history.back(); // en el menú sí sale
     // se vuelve a armar en el siguiente toque (Chrome ignora las entradas creadas sin gesto del usuario)
@@ -3947,19 +3954,23 @@
     try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(0); } catch (_) { /* sin música */ }
     const b = store.get('best', null);
     const done = ACHIEVEMENTS.filter(a => meta.ach[a.id]).length;
+    const F = FX(), tt = grimTitle();
+    const logros = `<button class="btn ghost" data-act="stats">🏆 Logros <span class="cnt">${done}/${ACHIEVEMENTS.length}</span></button>`;
+    const ajustes = '<button class="btn ghost" data-act="settings">⚙️ Ajustes</button>';
+    // con forms.js: Grimorio | Logros y Ajustes en su propia fila; sin él, el menú de siempre
+    const rows = F ? `<div class="btn-row"><button class="btn ghost" data-act="grimoire">📖 Grimorio <span class="cnt">${F.count(meta.grim.f)}/10</span></button>${logros}</div>
+        <div class="btn-row solo">${ajustes}</div>` : `<div class="btn-row">${logros}${ajustes}</div>`;
     showOverlay(`
       <div class="panel menu">
         <div class="logo">ARCANO</div>
+        ${tt ? `<div class="mtitle" style="--c:${tt.color}">«${tt.text}»</div>` : ''}
         <div class="tag">Roguelite de magia · ${TOTAL_ROOMS} salas · 4 jefes</div>
         <button class="btn primary menu-play" data-act="play">JUGAR</button>
         <div class="btn-row">
           <button class="btn ghost" data-act="shop">🏛️ Santuario <span class="ess">✨ ${meta.essence}</span></button>
           <button class="btn ghost" data-act="gear">🎒 Equipo</button>
         </div>
-        <div class="btn-row">
-          <button class="btn ghost" data-act="stats">🏆 Logros <span class="cnt">${done}/${ACHIEVEMENTS.length}</span></button>
-          <button class="btn ghost" data-act="settings">⚙️ Ajustes</button>
-        </div>
+        ${rows}
         ${installEvt ? '<button class="btn ghost install" data-act="install">📲 Instalar en el móvil</button>' : ''}
         ${b ? `<div class="best">Récord: ${b.school && SCHOOLS[b.school] ? SCHOOLS[b.school].icon + ' ' : ''}${b.win ? '🏆 Mazmorra completada' : 'Sala ' + b.room} · Nivel ${b.lvl}</div>` : ''}
         <div class="howto">
@@ -4222,6 +4233,7 @@
           <div><span>Jefes</span><b>${S.bosses}</b></div>
           <div><span>Reacciones</span><b>${S.reactions}</b></div>
           <div><span>Tiempo jugado</span><b>${fmtLong(S.time)}</b></div>
+          ${grimStatRows()}
         </div>
         <div class="sec">Mejor sala por escuela</div>
         <div class="sbests">${bests}</div>
@@ -4229,6 +4241,135 @@
         <div class="shop-list">${achs}</div>
         <button class="btn primary sticky" data-act="back">VOLVER</button>
       </div>`);
+  }
+
+  // ---------- Grimorio: formas, reacciones y (fase 2) Mezclas descubiertas ----------
+  const GRIM_TITLES = ['Sin Forma', 'Llama Viva', 'Invierno Quieto', 'Trueno Errante', 'Paciencia Verde', 'Estrella Caída', 'Luz del Norte', 'Sudario Blanco', 'Boca de Volcán', 'Sin Equilibrio'];
+  const elIc = el => SKILL_BY_ID[el].icon;
+  const decimal = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
+  let grimTab = 'formas';
+  // páginas: 10 formas + 6 reacciones (+ 8 Mezclas en la fase 2)
+  function grimPages() {
+    const F = FX(), g = meta.grim, mx = !!F && flags.phase2;
+    const f = F ? F.count(g.f) : 0, r = REACTIONS.filter(x => meta.stats.reactSeen[x.id]).length, m = mx ? F.count(g.m) : 0;
+    return { f, r, m, n: f + r + m, tot: 10 + REACTIONS.length + (mx ? F.MIXES.length : 0) };
+  }
+  // Marca II: la pura, despertada antes de la sala 7; combinadas, Eclipse y Aprendiz, ganar con ella
+  function grimMark2(id) { const F = Forms(), g = meta.grim; return F.FORMS[id].tier === 1 ? F.has(g.e, id) : F.has(g.w, id); }
+  // título que se luce (si aún tiene la Marca II de esa forma)
+  function grimTitle() {
+    const F = FX(), t = meta.grim.t;
+    return F && t >= 0 && grimMark2(F.IDS[t]) ? { text: GRIM_TITLES[t], color: F.FORMS[F.IDS[t]].color } : null;
+  }
+  // receta de una forma: elementos y en qué despertar se consigue
+  function formRecipe(D) {
+    if (D.tier === 0) return 'Tu forma al empezar cada partida';
+    if (D.id === 'eclipse') return `${elIc('fire')}+${elIc('ice')} o ${elIc('bolt')}+${elIc('poison')} · opuestos y Pacto oscuro`;
+    return D.els.map(el => `${elIc(el)} ${EL[el].name}`).join(' + ') + (D.tier === 1 ? ' · 1er despertar' : ' · 2º despertar');
+  }
+  // rombo del cuadrado: Fuego arriba, Rayo a la derecha, Hielo abajo y Veneno a la izquierda; las híbridas en los lados, Eclipse en el centro
+  function grimRombo() {
+    const F = Forms(), on = id => F.has(meta.grim.f, id);
+    const V = { fire: [50, 0], bolt: [100, 50], ice: [50, 100], poison: [0, 50] };
+    const SIDES = [['plasma', 'fire', 'bolt', 'tr'], ['aurora', 'bolt', 'ice', 'br'], ['mortaja', 'ice', 'poison', 'bl'], ['azufre', 'poison', 'fire', 'tl']];
+    const line = (a, b, col, dash) => `<line x1="${V[a][0]}" y1="${V[a][1]}" x2="${V[b][0]}" y2="${V[b][1]}" stroke="${col}"${dash ? ' stroke-dasharray="3 5"' : ''} />`;
+    const ecl = on('eclipse'), ec = ecl ? '#c77dff' : 'rgba(255,255,255,.12)';
+    let svg = line('fire', 'ice', ec, !ecl) + line('bolt', 'poison', ec, !ecl), labels = '';
+    for (const [id, a, b, pos] of SIDES) {
+      const D = F.FORMS[id], o = on(id);
+      svg += line(a, b, o ? D.color : 'rgba(255,255,255,.22)', !o);
+      labels += `<span class="h ${pos}${o ? ' on' : ''}" style="--c:${D.color}">${o ? D.short : '???'}</span>`;
+    }
+    // un vértice se enciende si alguna forma descubierta lleva ese elemento
+    const verts = F.SQUARE.map(el => `<span class="v${F.IDS.some(id => on(id) && F.FORMS[id].els.includes(el)) ? ' on' : ''}" style="left:${V[el][0]}%;top:${V[el][1]}%;--c:${EL[el].color}">${elIc(el)}</span>`).join('');
+    return `<div class="rombo"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${svg}</svg>${verts}${labels}
+      <span class="ctr${ecl ? ' on' : ''}">${ecl ? F.FORMS.eclipse.icon : '?'}</span></div>`;
+  }
+  function grimFormItem(id) {
+    const F = Forms(), g = meta.grim, D = F.FORMS[id], i = D.bit;
+    if (!F.has(g.f, id)) { // hueco: silueta y "???"; las híbridas enseñan la receta y Eclipse nada
+      const rec = id === 'eclipse' ? 'La forma prohibida. Algo duerme entre los opuestos' : D.els.map(elIc).join(' + ') + ' · ???';
+      return `<div class="shop-item grim locked"><span class="ic">${id === 'eclipse' ? '❔' : D.icon}</span><span class="tx"><b>???</b><i>${rec}</i></span></div>`;
+    }
+    const n = +g.n[i], m2 = grimMark2(id), worn = g.t === i;
+    const ult = D.tier === 0 ? 'el de tu escuela' : D.tier === 1 || flags.phase2 ? `${D.ult.icon} ${D.ult.name}` : 'el de tu núcleo';
+    const goal = D.tier === 1 ? 'Despiértala antes de la sala 7' : D.tier === 0 ? 'Gana sin despertar' : 'Gana con ella';
+    return `<div class="shop-item grim" style="--c:${D.color}">
+        <span class="ic">${D.icon}</span>
+        <span class="tx"><b>${D.name}</b><i class="rc">${formRecipe(D)}</i><i class="line">${D.line}</i>
+          <i><u>${D.trName}</u> · ${D.desc}</i><i>Definitivo: ${ult}</i>
+          <span class="gfoot"><span class="mk on" title="Marca I">I</span><span class="mk${m2 ? ' on' : ''}" title="Marca II">II</span>
+            ${D.tier ? `<em>Despertada ${n >= 9 ? '9+' : n} ${n === 1 ? 'vez' : 'veces'}</em>` : ''}
+            ${m2 ? `<button class="gtt${worn ? ' on' : ''}" data-act="title" data-i="${i}">${worn ? '✓ Luces' : 'Lucir'} «${GRIM_TITLES[i]}»</button>` : `<em class="goal">II: ${goal}</em>`}</span>
+        </span>
+      </div>`;
+  }
+  function grimReactItem(r) {
+    const seen = !!meta.stats.reactSeen[r.id];
+    return `<div class="shop-item grim${seen ? '' : ' unseen'}" style="--c:${r.color}"><span class="ic rx">${elIc(r.a)}${elIc(r.b)}</span>
+        <span class="tx"><b>${seen ? r.name : '???'}</b><i>${EL[r.a].name} + ${EL[r.b].name}${seen ? ' · ' + r.desc : ''}</i></span></div>`;
+  }
+  function grimMixItem(m) {
+    if (!Forms().has(meta.grim.m, m.id)) return `<div class="shop-item grim unseen"><span class="ic">${elIc(m.el)}</span><span class="tx"><b>???</b><i>${elIc(m.el)} + ???</i></span></div>`;
+    return `<div class="shop-item grim" style="--c:${m.color}"><span class="ic">${m.icon}</span><span class="tx"><b>${m.name}</b><i class="rc">${m.recipe}</i><i>${m.desc}</i></span></div>`;
+  }
+  function showGrimoire(tab) {
+    const F = FX();
+    if (!F) { showMenu(); return; }
+    const st = state === 'grimoire' && (!tab || tab === grimTab) ? panelScroll() : 0; // cambiar de pestaña vuelve arriba
+    if (tab) grimTab = tab;
+    if (grimTab === 'mezclas' && !flags.phase2) grimTab = 'formas';
+    state = 'grimoire';
+    const P = grimPages();
+    const tabs = [['formas', '📖 Formas', `${P.f}/10`], ['reacciones', '⚗️ Reacciones', `${P.r}/${REACTIONS.length}`]]
+      .concat(flags.phase2 ? [['mezclas', '🧪 Mezclas', `${P.m}/${F.MIXES.length}`]] : []);
+    let body;
+    if (grimTab === 'formas') body = grimRombo() + `<div class="shop-list">${F.IDS.map(grimFormItem).join('')}</div>`;
+    else if (grimTab === 'reacciones') body = `<div class="dim">Junta dos elementos en el mismo enemigo</div><div class="shop-list">${REACTIONS.map(grimReactItem).join('')}</div>`;
+    else body = `<div class="dim">Una runa y una carta concretas: la receta está oculta</div><div class="shop-list">${F.MIXES.map(grimMixItem).join('')}</div>`;
+    showOverlay(`
+      <div class="panel shop grim">
+        <div class="title gold">GRIMORIO</div>
+        <div class="sub">${P.n} de ${P.tot} páginas · ${Math.floor(P.n / P.tot * 100)}%</div>
+        <div class="grim-tabs">${tabs.map(([id, name, n]) => `<button class="tab${id === grimTab ? ' on' : ''}" data-act="grim" data-tab="${id}">${name} <i>${n}</i></button>`).join('')}</div>
+        ${body}
+        <button class="btn primary sticky" data-act="back">VOLVER</button>
+      </div>`);
+    restoreScroll(st);
+  }
+  // filas del Grimorio en Logros: formas y sala media de cada despertar
+  function grimStatRows() {
+    const F = FX(), k = meta.grim.k;
+    if (!F) return '';
+    const avg = (s, n) => (n ? decimal(s / n) : '—');
+    return `<div><span>Formas</span><b>${F.count(meta.grim.f)}/10</b></div>
+          <div><span>Despertar medio (sala)</span><b>${avg(k[0], k[1])} / ${avg(k[2], k[3])}</b></div>`;
+  }
+  // pausa: "Forma: PLASMA · Fuego + Rayo" o "Aprendiz · Afinidad: Fuego + Rayo · Despertar 64%"
+  function formLine() {
+    const p = player, F = FX();
+    if (!F || !p) return '';
+    const D = F.FORMS[p.form], aff = p.aff.map(el => EL[el].name).join(' + ');
+    const prog = p.awak >= 2 ? '' : p.animaReady ? (p.awkLock ? 'Despertar: falta un Pacto oscuro' : 'Despertar listo')
+      : `Despertar ${Math.floor(clamp(p.anima / F.ANIMA.need[p.awak], 0, 1) * 100)}%`;
+    const parts = p.awak ? [`Forma: <b>${D.short}</b>`, p.awak === 2 ? F.pairText(p.core, p.second) : aff.includes('+') ? 'Afinidad: ' + aff : EL[p.core].name]
+      : ['Aprendiz', aff ? 'Afinidad: ' + aff : ''];
+    return `<div class="formline" style="--c:${D.color}">${D.icon} ${parts.concat(prog).filter(Boolean).join(' · ')}</div>`;
+  }
+  // final: con qué forma acabas, qué te falta por descubrir y si hubo página nueva
+  function endGrim(win, quit) {
+    const F = FX();
+    if (!F || !player) return '';
+    const D = F.FORMS[player.form], g = meta.grim;
+    const miss = F.IDS.filter(id => !F.has(g.f, id)).map(id => {
+      const E = F.FORMS[id];
+      return id === 'eclipse' ? '???' : E.els.map(elIc).join('+') + ' ???';
+    });
+    const P = grimPages(), fresh = runGrim0 ? P.n - runGrim0.n : 0;
+    const tt = grimTitle(), verb = win ? 'Ganaste' : quit ? 'Terminaste' : 'Caíste';
+    return `<div class="emblem" style="--c:${D.color}"><span class="ei">${D.icon}</span><span>${verb} como <b>${D.name}</b>${tt ? ` <i>«${tt.text}»</i>` : ''}</span></div>
+        ${fresh > 0 ? `<div class="newpage">📖 ${fresh > 1 ? fresh + ' páginas nuevas' : 'Nueva página'} del Grimorio</div>` : ''}
+        ${miss.length ? `<div class="missing">Te faltan: ${miss.slice(0, 4).join(', ')}${miss.length > 4 ? ` +${miss.length - 4}` : ''}</div>` : ''}`;
   }
 
   let shopFrom = 'menu';
@@ -4513,6 +4654,7 @@
       <div class="panel">
         <div class="title">PAUSA</div>
         <div class="sub">${SCHOOLS[player.school].icon} ${SCHOOLS[player.school].name} · Sala ${room} · Nivel ${player.lvl} · ${Math.ceil(player.hp)}/${player.maxHp} vida</div>
+        ${formLine()}
         ${skillChips()}
         <div class="sec">Reacciones</div>
         ${reactionList()}
@@ -4563,6 +4705,7 @@
       <div class="panel">
         <div class="title ${win ? 'gold' : 'red'}">${title}</div>
         <div class="sub">${SCHOOLS[player.school].icon} ${SCHOOLS[player.school].name} · ${sub}</div>
+        ${endGrim(win, quit)}
         <div class="earn">+✨ ${runEssence} de esencia <span>(tienes ${meta.essence})</span></div>
         <div class="earn-parts">${essenceParts(win).map(([k, v]) => `${k} +${v}`).join(' · ')}</div>
         ${runLoot.length && Gear() ? `<div class="loot">${runLoot.map(it => { const d = Gear().describe(it); return `<span class="gtile" style="--rc:${d.color}" title="${d.name}"><span class="gi">${d.icon}</span></span>`; }).join('')}</div>
@@ -4608,6 +4751,11 @@
     else if (act === 'buy') { if (ready) buyUpgrade(el.dataset.id); }
     else if (act === 'buyschool') { if (ready) buySchool(el.dataset.id); }
     else if (act === 'stats') { Sfx.click(); showStats(); lockUntil = now + 350; }
+    else if (act === 'grimoire') { Sfx.click(); showGrimoire('formas'); lockUntil = now + 350; }
+    else if (act === 'grim') { if (ready && el.dataset.tab !== grimTab) { Sfx.click(); showGrimoire(el.dataset.tab); lockUntil = now + 200; } }
+    else if (act === 'title') { // lucir (o dejar de lucir) el título de una forma con la Marca II
+      if (ready) { const i = +el.dataset.i; meta.grim.t = meta.grim.t === i ? -1 : i; saveMeta(); Sfx.pick(); showGrimoire(); lockUntil = now + 250; }
+    }
     else if (act === 'settings') { Sfx.click(); showSettings('menu'); lockUntil = now + 350; }
     else if (act === 'settings-pause') { Sfx.click(); showSettings('pause'); lockUntil = now + 350; }
     else if (act === 'credits') { Sfx.click(); showCredits(state === 'settings' ? 'settings' : 'menu'); lockUntil = now + 350; }
@@ -4706,6 +4854,7 @@
         return state;
       },
       grim(reset) { if (reset) { meta.grim = META_DEFAULT().grim; saveMeta(); } return meta.grim; },
+      ach() { return Object.keys(meta.ach).filter(k => meta.ach[k]); }, // logros conseguidos
       cookie() { return cookieValue(); }, // lo que se guardaría en la cookie ('' = no cabe)
       sfx(name, ...args) { Sfx.init(); Sfx[name](...args); return !!Sfx.ctx; }, // probar un sonido: sfx('awakenBoom', 2, 523)
       // impacto de prueba sobre enemies[i] con esos elementos (o = campos extra del disparo, p. ej. { nofx: true })
@@ -4745,6 +4894,198 @@
       toasts() { return [toast, ...toastQ].filter(Boolean).map(t => t.text + ' | ' + t.sub).concat(banner ? ['BANNER ' + banner.text] : [], bannerNext ? ['NEXT ' + bannerNext.text] : []); },
       formStats() { return Forms() ? Object.assign(Forms().stats(), { glowGame: glowCache.size }) : null; },
     });
+
+    // ---------- Bots de prueba (sección 7 de docs/despertar-spec.md): partidas enteras sin dibujar, en modo dios ----------
+    const dbg = window.__arcano;
+    const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+    const med = a => { const v = a.filter(Number.isFinite).sort((x, y) => x - y), m = v.length >> 1; return !v.length ? null : v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
+    // nada de lo que pase en una partida de bot se queda: ni esencia, ni logros, ni Grimorio, ni equipo, ni ajustes, ni sonido
+    function sandbox(fn) {
+      const m0 = JSON.stringify(meta), s0 = JSON.stringify(settings), fr = flags.freeze, nf = flags.noForms, mu = Sfx.muted;
+      quiet = true; flags.freeze = true; Sfx.muted = true;
+      try { return fn(); } finally {
+        const m = JSON.parse(m0);
+        for (const k of Object.keys(meta)) delete meta[k];
+        Object.assign(meta, m, { grim: grimValid(m.grim) });
+        Object.assign(settings, JSON.parse(s0));
+        quiet = false; flags.freeze = fr; flags.noForms = nf; Sfx.muted = mu;
+        Math.random = rnd0;
+        showMenu();
+      }
+    }
+    // elección del bot: en el despertar, la ruta (C.path) o la primera opción abierta; en el resto, por prioridades
+    const PRIO = ['atk', 'atkspd', 'front', 'multi', 'crit', 'pierce', 'ricochet', 'diag', 'orbs'];
+    function botPick(C, L) {
+      const p = player, F = FX();
+      if (pickSource === 'awaken') {
+        L.offers++;
+        const all = F ? F.options({ stage: p.awak + 1, aff: p.aff, core: p.core, pact: pactRun }) : [], o = all.filter(x => !x.locked);
+        const goal = all.find(x => x.el === C.path[p.awak]);
+        if (p.awak >= C.stop || !o.length || (goal && goal.locked)) { awakenLater(); return; } // su ruta pide un Pacto: espera
+        const pk = goal || o[0];
+        L.awk.push({ st: p.awak + 1, room, el: pk.el });
+        pickSkill('awk:' + pk.el);
+        return;
+      }
+      const ids = [...overlay.querySelectorAll('[data-act="pick"]')].map(c => c.dataset.id).filter(id => SKILL_BY_ID[id]);
+      if (!ids.length) { L.stuck++; hideOverlay(); state = 'play'; pendingLevels = 0; bonusPicks = []; return; }
+      if (F && p.aff.length >= 2) L.badOffer += ids.filter(id => SKILL_BY_ID[id].el && !p.aff.includes(id)).length; // runa cerrada ofrecida
+      const lv = id => p.sk[id] || 0, rune = id => !!SKILL_BY_ID[id].el, first = list => list.map(k => ids.find(id => id === k)).find(Boolean);
+      const want = C.path.filter(el => el !== SCHOOLS[p.school].el); // el 2º elemento de la ruta (el Arcanista, los dos)
+      pickSkill(first(want) || ids.find(id => rune(id) && lv(id) > 0 && lv(id) < 2) || first(PRIO) || ids.find(id => id.startsWith('f_'))
+        || first(['hp', 'heal']) || ids.find(id => !rune(id)) || ids[0]);
+    }
+    // partida entera (síncrona). fresh: jugador que nunca ha despertado (red a); si no, veterano.
+    // ult: lanza el definitivo al llenarse (el bot de 7.1 no lo usa, así que va apagado por defecto)
+    function sim(cfg) {
+      const C = Object.assign({ school: 'fire', path: [], pact: false, stop: 2, noForms: false, maxT: 900, seed: 1, ult: false, fresh: false }, cfg);
+      return sandbox(() => {
+        dbg.seed(C.seed);
+        flags.noForms = !!C.noForms;
+        settings.tutorial = true;
+        if (C.fresh) meta.grim = META_DEFAULT().grim; else meta.grim.f |= 2;
+        dbg.school(C.school);
+        player.god = true;
+        const L = { roomT: {}, ttk: {}, frz: {}, awk: [], offers: 0, badOffer: 0, maxShots: 0, maxParts: 0, maxAff: 0, ults: 0, stuck: 0 };
+        const DT = 1 / 60;
+        let clT = 0, idle = 0, hpSum = 0, bT = 0, fT = 0, rStart = 0, rNow = room;
+        for (let i = 0; i < C.maxT * 60; i++) {
+          if (state === 'play') {
+            advance(DT);
+            if (state !== 'play') continue;
+            if (room !== rNow) { rNow = room; clT = 0; }
+            L.maxShots = Math.max(L.maxShots, shots.length); L.maxParts = Math.max(L.maxParts, parts.length); L.maxAff = Math.max(L.maxAff, player.aff.length);
+            if (boss && !boss.dead && boss.spawnT <= 0) { bT += DT; if (boss.frozen > 0) fT += DT; }
+            if (cleared && !awakenFx) {
+              if (slowT <= 0) clT += DT; // tras un jefe, la cámara lenta no cuenta: da tiempo a la oferta del despertar (0,8 s)
+              if (altar && !altar.used) { player.x = altar.x; player.y = altar.y + 12; }
+              else if (chest && !chest.opened) { player.x = chest.x; player.y = chest.y + 12; }
+              else if (clT > 1.6 && room < TOTAL_ROOMS) { player.x = AX + AW / 2; player.y = AY - 30; }
+            } else if (!cleared) {
+              clT = 0;
+              const s = enemies.reduce((a, e) => a + e.hp, 0);
+              idle = s < hpSum - 0.01 ? 0 : idle + DT; hpSum = s;
+              if (idle > 3) { // atascado: se planta cerca del enemigo más próximo, con línea de tiro
+                idle = 0;
+                const t = findTarget();
+                if (t) { const c = freeCellNear(t.x, t.y, 140); if (los(c.x, c.y, t.x, t.y)) { player.x = c.x; player.y = c.y; } }
+              }
+              if (C.ult && player.mana >= 100 && !awakenFx && (boss || enemies.length >= 3)) { castUlt(); if (player.mana < 100) L.ults++; }
+            }
+            if (bT && !boss) { L.ttk[room] = r1(bT); L.frz[room] = r2(fT / bT); bT = fT = 0; }
+          } else if (state === 'transition') {
+            const r = room;
+            advance(DT);
+            if (room !== r) { L.roomT[r] = r1(runTime - rStart); rStart = runTime; }
+          } else if (state === 'levelup') botPick(C, L);
+          else if (state === 'altar') pickAltar(C.pact && !pactRun && player.maxHp >= 80 ? 'pact' : 'bless');
+          else break;
+        }
+        const p = player;
+        return Object.assign({ cfg: C, win: state === 'win', time: r1(runTime), room, lvl: p.lvl, form: p.form, core: p.core, second: p.second,
+          aff: p.aff.slice(), lock: !!p.awkLock, linaje: linaje(), net: netLog.map(n => n.net) }, L);
+      });
+    }
+    // resumen de varias semillas de una configuración (medianas)
+    function simRow(c, runs) {
+      const aw = n => med(runs.map(r => (r.awk.find(a => a.st === n) || {}).room));
+      const forms = {};
+      for (const r of runs) forms[r.form] = (forms[r.form] || 0) + 1;
+      const ttk = {};
+      for (const b of [5, 10, 15, 20]) { const v = med(runs.map(r => r.ttk[b])); ttk[b] = v == null ? null : r1(v); }
+      const netP = k => r2(runs.filter(r => r.net.includes(k)).length / runs.length);
+      return {
+        g: c.g, id: `${c.school}/${c.path.join('+') || '-'}${c.pact ? ' pacto' : ''}`, n: runs.length, win: r2(runs.filter(r => r.win).length / runs.length),
+        time: med(runs.map(r => r.time)), aw1: aw(1), aw2: aw(2), netA: netP('a'), netB: netP('b'), netC: netP('c'),
+        frz: r2(Math.max(0, ...runs.flatMap(r => Object.values(r.frz)))), ttk, forms, locks: runs.filter(r => r.lock).length, linaje: runs.filter(r => r.linaje).length,
+        badOffer: runs.reduce((a, r) => a + r.badOffer, 0), maxAff: Math.max(...runs.map(r => r.maxAff)), maxShots: Math.max(...runs.map(r => r.maxShots)),
+        maxParts: Math.max(...runs.map(r => r.maxParts)), stuck: runs.reduce((a, r) => a + r.stuck, 0), ults: med(runs.map(r => r.ults)),
+      };
+    }
+    // objetivos de 7.2 contra las medianas de la matriz
+    function simChecks(rows) {
+      const out = [], chk = (name, ok, val) => out.push({ name, ok: !!ok, val });
+      const fr = rows.filter(r => r.g !== 'base'), base = rows.filter(r => r.g === 'base'), fin = rows.filter(r => r.g === 'hibrida' || r.g === 'eclipse');
+      const avg = a => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : null);
+      const mF = avg(fr.map(r => r.time)), mB = avg(base.map(r => r.time)), mFin = avg(fin.map(r => r.time));
+      chk('victorias 100%', rows.every(r => r.win === 1), rows.filter(r => r.win < 1).map(r => r.id + ' ' + r.win));
+      chk('tiempo con formas 4:00-6:00', fr.every(r => r.time >= 240 && r.time <= 360), fr.map(r => `${r.id} ${fmtTime(r.time)}`));
+      chk('ninguna forma final >25% más rápida', !mFin || fin.every(r => r.time >= 0.8 * mFin), mFin && fin.map(r => `${r.id} ${r2(r.time / mFin)}`));
+      chk('formas/base 0,80-1,00', mF && mB && mF / mB >= 0.8 && mF / mB <= 1, mF && mB && r2(mF / mB));
+      const a1 = fr.filter(r => r.aw1 != null), a2 = fr.filter(r => r.aw2 != null);
+      chk('1er despertar en sala 5-7', a1.every(r => r.aw1 >= 5 && r.aw1 <= 7), a1.map(r => `${r.id} ${r.aw1}`));
+      chk('2º despertar en sala 11-14', a2.every(r => r.aw2 >= 11 && r.aw2 <= 14), a2.map(r => `${r.id} ${r.aw2}`));
+      chk('red (b) <= 15%', avg(fr.map(r => r.netB)) <= 0.15, r2(avg(fr.map(r => r.netB))));
+      chk('red (c) <= 20%', avg(fr.map(r => r.netC)) <= 0.2, r2(avg(fr.map(r => r.netC))));
+      chk('congelación del jefe <= 35%', rows.every(r => r.frz <= 0.35), rows.filter(r => r.frz > 0.35).map(r => r.id + ' ' + r.frz));
+      chk('badOffer 0 y Afinidad <= 2', fr.every(r => !r.badOffer && r.maxAff <= 2), fr.filter(r => r.badOffer || r.maxAff > 2).map(r => r.id));
+      chk('maxShots <= 200', rows.every(r => r.maxShots <= 200), Math.max(...rows.map(r => r.maxShots)));
+      chk('maxParts <= 500', rows.every(r => r.maxParts <= 500), Math.max(...rows.map(r => r.maxParts)));
+      const op = rows.find(r => r.g === 'opuesto');
+      if (op) chk('opuesto sin pacto: se queda en Ígnea', op.forms.ignea === op.n, { formas: op.forms, bloqueadas: op.locks });
+      return out;
+    }
+    // matriz de 7.2 (asíncrona: cede entre partidas). only: grupos a correr ('base', 'pura', 'hibrida', 'eclipse', 'opuesto', 'arcanista', 'traicion')
+    async function simMatrix(opts) {
+      const O = Object.assign({ seeds: 8, only: null, maxT: 900, log: false, ult: false }, opts);
+      // "Traición" (7.2 pide fire/[bolt,ice]): con la escuela fijando aff[0] el Piromante no puede llegar a Aurora,
+      // así que se prueba fire/[bolt,fire]: Voltaica sin Linaje y luego Plasma
+      const CFG = [
+        ...['fire', 'ice', 'bolt', 'poison', 'arcane'].map(s => ({ g: 'base', school: s, path: [], noForms: true })),
+        ...ELEMENTS.map(s => ({ g: 'pura', school: s, path: [s], stop: 1 })),
+        ...[['fire', 'bolt'], ['bolt', 'fire'], ['bolt', 'ice'], ['ice', 'bolt'], ['ice', 'poison'], ['poison', 'ice'], ['poison', 'fire'], ['fire', 'poison']]
+          .map(([a, b]) => ({ g: 'hibrida', school: a, path: [a, b] })),
+        ...[['fire', 'ice'], ['ice', 'fire'], ['bolt', 'poison'], ['poison', 'bolt']].map(([a, b]) => ({ g: 'eclipse', school: a, path: [a, b], pact: true })),
+        { g: 'opuesto', school: 'fire', path: ['fire', 'ice'], pact: false },
+        { g: 'arcanista', school: 'arcane', path: ['fire', 'bolt'] }, { g: 'arcanista', school: 'arcane', path: ['ice', 'poison'] },
+        { g: 'traicion', school: 'fire', path: ['bolt', 'fire'] },
+      ].filter(c => !O.only || O.only.includes(c.g));
+      const rows = [], t0 = performance.now();
+      for (const c of CFG) {
+        const runs = [];
+        for (let s = 1; s <= O.seeds; s++) {
+          runs.push(sim(Object.assign({}, c, { seed: s, maxT: O.maxT, ult: O.ult })));
+          await new Promise(r => setTimeout(r, 0));
+        }
+        rows.push(simRow(c, runs));
+        if (O.log) console.log(JSON.stringify(rows[rows.length - 1]));
+      }
+      return { secs: r1((performance.now() - t0) / 1000), rows, checks: simChecks(rows) };
+    }
+    // banco de jefes (7.3): build media, despertares al instante y el mago quieto en el inicio de la sala del jefe
+    function bench(cfg) {
+      const C = Object.assign({ room: 15, school: 'fire', path: [], build: 'mid', secs: 90, seed: 1, noForms: false, pact: false }, cfg);
+      return sandbox(() => {
+        dbg.seed(C.seed);
+        flags.noForms = !!C.noForms;
+        settings.tutorial = true;
+        dbg.school(C.school);
+        player.god = true;
+        const S = SCHOOLS[C.school], runes = C.path.length ? C.path : S.el ? [S.el] : [];
+        const B = C.build === 'mid' ? { atk: 3, atkspd: 2, front: 1, multi: 1, crit: 1, hp: 2 } : {};
+        for (const [k, n] of Object.entries(B)) for (let i = 0; i < n; i++) pickSkill(k);
+        for (const el of runes) while ((player.sk[el] || 0) < 2) pickSkill(el);
+        if (C.pact) pactRun = true;
+        if (FX()) for (const el of C.path.slice(0, 2)) awaken(el);
+        pendingLevels = 0; bonusPicks = [];
+        dbg.goto(C.room);
+        const L = { offers: 0, badOffer: 0, awk: [], stuck: 0 }, P = Object.assign({}, C, { stop: player.awak }), DT = 1 / 60;
+        const x0 = player.x, y0 = player.y;
+        let bT = 0, fT = 0, killed = false;
+        for (let i = 0; i < (C.secs + 30) * 60 && !killed && bT < C.secs; i++) {
+          if (state === 'play') {
+            advance(DT);
+            player.x = x0; player.y = y0; // quieto en el inicio
+            if (boss && !boss.dead && boss.spawnT <= 0) { bT += DT; if (boss.frozen > 0) fT += DT; }
+            if (bT > 0 && (!boss || boss.dead)) killed = true;
+          } else if (state === 'levelup') botPick(P, L);
+          else if (state === 'transition' || state === 'dying') advance(DT);
+          else break;
+        }
+        return { cfg: C, ttk: r1(bT), killed, frz: bT ? r2(fT / bT) : 0, form: player.form, atk: r1(player.atk), linaje: linaje() };
+      });
+    }
+    Object.assign(window.__arcano, { sim, simMatrix, bench, botPick });
   }
 
   if (Sfx.muted) { settings.musicVol = settings.music || SETTINGS_DEFAULT.music; settings.sfxVol = settings.sfx || SETTINGS_DEFAULT.sfx; settings.music = 0; settings.sfx = 0; saveSettings(); Sfx.setMuted(false); }
