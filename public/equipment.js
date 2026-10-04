@@ -42,7 +42,7 @@
     'startRune:ice':    { name: 'Corazón helado',   desc1: 'Empiezas cada partida con la Runa de hielo',            desc2: 'Empiezas cada partida con la Runa de hielo a nivel 2' },
     'startRune:bolt':   { name: 'Chispa viva',      desc1: 'Empiezas cada partida con la Runa de rayo',             desc2: 'Empiezas cada partida con la Runa de rayo a nivel 2' },
     'startRune:poison': { name: 'Sangre de víbora', desc1: 'Empiezas cada partida con la Runa de veneno',           desc2: 'Empiezas cada partida con la Runa de veneno a nivel 2' },
-    'extraShot':        { name: 'Eco arcano',       desc1: '+1 proyectil frontal',                                   desc2: '+2 proyectiles frontales' },
+    'extraShot':        { name: 'Disparo gemelo',   desc1: '+1 proyectil frontal (−12% de daño por proyectil)',      desc2: '+2 proyectiles frontales (−12% de daño por proyectil)' },
     'roomShield':       { name: 'Égida',            desc1: 'Empiezas cada sala con un escudo que absorbe un golpe', desc2: 'Escudo al empezar cada sala y te curas un 10% de la vida al limpiarla' },
     'lifeOnKill':       { name: 'Sed de sangre',    desc1: 'Cada baja te cura un 1% de la vida máxima',             desc2: 'Cada baja te cura un 2% de la vida máxima' },
     'manaRegen':        { name: 'Pozo de maná',     desc1: 'Tu definitivo se carga un 40% más rápido',              desc2: 'Tu definitivo se carga un 80% más rápido' },

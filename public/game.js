@@ -324,7 +324,7 @@
   const hz = new Uint8Array(COLS * ROWS), hzOff = new Float32Array(COLS * ROWS); // trampas del suelo
   let hzClock = 0;
   let chest = null, chestsThisRun = 0, runBonusEss = 0, pickSource = 'level';
-  let runLoot = []; // objetos de equipo conseguidos en la partida
+  let runLoot = [], lostLoot = 0; // objetos de equipo conseguidos (o perdidos por no caber) en la partida
   let bonusPicks = []; // elecciones de habilidad que no suben de nivel: 'chest' | 'pact' | 'bless'
   let cine = null; // entrada cinematográfica del jefe
   // HUD animado: la barra de experiencia se llena con retraso y con chispas que vuelan hasta ella
@@ -350,6 +350,9 @@
       try {
         const m = document.cookie.match(/(?:^|; )arcano_meta=([^;]*)/);
         if (m) saved = JSON.parse(decodeURIComponent(m[1]));
+        if (saved && saved.gear && typeof saved.gear.inv === 'string') { // copia compacta del equipo
+          saved.gear.inv = saved.gear.inv ? saved.gear.inv.split(',').map(t => { const [u, b, r] = t.split('.'); return { uid: +u, base: b, r: +r }; }) : [];
+        }
       } catch (_) { saved = null; }
     }
     const d = META_DEFAULT(), s = saved || {};
@@ -368,7 +371,12 @@
   }
   function saveMeta() {
     store.set('meta', meta);
-    try { document.cookie = 'arcano_meta=' + encodeURIComponent(JSON.stringify(meta)) + ';max-age=31536000;path=/;SameSite=Lax'; } catch (_) { /* sin cookies */ }
+    try { // la cookie no admite más de ~4 KB: el equipo va compacto y, si aun así no cabe, se queda fuera
+      const inv = meta.gear.inv.map(it => `${it.uid}.${it.base}.${it.r}`).join(',');
+      let v = encodeURIComponent(JSON.stringify(Object.assign({}, meta, { gear: { inv, eq: meta.gear.eq, next: meta.gear.next } })));
+      if (v.length > 3800) v = encodeURIComponent(JSON.stringify(Object.assign({}, meta, { gear: undefined })));
+      if (v.length <= 3800) document.cookie = 'arcano_meta=' + v + ';max-age=31536000;path=/;SameSite=Lax';
+    } catch (_) { /* sin cookies */ }
   }
   const metaLv = id => meta.up[id] || 0;
   const schoolOpen = id => meta.schools.includes(id);
@@ -1805,7 +1813,7 @@
         runLoot.push(it); saveMeta();
         const d = Gear().describe(it);
         addText(chest.x, chest.y - 64, d.icon + ' ' + d.rarityName, d.color, 1.1);
-      }
+      } else { lostLoot++; addText(chest.x, chest.y - 64, '🎒 Inventario lleno', '#ff8a8a', 1.1); }
     }
     addText(chest.x, chest.y - 40, '+✨ 5', '#ffcf4a', 1.1);
     bonusPicks.push('chest');
@@ -1905,7 +1913,7 @@
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
     runSeed = Math.floor(Math.random() * 1e9);
-    chestsThisRun = 0; bonusPicks = []; runBonusEss = 0; hzClock = 0; runLoot = [];
+    chestsThisRun = 0; bonusPicks = []; runBonusEss = 0; hzClock = 0; runLoot = []; lostLoot = 0;
     Object.assign(hudFx, { xpShow: 0, lvlShow: 1, hold: 0, flash: 0, pulse: 0, wait: 0 }); flyers = []; hudParts = [];
     slowT = 0;
     // nada de la partida anterior: ni gemas en el suelo ni efectos a medias
@@ -3317,7 +3325,7 @@
     try { history.pushState({ arcano: 1 }, ''); backArmed = true; } catch (_) { /* sin historial */ }
   }
   window.addEventListener('popstate', () => {
-    backArmed = false;
+    backArmed = !!(history.state && history.state.arcano);
     if (state === 'play' || state === 'paused') togglePause();
     else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item'].includes(state)) goBack();
     else if (state === 'school') showMenu();
@@ -3485,7 +3493,7 @@
   function showGear() {
     const G = Gear();
     if (!G) { showMenu(); return; }
-    const st = state === 'gear' ? panelScroll() : 0;
+    const st = state === 'gear' ? panelScroll() : state === 'item' ? gearScroll : 0;
     state = 'gear';
     const slots = G.SLOTS.map(sl => {
       const it = gearItem(meta.gear.eq[sl.id]), d = it ? G.describe(it) : null;
@@ -3514,9 +3522,15 @@
     restoreScroll(st);
   }
 
+  let gearScroll = 0;
   function showItem(uid) {
     const G = Gear(), it = gearItem(uid);
     if (!G || !it) { showGear(); return; }
+    if (state === 'gear') {
+      gearScroll = panelScroll();
+      // entrada propia en el historial: el gesto Atrás cierra el objeto sin salir del juego
+      if (!(history.state && history.state.arcano === 'item')) try { history.pushState({ arcano: 'item' }, ''); } catch (_) { /* sin historial */ }
+    }
     state = 'item';
     const d = G.describe(it), eq = isEquipped(uid), slot = G.SLOTS.find(sl => sl.id === d.slot);
     const same = meta.gear.inv.filter(o => o.base === it.base && o.r === it.r && !isEquipped(o.uid));
@@ -3537,6 +3551,7 @@
             ${canMerge ? `<button class="btn ghost" data-act="merge" data-uid="${uid}">⚒️ Fusionar</button>` : ''}
           </div>
           ${!canMerge && !eq && it.r < G.RARITIES.length - 1 ? `<div class="dim">Para fusionar: ${same.length}/3 iguales sin equipar</div>` : ''}
+          ${!eq ? `<button class="btn danger small salvage" data-act="salvage" data-uid="${uid}">🗑️ Desechar</button>` : ''}
         </div>
       </div>`);
   }
@@ -3571,6 +3586,9 @@
         }
       }
       if (n) { Sfx.buy(); notice = `⚒️ ${n} fusión${n > 1 ? 'es' : ''} hecha${n > 1 ? 's' : ''}`; }
+    } else if (act === 'salvage' && it && !isEquipped(uid)) {
+      meta.gear.inv = meta.gear.inv.filter(o => o.uid !== uid);
+      Sfx.click(); notice = '🗑️ Objeto desechado';
     }
     saveMeta();
     showGear();
@@ -3713,7 +3731,7 @@
     state = 'play';
     if (id === 'heal') heal(player.maxHp * 0.6);
     else if (id === 'bless') bonusPicks.push('bless');
-    else if (id === 'shield') player.shield = 1;
+    else if (id === 'shield') player.shield = Math.min(3, (player.shield || 0) + 1);
     else if (id === 'pact') {
       player.maxHp = Math.max(40, Math.round(player.maxHp * 0.8));
       player.hp = Math.min(player.hp, player.maxHp);
@@ -3847,7 +3865,7 @@
     meta.essence += runEssence;
     if (Gear() && room >= 3) { // botín de equipo según hasta dónde llegaste
       const n = 1 + Math.min(2, bossesKilled) + (win ? 1 : 0);
-      for (let i = 0; i < n; i++) { const it = addGear(Gear().rollDrop(room, Math.random)); if (it) runLoot.push(it); }
+      for (let i = 0; i < n; i++) { const it = addGear(Gear().rollDrop(room, Math.random)); if (it) runLoot.push(it); else lostLoot++; }
     }
     meta.runs++;
     const S = meta.stats;
@@ -3871,7 +3889,8 @@
         <div class="earn">+✨ ${runEssence} de esencia <span>(tienes ${meta.essence})</span></div>
         <div class="earn-parts">${essenceParts(win).map(([k, v]) => `${k} +${v}`).join(' · ')}</div>
         ${runLoot.length && Gear() ? `<div class="loot">${runLoot.map(it => { const d = Gear().describe(it); return `<span class="gtile" style="--rc:${d.color}" title="${d.name}"><span class="gi">${d.icon}</span></span>`; }).join('')}</div>
-        <div class="loot-txt">Botín nuevo en tu <b>Equipo</b>${meta.gear.inv.length >= GEAR_MAX ? ' · inventario lleno' : ''}</div>` : ''}
+        <div class="loot-txt">Botín nuevo en tu <b>Equipo</b></div>` : ''}
+        ${lostLoot && Gear() ? `<div class="loot-txt warn">🎒 Inventario lleno: ${lostLoot} objeto${lostLoot > 1 ? 's' : ''} perdido${lostLoot > 1 ? 's' : ''}. Fusiona o desecha en Equipo</div>` : ''}
         <div class="stats">
           <div><span>Sala</span><b>${room}/${TOTAL_ROOMS}</b></div>
           <div><span>Nivel</span><b>${player.lvl}</b></div>
@@ -3918,8 +3937,12 @@
     else if (act === 'tset') { if (ready) toggleTile(el.dataset.key); }
     else if (act === 'gear') { Sfx.click(); showGear(); lockUntil = now + 350; }
     else if (act === 'item') { if (ready) { Sfx.click(); showItem(+el.dataset.uid); lockUntil = now + 300; } }
-    else if (act === 'gearback') { Sfx.click(); showGear(); lockUntil = now + 300; }
+    else if (act === 'gearback') { if (ready) { Sfx.click(); showGear(); lockUntil = now + 300; } }
     else if (['equip', 'unequip', 'merge', 'mergeall'].includes(act)) { if (ready) { gearAction(act, +el.dataset.uid); lockUntil = now + 350; } }
+    else if (act === 'salvage') { // dos toques para no tirar un objeto por accidente
+      if (el.dataset.armed && ready) { gearAction('salvage', +el.dataset.uid); lockUntil = now + 350; }
+      else { el.dataset.armed = '1'; el.classList.add('armed'); el.textContent = '¿Seguro? Toca otra vez'; lockUntil = now + 400; }
+    }
     else if (act === 'mute') { if (ready) { Sfx.init(); Sfx.setMuted(!Sfx.muted); syncMute(); Sfx.click(); showSettings(); } }
     else if (act === 'quality') { if (ready) { settings.quality = el.dataset.v; saveSettings(); applySettings(); Sfx.click(); showSettings(); } }
     else if (act === 'tutorial') { if (ready) { settings.tutorial = false; settings.ultTip = false; settings.seenHz = {}; saveSettings(); Sfx.click(); showSettings(); } }
@@ -3930,7 +3953,7 @@
     else if (act === 'install') {
       if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; if (state === 'menu') showMenu(); }); }
     }
-    else if (act === 'back') { goBack(); lockUntil = now + 350; }
+    else if (act === 'back') { if (ready) { goBack(); lockUntil = now + 350; } }
     else if (act === 'menu') { Sfx.click(); showMenu(); lockUntil = now + 350; }
   });
   // deslizadores de volumen
