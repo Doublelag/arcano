@@ -186,7 +186,7 @@
     ice:    { name: 'Criomante',    el: 'ice',    icon: '❄️', ultIcon: '🌨️', ult: 'Ventisca', desc: 'Tus hechizos ralentizan', ultDesc: 'Congela a todos los enemigos y borra sus disparos' },
     bolt:   { name: 'Electromante', el: 'bolt',   icon: '⚡', ultIcon: '🌩️', ult: 'Tormenta', desc: 'Tus hechizos electrocutan y saltan', ultDesc: 'Ocho rayos caen sobre los enemigos' },
     poison: { name: 'Pestilente',   el: 'poison', icon: '☠️', ultIcon: '☣️', ult: 'Plaga', cost: 300, desc: 'Tus hechizos envenenan', ultDesc: 'Envenena a todos: los que mueran revientan y contagian' },
-    arcane: { name: 'Arcanista',    el: null, grant: { front: 1, atkspd: 1 }, icon: '🔮', ultIcon: '🌌', ult: 'Singularidad', cost: 500, desc: 'Sin elemento, pero +1 proyectil y más cadencia', ultDesc: 'Un agujero negro atrae a los enemigos y estalla' },
+    arcane: { name: 'Arcanista',    el: null, grant: { front: 1 }, icon: '🔮', ultIcon: '🌌', ult: 'Singularidad', cost: 500, desc: 'Sin elemento, pero +1 proyectil', ultDesc: 'Un agujero negro atrae a los enemigos y estalla' },
   };
   const REACTIONS = [
     { id: 'vapor',   a: 'fire', b: 'ice',    name: 'VAPOR',       color: '#e8f7ff', desc: 'Golpe de daño triple' },
@@ -775,7 +775,7 @@
       }
       if (sing.tick <= 0) {
         sing.tick = 0.25;
-        for (const e of enemies) if (!e.dead && e.spawnT <= 0 && dist(e, sing) < 110 + e.r) damageEnemy(e, player.atk * 0.7, false, EL.arcane.color, true);
+        for (const e of enemies) if (!e.dead && e.spawnT <= 0 && dist(e, sing) < 110 + e.r) damageEnemy(e, player.atk * 0.45, false, EL.arcane.color, true);
       }
       for (const b of bullets) if (dist(b, sing) < 220) { b.dead = true; sparks(b.x, b.y, EL.arcane.color, 2); }
       bullets = bullets.filter(b => !b.dead);
@@ -784,7 +784,7 @@
         parts.push({ x: sing.x + Math.cos(a) * r, y: sing.y + Math.sin(a) * r, vx: -Math.cos(a) * r * 2.2 - Math.sin(a) * 120, vy: -Math.sin(a) * r * 2.2 + Math.cos(a) * 120, life: 0.4, max: 0.4, color: EL.arcane.color, size: rand(1.5, 3) });
       }
       if (sing.t <= 0) {
-        explode(sing.x, sing.y, 150, player.atk * 7, EL.arcane.color);
+        explode(sing.x, sing.y, 150, player.atk * 4.5, EL.arcane.color);
         burst(sing.x, sing.y, '#ffffff', 30, 300);
         shake = Math.max(shake, 14);
         screenFlash = { color: '200,140,255', t: 0.35, max: 0.35 };

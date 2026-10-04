@@ -727,7 +727,7 @@ a.btn { text-decoration: none; text-align: center; }
   box-shadow: 0 calc(var(--u) * 4px) 0 var(--ink, #160c26), inset 0 0 0 calc(var(--u) * 2px) var(--rc);
 }
 .gslot { grid-template-rows: 1fr auto; padding: calc(var(--u) * 6px) calc(var(--u) * 2px); }
-.gslot.empty { background: #1c1530; box-shadow: 0 calc(var(--u) * 4px) 0 var(--ink, #160c26), inset 0 0 0 calc(var(--u) * 2px) rgba(255, 255, 255, .12); }
+.gslot.empty { margin-top: 0; opacity: 1; background: #1c1530; box-shadow: 0 calc(var(--u) * 4px) 0 var(--ink, #160c26), inset 0 0 0 calc(var(--u) * 2px) rgba(255, 255, 255, .12); }
 .gslot.empty .gi { opacity: .3; filter: grayscale(1); }
 .gslot .gi { font-size: calc(var(--u) * 34px); }
 .gslot .gn { font-size: max(9px, calc(var(--u) * 11px)); font-weight: 700; line-height: 1.1; opacity: .85; }
