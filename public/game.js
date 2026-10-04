@@ -964,21 +964,24 @@
     musicHoldT = 6;
   }
   function announceForm(f) {
-    const F = Forms(), D = F.FORMS[player.form];
-    const main = { text: D.short, sub: D.line, color: D.color, t: 2.6, max: 2.6 };
+    const F = Forms(), D = F.FORMS[player.form], crown = grimMark2(player.form);
+    // con la Marca II de la forma: nombre en dorado con su corona encima
+    const main = { text: D.short, sub: D.line, color: crown ? '#ffcf4a' : D.color, crown: crown ? D.color : null, t: 2.6, max: 2.6 };
     if (player.form === 'eclipse' && f.first) { banner = { text: 'LA FORMA PROHIBIDA', sub: '', color: '#c77dff', t: 1.2, max: 1.2 }; bannerNext = main; }
     else banner = main;
     if (f.st === 2 && flags.phase2 && D.ult) pushToast({ text: `NUEVO DEFINITIVO: ${D.ult.name.toUpperCase()}`, sub: D.ult.desc, color: D.color, t: 2.8, max: 2.8 }); // lo que cambia al jugar, primero
     if (f.first) pushToast({ text: '¡NUEVA FORMA!', sub: `Grimorio ${F.count(meta.grim.f)}/10`, color: D.color, t: 2.6, max: 2.6 });
+    if (f.mark) pushToast({ text: `¡CORONA DE ${D.short}!`, sub: `Marca II · título «${GRIM_TITLES[D.bit]}» en el Grimorio`, color: '#ffcf4a', t: 3, max: 3 });
   }
   // Grimorio: forma descubierta (f), despertada pronto (e), veces (n), ritmo (k) y logros
   function discoverForm(id, st) {
     const F = Forms(), g = meta.grim, b = F.bit(id), i = F.FORMS[id].bit, first = !(g.f & b);
+    const mark = st === 1 && room <= 6 && !(g.e & b); // Marca II nueva: forma pura despertada antes de la sala 7
     g.f |= b;
     if (st === 1 && room <= 6) g.e |= b;
     g.n = g.n.slice(0, i) + Math.min(9, +g.n[i] + 1) + g.n.slice(i + 1);
     g.k[(st - 1) * 2] += room; g.k[(st - 1) * 2 + 1]++;
-    if (awakenFx) awakenFx.first = first;
+    if (awakenFx) { awakenFx.first = first; awakenFx.mark = mark; }
     unlock('awaken1');
     if (st === 2) unlock('awaken2');
     if (['plasma', 'aurora', 'mortaja', 'azufre'].every(x => F.has(g.f, x))) unlock('hybrids');
@@ -3600,6 +3603,9 @@
     // sombrero puntiagudo
     const hy0 = y - r * 0.92;
     blob(x, hy0, r * 1.15, r * 0.4, L ? L.brim : '#3a24a0');
+    // Corona (Marca II de esta forma): aro del color de la forma que rodea el cono, la mitad de atrás antes del sombrero
+    const crown = L && grimMark2(p.form), kx = x + 4.5 + lean * 1.1, ky = hy0 - r * 1.15, kr = 0.2 + lean * 0.04, kc = crown ? F.FORMS[p.form].color : null;
+    if (crown) F.drawCrown(ctx, kx, ky, kc, clock, 1, kr);
     if (L) { // degradado cacheado en forms.js, en coordenadas locales
       ctx.save(); ctx.translate(x, 0);
       ctx.fillStyle = F.hatGrad(ctx, L, r);
@@ -3612,6 +3618,7 @@
       ctx.restore();
       F.drawBand(ctx, x, hy0, r, L); // cinta (bicolor con la Afinidad sellada)
       F.drawHatStar(ctx, x + 1 + lean * 0.5, hy0 - r * 0.62, L);
+      if (crown) F.drawCrown(ctx, kx, ky, kc, clock, 2, kr); // mitad de delante, brillo y destello
     } else {
       const hg = ctx.createLinearGradient(x - r, 0, x + r, 0);
       hg.addColorStop(0, '#6a4ff0'); hg.addColorStop(0.55, '#4a30c0'); hg.addColorStop(1, '#2c1a7a');
@@ -3987,15 +3994,18 @@
     const w = ctx.measureText(text).width;
     return w > maxW ? Math.max(10, Math.floor(size * maxW / w)) : size;
   }
+  // el aviso baja mientras se ve el logro (aviso DOM de arriba) para que no lo tape
+  let toastY = 140;
   function drawToast() {
+    toastY += ((achBusy && state === 'play' ? 186 : 140) - toastY) * 0.25;
     if (!toast || cine) return;
-    const a = clamp(Math.min(toast.t, toast.max - toast.t) / 0.25, 0, 1);
+    const a = clamp(Math.min(toast.t, toast.max - toast.t) / 0.25, 0, 1), y = toastY;
     if (!toast.fs) { toast.fs = fitSize(toast.text, 24, 410); toast.ss = fitSize(toast.sub || '', 15, 416); }
     ctx.globalAlpha = a;
-    ctx.fillStyle = 'rgba(12,8,22,.82)'; rrect(W / 2 - 220, 140, 440, 66, 18); ctx.fill();
+    ctx.fillStyle = 'rgba(12,8,22,.82)'; rrect(W / 2 - 220, y, 440, 66, 18); ctx.fill();
     ctx.strokeStyle = toast.color; ctx.lineWidth = 2; ctx.stroke();
-    txt(toast.text, W / 2, 162, toast.fs, toast.color, 'center', false);
-    txt(toast.sub, W / 2, 189, toast.ss, '#e9e3ff', 'center', false);
+    txt(toast.text, W / 2, y + 22, toast.fs, toast.color, 'center', false);
+    txt(toast.sub, W / 2, y + 49, toast.ss, '#e9e3ff', 'center', false);
     ctx.globalAlpha = 1;
   }
 
@@ -4162,6 +4172,14 @@
     const a = clamp(Math.min(banner.t, banner.max - banner.t) / 0.25, 0, 1);
     if (!banner.fs) banner.fs = fitSize(banner.text, 58, W - 50);
     ctx.globalAlpha = a;
+    if (banner.crown) { // Marca II: corona (aro del color de la forma) sobre el nombre dorado
+      const cy = 430 - banner.fs * 0.62 - 12 + Math.sin(clock * 3) * 2;
+      if (!lowQ()) glow(W / 2, cy, 46, banner.crown, 0.55);
+      ctx.strokeStyle = 'rgba(10,6,20,.85)'; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.ellipse(W / 2, cy, 34, 8, 0, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = banner.crown; ctx.lineWidth = 4; ctx.stroke();
+      circle(W / 2 + Math.cos(clock * 2.2) * 34, cy + Math.sin(clock * 2.2) * 8, 2.6, '#ffffff');
+    }
     txt(banner.text, W / 2, 430, banner.fs, banner.color);
     if (banner.sub) txt(banner.sub, W / 2, 482, 22, '#ffd27a');
     ctx.globalAlpha = 1;
@@ -4658,23 +4676,36 @@
     if (D.id === 'eclipse') return `${elIc('fire')}+${elIc('ice')} o ${elIc('bolt')}+${elIc('poison')} · opuestos y Pacto oscuro`;
     return D.els.map(el => `${elIc(el)} ${EL[el].name}`).join(' + ') + (D.tier === 1 ? ' · 1er despertar' : ' · 2º despertar');
   }
-  // rombo del cuadrado: Fuego arriba, Rayo a la derecha, Hielo abajo y Veneno a la izquierda; las híbridas en los lados, Eclipse en el centro
-  function grimRombo() {
-    const F = Forms(), on = id => F.has(meta.grim.f, id);
+  // rombo del cuadrado: Fuego arriba, Rayo a la derecha, Hielo abajo y Veneno a la izquierda; las híbridas en los lados, Eclipse en el centro.
+  // run = opciones del panel del despertar: además enseña la partida (tu núcleo, lo que la Afinidad cerró y a dónde puedes despertar)
+  function grimRombo(run) {
+    const F = Forms(), on = id => F.has(meta.grim.f, id), p = player;
     const V = { fire: [50, 0], bolt: [100, 50], ice: [50, 100], poison: [0, 50] };
     const SIDES = [['plasma', 'fire', 'bolt', 'tr'], ['aurora', 'bolt', 'ice', 'br'], ['mortaja', 'ice', 'poison', 'bl'], ['azufre', 'poison', 'fire', 'tl']];
-    const line = (a, b, col, dash) => `<line x1="${V[a][0]}" y1="${V[a][1]}" x2="${V[b][0]}" y2="${V[b][1]}" stroke="${col}"${dash ? ' stroke-dasharray="3 5"' : ''} />`;
-    const ecl = on('eclipse'), ec = ecl ? '#c77dff' : 'rgba(255,255,255,.12)';
-    let svg = line('fire', 'ice', ec, !ecl) + line('bolt', 'poison', ec, !ecl), labels = '';
-    for (const [id, a, b, pos] of SIDES) {
-      const D = F.FORMS[id], o = on(id);
-      svg += line(a, b, o ? D.color : 'rgba(255,255,255,.22)', !o);
-      labels += `<span class="h ${pos}${o ? ' on' : ''}" style="--c:${D.color}">${o ? D.short : '???'}</span>`;
+    const open = run ? run.filter(o => !o.locked) : [], aff = run ? p.aff : [], sealed = aff.length >= 2;
+    const goEl = el => open.some(o => o.el === el), goForm = (id, a, b) => open.some(o => o.form === id && (!a || [a, b].includes(o.el)));
+    const shutEl = el => sealed && !aff.includes(el), shutPair = (a, b) => shutEl(a) || shutEl(b) || (run && p.core && ![a, b].includes(p.core));
+    const line = (a, b, col, dash, go) => `<line${go ? ' class="go"' : ''} x1="${V[a][0]}" y1="${V[a][1]}" x2="${V[b][0]}" y2="${V[b][1]}" stroke="${col}"${dash ? ' stroke-dasharray="3 5"' : ''} />`;
+    const ecl = on('eclipse'), faint = 'rgba(255,255,255,.12)';
+    let svg = '', labels = '', ctr = ecl ? ' on' : '';
+    for (const [a, b] of [['fire', 'ice'], ['bolt', 'poison']]) { // diagonales: Eclipse
+      const go = run && goForm('eclipse', a, b);
+      if (go) ctr = ' on go';
+      svg += line(a, b, go || ecl ? (run && shutPair(a, b) ? faint : '#c77dff') : faint, !go && !ecl, go);
     }
-    // un vértice se enciende si alguna forma descubierta lleva ese elemento
-    const verts = F.SQUARE.map(el => `<span class="v${F.IDS.some(id => on(id) && F.FORMS[id].els.includes(el)) ? ' on' : ''}" style="left:${V[el][0]}%;top:${V[el][1]}%;--c:${EL[el].color}">${elIc(el)}</span>`).join('');
-    return `<div class="rombo"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${svg}</svg>${verts}${labels}
-      <span class="ctr${ecl ? ' on' : ''}">${ecl ? F.FORMS.eclipse.icon : '?'}</span></div>`;
+    for (const [id, a, b, pos] of SIDES) {
+      const D = F.FORMS[id], o = on(id), go = run && goForm(id, a, b), shut = run && !go && shutPair(a, b);
+      svg += line(a, b, (o || go) && !shut ? D.color : 'rgba(255,255,255,.22)', !o && !go, go);
+      labels += `<span class="h ${pos}${o ? ' on' : ''}${go ? ' go' : ''}${shut ? ' shut' : ''}" style="--c:${D.color}">${o ? D.short : '???'}</span>`;
+    }
+    // un vértice se enciende si alguna forma descubierta lleva ese elemento; en partida, si es tuyo o puedes despertar en él
+    const verts = F.SQUARE.map(el => {
+      const lit = run ? aff.includes(el) || p.core === el || goEl(el) : F.IDS.some(id => on(id) && F.FORMS[id].els.includes(el));
+      const cls = (lit ? ' on' : '') + (run && p.core === el ? ' core' : '') + (run && !p.core && goEl(el) ? ' go' : '') + (run && shutEl(el) ? ' shut' : '');
+      return `<span class="v${cls}" style="left:${V[el][0]}%;top:${V[el][1]}%;--c:${EL[el].color}">${elIc(el)}</span>`;
+    }).join('');
+    return `<div class="rombo${run ? ' mini' : ''}"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${svg}</svg>${verts}${labels}
+      <span class="ctr${ctr}">${ecl ? F.FORMS.eclipse.icon : '?'}</span></div>`;
   }
   function grimFormItem(id) {
     const F = Forms(), g = meta.grim, D = F.FORMS[id], i = D.bit;
@@ -4685,13 +4716,13 @@
     const n = +g.n[i], m2 = grimMark2(id), worn = g.t === i;
     const ult = D.tier === 0 ? 'el de tu escuela' : D.tier === 1 || flags.phase2 ? `${D.ult.icon} ${D.ult.name}` : 'el de tu núcleo';
     const goal = D.tier === 1 ? 'Despiértala antes de la sala 7' : D.tier === 0 ? 'Gana sin despertar' : 'Gana con ella';
-    return `<div class="shop-item grim" style="--c:${D.color}">
+    return `<div class="shop-item grim${m2 ? ' crowned' : ''}" style="--c:${D.color}">
         <span class="ic">${D.icon}</span>
         <span class="tx"><b>${D.name}</b><i class="rc">${formRecipe(D)}</i><i class="line">${D.line}</i>
           <i><u>${D.trName}</u> · ${D.desc}</i><i>Definitivo: ${ult}</i>
           <span class="gfoot"><span class="mk on" title="Marca I">I</span><span class="mk${m2 ? ' on' : ''}" title="Marca II">II</span>
             ${D.tier ? `<em>Despertada ${n >= 9 ? '9+' : n} ${n === 1 ? 'vez' : 'veces'}</em>` : ''}
-            ${m2 ? `<button class="gtt${worn ? ' on' : ''}" data-act="title" data-i="${i}">${worn ? '✓ Luces' : 'Lucir'} «${GRIM_TITLES[i]}»</button>` : `<em class="goal">II: ${goal}</em>`}</span>
+            ${m2 ? `<button class="gtt${worn ? ' on' : ''}" data-act="title" data-i="${i}">${worn ? '✓ Luces' : 'Lucir'} «${GRIM_TITLES[i]}»</button>` : `<em class="goal">II: ${goal} → corona y título</em>`}</span>
         </span>
       </div>`;
   }
@@ -4715,7 +4746,7 @@
     const tabs = [['formas', '📖 Formas', `${P.f}/10`], ['reacciones', '⚗️ Reacciones', `${P.r}/${REACTIONS.length}`]]
       .concat(flags.phase2 ? [['mezclas', '🧪 Mezclas', `${P.m}/${F.MIXES.length}`]] : []);
     let body;
-    if (grimTab === 'formas') body = grimRombo() + `<div class="shop-list">${F.IDS.map(grimFormItem).join('')}</div>`;
+    if (grimTab === 'formas') body = grimRombo() + grimRhythm() + `<div class="shop-list">${F.IDS.map(grimFormItem).join('')}</div>`;
     else if (grimTab === 'reacciones') body = `<div class="dim">Junta dos elementos en el mismo enemigo</div><div class="shop-list">${REACTIONS.map(grimReactItem).join('')}</div>`;
     else body = `<div class="dim">Una runa y una carta concretas: la receta está oculta</div><div class="shop-list">${F.MIXES.map(grimMixItem).join('')}</div>`;
     showOverlay(`
@@ -4729,12 +4760,17 @@
     restoreScroll(st);
   }
   // filas del Grimorio en Logros: formas y sala media de cada despertar
+  const grimAvg = (s, n) => (n ? decimal(s / n) : '—');
   function grimStatRows() {
     const F = FX(), k = meta.grim.k;
     if (!F) return '';
-    const avg = (s, n) => (n ? decimal(s / n) : '—');
     return `<div><span>Formas</span><b>${F.count(meta.grim.f)}/10</b></div>
-          <div><span>Despertar medio (sala)</span><b>${avg(k[0], k[1])} / ${avg(k[2], k[3])}</b></div>`;
+          <div><span>Despertar medio (sala)</span><b>${grimAvg(k[0], k[1])} / ${grimAvg(k[2], k[3])}</b></div>`;
+  }
+  // ritmo bajo el rombo del Grimorio (cuando ya has despertado alguna vez)
+  function grimRhythm() {
+    const k = meta.grim.k;
+    return k[1] ? `<div class="rhythm">Despiertas de media en la sala <b>${grimAvg(k[0], k[1])}</b>${k[3] ? ` y en la <b>${grimAvg(k[2], k[3])}</b>` : ''}</div>` : '';
   }
   // pausa: "Forma: PLASMA · Fuego + Rayo" o "Aprendiz · Afinidad: Fuego + Rayo · Despertar 64%"
   function formLine() {
@@ -4753,8 +4789,8 @@
     if (!p || !p.mixes.length) return '';
     return `<div class="mixline">🧪 Mezclas: ${p.mixes.map(m => `<b style="--c:${m.color}">${m.name}</b>`).join(' · ')}</div>`;
   }
-  // final: con qué forma acabas, qué te falta por descubrir y si hubo página nueva
-  function endGrim(win, quit) {
+  // final: con qué forma acabas, Marca II nueva, qué te falta por descubrir y si hubo página nueva
+  function endGrim(win, quit, mark) {
     const F = FX();
     if (!F || !player) return '';
     const D = F.FORMS[player.form], g = meta.grim;
@@ -4764,7 +4800,8 @@
     });
     const P = grimPages(), fresh = runGrim0 ? P.n - runGrim0.n : 0;
     const tt = grimTitle(), verb = win ? 'Ganaste' : quit ? 'Terminaste' : 'Caíste';
-    return `<div class="emblem" style="--c:${D.color}"><span class="ei">${D.icon}</span><span>${verb} como <b>${D.name}</b>${tt ? ` <i>«${tt.text}»</i>` : ''}</span></div>
+    return `<div class="emblem${grimMark2(player.form) ? ' crowned' : ''}" style="--c:${D.color}"><span class="ei">${D.icon}</span><span>${verb} como <b>${D.name}</b>${tt ? ` <i>«${tt.text}»</i>` : ''}</span></div>
+        ${mark ? `<div class="newmark" style="--c:${F.FORMS[mark].color}">👑 Marca II de ${F.FORMS[mark].name}: corona y título «${GRIM_TITLES[F.FORMS[mark].bit]}»</div>` : ''}
         ${fresh > 0 ? `<div class="newpage">📖 ${fresh > 1 ? fresh + ' páginas nuevas' : 'Nueva página'} del Grimorio</div>` : ''}
         ${miss.length ? `<div class="missing">Te faltan: ${miss.slice(0, 4).join(', ')}${miss.length > 4 ? ` +${miss.length - 4}` : ''}</div>` : ''}`;
   }
@@ -4876,7 +4913,8 @@
       const name = F.has(meta.grim.f, o.form) ? D.title : '???';
       // como mucho 1 línea extra: sellado > Sintonía > Linaje
       let extra = '';
-      if (o.seals) {
+      if (o.form === 'eclipse') extra = (o.seals ? `Sella ${F.pairText(o.seals[0], o.seals[1])} · ` : '') + 'forma prohibida: −15% de vida'; // el precio, siempre a la vista
+      else if (o.seals) {
         const cl = F.SQUARE.filter(x => !o.seals.includes(x));
         extra = `Sella ${F.pairText(o.seals[0], o.seals[1])} · ` + (F.isOpp(o.seals[0], o.seals[1]) ? 'el 2º despertar exigirá un Pacto oscuro' : `cierra ${EL[cl[0]].name.toLowerCase()} y ${EL[cl[1]].name.toLowerCase()}`);
       }
@@ -4884,7 +4922,7 @@
       else if (S.el && (o.el === S.el || (st === 2 && p.core === S.el))) extra = 'Fiel a tu escuela: definitivo +20%';
       return `<button class="card awaken${o.seals ? ' seal' : ''}" data-act="pick" data-id="awk:${o.el}" style="--c:${EL[o.el].color};--c2:${D.color};${delay}">
           <div class="ic">${ic}</div>
-          <div class="tx"><div class="nm">${EL[o.el].name} → <b>${name}</b></div><div class="ds">${D.desc}</div>${extra ? `<div class="combo${o.seals ? ' close' : ''}">${extra}</div>` : ''}</div>
+          <div class="tx"><div class="nm">${EL[o.el].name} → <b>${name}</b></div><div class="ds">${D.desc}</div>${extra ? `<div class="combo${o.seals || o.form === 'eclipse' ? ' close' : ''}">${extra}</div>` : ''}</div>
           <kbd>${++n}</kbd>
         </button>`;
     }).join('');
@@ -4892,9 +4930,13 @@
       <div class="panel">
         <div class="title gold${st === 1 ? '' : ' long'}">${st === 1 ? 'DESPIERTA' : 'SEGUNDO DESPERTAR'}</div>
         <div class="sub">Elige tu elemento · no hay vuelta atrás</div>
+        ${grimRombo(opts)}
         <div class="cards">${cards}</div>
         <button class="btn ghost later" data-act="later">Aún no</button>
       </div>`);
+    // el mini-rombo es opcional: fuera si con él hubiera que desplazar el panel (4 cartas en pantallas bajas)
+    const pn = overlay.querySelector('.panel');
+    if (pn && pn.scrollHeight > pn.clientHeight + 1) { const rb = pn.querySelector('.rombo'); if (rb) rb.remove(); }
   }
 
   // ---------- Altar (sala de descanso antes de cada jefe) ----------
@@ -5084,11 +5126,13 @@
     const S = meta.stats;
     S.essenceTotal += runEssence;
     S.best[player.school] = Math.max(S.best[player.school] || 0, win ? TOTAL_ROOMS + 1 : room);
+    let mark = null; // Marca II conseguida con esta victoria (combinadas, Eclipse y Aprendiz)
     if (win) {
       S.wins++;
       if (FX()) { // Grimorio: forma con la que has ganado (Aprendiz = sin despertar)
-        const F = Forms();
+        const F = Forms(), had = grimMark2(player.form);
         meta.grim.w |= F.bit(player.form);
+        if (!had && grimMark2(player.form)) mark = player.form;
         if (['plasma', 'aurora', 'mortaja', 'azufre', 'eclipse'].every(x => F.has(meta.grim.w, x))) unlock('formWins');
       }
       S.winsBy[player.school] = (S.winsBy[player.school] || 0) + 1;
@@ -5104,7 +5148,7 @@
       <div class="panel">
         <div class="title ${win ? 'gold' : 'red'}">${title}</div>
         <div class="sub">${SCHOOLS[player.school].icon} ${SCHOOLS[player.school].name} · ${sub}</div>
-        ${endGrim(win, quit)}
+        ${endGrim(win, quit, mark)}
         <div class="earn">+✨ ${runEssence} de esencia <span>(tienes ${meta.essence})</span></div>
         <div class="earn-parts">${essenceParts(win).map(([k, v]) => `${k} +${v}`).join(' · ')}</div>
         ${runLoot.length && Gear() ? `<div class="loot">${runLoot.map(it => { const d = Gear().describe(it); return `<span class="gtile" style="--rc:${d.color}" title="${d.name}"><span class="gi">${d.icon}</span></span>`; }).join('')}</div>
@@ -5291,6 +5335,10 @@
       roll(n = 3) { return rollSkills(n).map(k => k.id); },
       levelup() { pendingLevels = Math.max(1, pendingLevels); openLevelUp('level'); return state; },
       toasts() { return [toast, ...toastQ].filter(Boolean).map(t => t.text + ' | ' + t.sub).concat(banner ? ['BANNER ' + banner.text] : [], bannerNext ? ['NEXT ' + bannerNext.text] : []); },
+      // rótulo, posición del aviso (baja si hay logro en pantalla) y Marca II de la forma actual
+      ui() { return { banner: banner && { text: banner.text, color: banner.color, crown: banner.crown || null }, toastY: Math.round(toastY), achBusy, crown: !!(player && FX() && grimMark2(player.form)) }; },
+      ambient() { return { amb: amb.length, ash: ash.length, eclipseFx: !!eclipseFx }; }, // partículas de ambiente de la forma
+      achPop(id = 'firstWin') { const a = ACHIEVEMENTS.find(x => x.id === id); if (a) { achQueue.push(a); nextAch(); } return achBusy; }, // enseña el aviso de un logro (sin darlo)
       formStats() { return Forms() ? Object.assign(Forms().stats(), { glowGame: glowCache.size }) : null; },
       // tiempo medio (ms) de update() y de render() en n pasos de 1/60 s (sin requestAnimationFrame)
       perf(n = 600) {

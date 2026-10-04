@@ -869,3 +869,23 @@ a.btn { text-decoration: none; text-align: center; }
 .emblem i { font-style: italic; color: #ffcf4a; font-size: max(11px, calc(var(--u) * 15px)); }
 .newpage { margin-top: calc(var(--u) * 8px); color: #ffcf4a; font-weight: 800; font-size: max(11px, calc(var(--u) * 16px)); animation: pulseTxt 1.4s ease-in-out infinite; }
 .missing { margin-top: calc(var(--u) * 6px); font-size: max(11px, calc(var(--u) * 14px)); opacity: .65; }
+
+/* ================================================================
+   Fase 3: Maestrías (corona y Marca II nueva), ritmo y mini-rombo del despertar
+   ================================================================ */
+.emblem.crowned { box-shadow: 0 0 calc(var(--u) * 12px) var(--c); }
+.emblem.crowned b { color: #ffcf4a; }
+.newmark { margin-top: calc(var(--u) * 8px); color: #ffcf4a; font-weight: 800; font-size: max(11px, calc(var(--u) * 16px)); text-shadow: 0 0 calc(var(--u) * 8px) var(--c); }
+.shop-item.grim.crowned { box-shadow: 0 0 calc(var(--u) * 10px) var(--c), inset 0 0 calc(var(--u) * 10px) rgba(255, 207, 74, .1); }
+.rhythm { margin: calc(var(--u) * -12px) 0 calc(var(--u) * 6px); font-size: max(11px, calc(var(--u) * 15px)); opacity: .75; }
+.rhythm b { color: #ffcf4a; }
+.rombo.mini { width: calc(var(--u) * 96px); height: calc(var(--u) * 96px); margin: calc(var(--u) * 20px) auto calc(var(--u) * 4px); }
+.rombo.mini .v { font-size: calc(var(--u) * 21px); }
+.rombo .v.core::after { content: ''; position: absolute; left: 50%; top: 50%; width: 1.55em; height: 1.55em; transform: translate(-50%, -50%); border: calc(var(--u) * 2px) solid var(--c); border-radius: 50%; }
+.rombo .v.shut { opacity: .12; }
+.rombo .v.go { animation: romboGo 1.1s ease-in-out infinite; }
+@keyframes romboGo { 50% { transform: translate(-50%, -50%) scale(1.2); } }
+.rombo .h.go { color: var(--c); text-shadow: 0 0 calc(var(--u) * 8px) var(--c); animation: pulseTxt 1.4s ease-in-out infinite; }
+.rombo .h.shut { opacity: .3; }
+.rombo line.go { stroke-width: 3.5; }
+.rombo .ctr.go { color: #fff; box-shadow: 0 0 calc(var(--u) * 14px) #c77dff; animation: pulseTxt 1.4s ease-in-out infinite; }

@@ -402,18 +402,27 @@
     c.stroke();
     c.lineJoin = lj; c.globalAlpha = pa;
   }
-  // Corona (Marca II): aro de 2 px del color de la forma flotando sobre la punta del sombrero
-  function drawCrown(c, x, y, col, t) {
-    X = c;
-    const yy = y + Math.sin((t || 0) * 3) * 1.2;
-    if (!G.lowQ()) G.glow(x, yy, 13, col, 0.45);
-    c.strokeStyle = col; c.lineWidth = 2; c.beginPath(); c.ellipse(x, yy, 8, 2.8, 0, 0, TAU); c.stroke();
+  // Corona (Marca II): aro de 2 px del color de la forma que rodea el cono del sombrero.
+  // part: 0 = entero; 1 = mitad de atrás (antes del sombrero); 2 = mitad de delante, brillo y destello (después)
+  function drawCrown(c, x, y, col, t, part, rot) {
+    X = c; part = part || 0; rot = rot || 0;
+    const yy = y + Math.sin((t || 0) * 3) * 0.8, lq = G.lowQ(), pa = c.globalAlpha;
+    if (part !== 1 && !lq) G.glow(x, yy, 15, col, 0.5);
+    c.strokeStyle = col; c.lineWidth = 2;
+    if (part === 1) c.globalAlpha = pa * 0.75; // la mitad de atrás queda un poco en sombra
+    const a0 = part === 1 ? Math.PI : 0, a1 = part === 2 ? Math.PI : TAU; // arriba = detrás del cono; abajo = delante
+    c.beginPath(); c.ellipse(x, yy, 8, 2.6, rot, a0, a1); c.stroke();
+    c.globalAlpha = pa;
+    if (part !== 1) { // destello que recorre el aro por delante
+      const a = ((t || 0) * 1.6) % Math.PI, ca = Math.cos(rot), sa = Math.sin(rot), ex = Math.cos(a) * 8, ey = Math.sin(a) * 2.6;
+      G.circle(x + ex * ca - ey * sa, yy + ex * sa + ey * ca, 1.4, '#ffffff');
+    }
   }
 
   // ================================================================
   //  Auras (se dibujan antes de shadow(p): quedan detrás del mago)
   // ================================================================
-  const WING_L = [36, 32, 25], WP = new Float32Array(12);
+  const WING_L = [36, 32, 25], WP = new Float32Array(12), BUB_FILL = 'rgba(141,255,106,.22)';
   function drawAura(c, p, id, t, a01) {
     if (!c || !p) return;
     X = c;
@@ -475,14 +484,15 @@
         c.lineJoin = lj; c.globalCompositeOperation = op;
         return;
       }
-      case 'bubbles': { // brillo verde y burbujitas que suben
+      case 'bubbles': { // brillo verde y burbujas que suben (relleno tenue + borde: se leen también sobre la pradera)
         G.glow(x, y - 2, 30, '#8dff6a', 0.25);
         if (lq) return;
-        c.strokeStyle = '#8dff6a'; c.lineWidth = 1.2;
-        for (let i = 0; i < 3; i++) {
-          const ph = (t * 0.7 + i / 3) % 1;
-          c.globalAlpha = pa * 0.75 * (1 - ph) * Math.min(1, ph * 5);
-          c.beginPath(); c.arc(x + (i - 1) * 13 + Math.sin(t * 2 + i) * 3, y + 6 - ph * 36, 1.5 + 2.2 * (1 - ph * 0.5), 0, TAU); c.stroke();
+        c.strokeStyle = '#8dff6a'; c.lineWidth = 1.4;
+        for (let i = 0; i < 4; i++) {
+          const ph = (t * 0.7 + i / 4) % 1, bx = x + (i - 1.5) * 10 + Math.sin(t * 2 + i) * 3, by = y + 6 - ph * 38, br = 1.8 + 2.4 * (1 - ph * 0.5);
+          c.globalAlpha = pa * 0.9 * (1 - ph) * Math.min(1, ph * 5);
+          c.beginPath(); c.arc(bx, by, br, 0, TAU); c.fillStyle = BUB_FILL; c.fill(); c.stroke();
+          G.circle(bx - br * 0.35, by - br * 0.35, br * 0.3, '#eaffd8');
         }
         c.globalAlpha = pa;
         return;
@@ -518,6 +528,13 @@
       }
       case 'mist': { // niebla que deriva y el círculo punteado del Sudario
         if (!lq) for (let j = 0; j < 3; j++) G.glow(x + Math.cos(t * 0.5 + j * 2.1) * 20, y - 2 + Math.sin(t * 0.7 + j * 1.4) * 10, 34, '#5fffd0', 0.15);
+        // jirones claros a ras de suelo (composición normal: el brillo solo no se ve sobre suelos claros)
+        for (let j = 0, n = lq ? 2 : 4; j < n; j++) {
+          const a = t * 0.55 + j * TAU / n;
+          c.globalAlpha = pa * (0.17 + 0.06 * Math.sin(t * 1.3 + j * 2));
+          G.ellipse(x + Math.cos(a) * 21, p.y + 3 + Math.sin(a) * 7, 14 + 3 * Math.sin(t + j), 5.5, '#d8fff4');
+        }
+        c.globalAlpha = pa;
         const R = (p.tr && p.tr.shroud && p.tr.shroud.r) || 90;
         c.globalAlpha = pa * 0.25; c.strokeStyle = '#5fffd0'; c.lineWidth = 2;
         c.setLineDash(DASH48); c.lineDashOffset = t * 6;
@@ -525,13 +542,14 @@
         c.setLineDash(NODASH); c.lineDashOffset = 0; c.globalAlpha = pa;
         return;
       }
-      case 'smoke': { // brillo sulfuroso y humo oscuro que sube
+      case 'smoke': { // brillo sulfuroso y humo que sube de los hombros (borla oscura con luz arriba: se lee en suelos claros y oscuros)
         G.glow(x, y - 4, 34, '#c8d84a', 0.2);
         if (lq) return;
-        for (let i = 0; i < 3; i++) {
-          const ph = (t * 0.45 + i / 3) % 1;
-          c.globalAlpha = pa * 0.28 * (1 - ph) * Math.min(1, ph * 4);
-          G.circle(x + (i - 1) * 9 + Math.sin(t + i * 2) * 4, y - 20 - ph * 26, 5 + ph * 7, '#3a3428');
+        for (let i = 0; i < 4; i++) {
+          const ph = (t * 0.45 + i / 4) % 1, k = (1 - ph) * Math.min(1, ph * 4), rr = 5 + ph * 8;
+          const sx = x + (i - 1.5) * 8 + Math.sin(t + i * 2) * 4, sy = y - 16 - ph * 30;
+          c.globalAlpha = pa * 0.42 * k; G.circle(sx, sy, rr, '#4a4234');
+          c.globalAlpha = pa * 0.22 * k; G.circle(sx - rr * 0.25, sy - rr * 0.3, rr * 0.55, '#9a8f72');
         }
         c.globalAlpha = pa;
         return;
