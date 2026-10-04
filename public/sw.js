@@ -1,6 +1,6 @@
 // Service worker de Arcano: red primero y caché como respaldo sin conexión.
 // Sube la versión solo si quieres forzar a borrar la caché vieja.
-const CACHE = 'arcano-v2';
+const CACHE = 'arcano-v3';
 
 const PRECACHE = [
   './',
@@ -10,6 +10,7 @@ const PRECACHE = [
   'music.js',
   'biomes.js',
   'equipment.js',
+  'forms.js',
   'manifest.webmanifest',
   'icons/icon-32.png',
   'icons/icon-192.png',

@@ -777,3 +777,27 @@ a.btn { text-decoration: none; text-align: center; }
 /* botones en fila: que no se partan en dos líneas */
 .btn-row .btn { white-space: nowrap; padding-left: calc(var(--u) * 8px); padding-right: calc(var(--u) * 8px); font-size: calc(var(--u) * 19px); }
 .btn-row .btn .ess { font-size: calc(var(--u) * 16px); margin-left: calc(var(--u) * 2px); }
+
+/* ================================================================
+   Despertar: anillo de Ánima alrededor del definitivo y cartas del panel
+   ================================================================ */
+.ult-btn::before {
+  content: ''; position: absolute; inset: calc(var(--u) * -9px); border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity .3s;
+  background: conic-gradient(var(--ac, #fff1c4) calc(var(--a, 0) * 1%), rgba(255, 255, 255, .10) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--u) * 5px), #000 calc(100% - var(--u) * 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--u) * 5px), #000 calc(100% - var(--u) * 5px));
+}
+.ult-btn.anima::before { opacity: 1; }
+.ult-btn.animafull::before { background: conic-gradient(#ff8a3d, #ffe45c, #7fe3ff, #8dff6a, #ff8a3d); animation: animaSpin 1.6s linear infinite; }
+.ult-btn.animalock::before { background: #c77dff; opacity: .5; }
+@keyframes animaSpin { to { transform: rotate(360deg); } }
+.card.awaken { border-color: var(--c); box-shadow: 0 0 calc(var(--u) * 14px) var(--c2); }
+.card.awaken .ic { background: radial-gradient(circle, var(--c) -80%, rgba(0, 0, 0, .3) 70%); }
+.card.awaken .nm b { color: var(--c2); }
+.card.locked { opacity: .5; filter: grayscale(.5); cursor: default; }
+.card.locked:hover, .card.locked:active { transform: none; }
+.card.seal { border-color: transparent; background: linear-gradient(#2e2548, #211a36) padding-box, linear-gradient(90deg, var(--c), var(--c2)) border-box; }
+.card .combo.close { color: #ff9a9a; }
+.card .combo.mix { color: #8dffb0; }
+.title.long { font-size: calc(var(--u) * 36px); }
+.btn.later { margin-top: calc(var(--u) * 12px); padding: calc(var(--u) * 10px) calc(var(--u) * 26px); font-size: calc(var(--u) * 18px); }

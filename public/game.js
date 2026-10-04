@@ -47,6 +47,13 @@
   const saveSettings = () => store.set('settings', settings);
   const lowQ = () => settings.quality === 'baja';
 
+  // Despertar (forms.js): si no carga, Forms() no existe y el juego queda como siempre (sin tope de elementos,
+  // sin Ánima y con el dibujo de siempre). flags.noForms (depuración) hace lo mismo para comparar.
+  // flags.phase2: cartas de forma y Mezclas (fase 2), apagadas por ahora
+  const Forms = () => window.ArcanoForms;
+  const flags = { noForms: false, phase2: false, freeze: false }; // freeze (pruebas): el bucle no avanza, solo step()
+  const FX = () => (!flags.noForms && Forms()) || null;
+
   // ================================================================
   //  Sonido (sintetizado, sin archivos): efectos y música van por buses separados
   // ================================================================
@@ -317,6 +324,8 @@
     { id: 'speed',    icon: '👟', name: 'Botas ligeras',    max: 2, w: 0.8, desc: '+12% de velocidad de movimiento' },
     { id: 'dodge',    icon: '💨', name: 'Parpadeo',         max: 3, w: 0.8, desc: '+8% de probabilidad de esquivar golpes' },
   ];
+  // cartas de forma (fase 2): solo salen en su forma
+  if (window.ArcanoForms) for (const c of window.ArcanoForms.cards()) SKILLS.push(Object.assign({}, c, { cond: () => flags.phase2 && !!player && player.form === c.form }));
   const SKILL_BY_ID = Object.fromEntries(SKILLS.map(k => [k.id, k]));
 
   // ================================================================
@@ -378,6 +387,9 @@
   let fps = 60, fpsAcc = 0, fpsN = 0;
   let slowT = 0; // cámara lenta (al matar a un jefe)
   const seenReactions = new Set();
+  // Despertar: cinemática, esquirlas de Eclipse, espera de la oferta, música retenida, cola de avisos, charcos...
+  let awakenFx = null, eclipseFx = null, awakenWait = 0, musicHoldT = 0, toastQ = [], bannerNext = null, flashNext = null;
+  let pools = [], amb = [], ash = [], pactRun = false, roomReactA = 0, ambT = 0, fxDepth = 0, netLog = [];
 
   const dmgMul = () => 1 + 0.07 * (room - 1);
   const xpNeed = lvl => 6 + (lvl - 1) * 5;
@@ -522,7 +534,8 @@
     keys.add(e.code);
     if (state === 'splash') { showTapToStart(); return; }
     if (state === 'tap') { startFromTap(); return; }
-    if (e.code === 'Escape' || e.code === 'KeyP') {
+    if (e.code === 'Escape' && state === 'levelup' && pickSource === 'awaken') awakenLater(); // Escape = "Aún no"
+    else if (e.code === 'Escape' || e.code === 'KeyP') {
       if (state === 'play' || state === 'paused') togglePause();
       else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item'].includes(state)) goBack();
       else if (state === 'school') showMenu();
@@ -750,6 +763,10 @@
       revives: metaLv('fenix'), rerolls: metaLv('suerte'), shield: 0, vx: 0, vy: 0, trapCd: 0,
       tr: {},      // rasgos de la forma despertada (vacío = valores de siempre)
       god: false,  // solo depuración: inmune a todo, también a las trampas
+      // Despertar: forma, núcleo y 2º elemento, Afinidad (máx. 2 elementos), despertares y Ánima
+      form: 'aprendiz', core: null, second: null, aff: [], awak: 0, anima: 0, animaReady: false, awkLock: false,
+      snoozeRoom: -1, fusedLv: 0, lev: 0, shroudT: 0, mixes: [],
+      sty: null, styEcho: null, shotEls: [], shotCol: EL.arcane.color, shotCol2: null, // estilo del disparo (refreshStyle)
     };
   }
 
@@ -757,7 +774,7 @@
   function gainMana(v) {
     if (!player || player.mana >= 100) return;
     player.mana = Math.min(100, player.mana + v * (1 + 0.35 * (player.sk.channel || 0)) * (1 + 0.4 * perkLv('manaRegen')));
-    if (player.mana >= 100) { Sfx.ultReady(); addText(player.x, player.y - 50, '¡DEFINITIVO LISTO!', EL[player.school].color, 0.8); }
+    if (player.mana >= 100) { Sfx.ultReady(); addText(player.x, player.y - 50, '¡DEFINITIVO LISTO!', ultColor(), 0.8); }
   }
 
   // Congelar. Los jefes tienen rendimientos decrecientes: tras cada congelación quedan inmunes
@@ -793,6 +810,292 @@
     return s;
   }
 
+  // ================================================================
+  //  Despertar: Afinidad, Ánima, despertares y rasgos de forma (datos y dibujo en forms.js)
+  // ================================================================
+  // definitivo: el de la escuela hasta despertar; después, el del núcleo con el color de la forma
+  const ultKey = () => (player.awak >= 1 && player.core && FX() ? player.core : player.school);
+  const ultColor = () => (player.awak && FX() ? Forms().FORMS[player.form].color : EL[player.school].color);
+  const ultIcon = () => SCHOOLS[ultKey()].ultIcon;
+  const ultName = () => SCHOOLS[ultKey()].ult;
+  // Linaje: tu forma contiene el elemento de tu escuela (el Arcanista nunca lo tiene) → definitivo ×1,2
+  const linaje = () => { const p = player, el = SCHOOLS[p.school].el; return !!el && p.awak > 0 && !!FX() && (p.core === el || p.second === el); };
+  const uAtk = () => player.atk * (linaje() ? 1.2 : 1);
+
+  // avisos en cola: el nuevo no pisa al que se está leyendo (como mucho 3 esperando)
+  function pushToast(o) {
+    if (!toast) toast = o;
+    else { toastQ.push(o); if (toastQ.length > 3) toastQ.shift(); }
+  }
+
+  // Ánima (anillo del definitivo): bajas, reacciones y daño a jefes. Al llenarse, el despertar queda listo
+  function gainAnima(v) {
+    const p = player, F = FX();
+    if (!F || !p || p.awak >= 2 || p.animaReady) return;
+    const A = F.ANIMA, need = A.need[p.awak];
+    p.anima += v * (p.school === 'arcane' ? A.arcane : 1);
+    if (!settings.tips.anima && p.anima >= need * 0.5) {
+      settings.tips.anima = 1; saveSettings();
+      pushToast({ text: 'DESPERTAR', sub: 'El anillo del definitivo se llena con bajas, reacciones y jefes', color: '#fff1c4', t: 3.2, max: 3.2 });
+    }
+    if (p.anima >= need) {
+      p.anima = need; p.animaReady = true;
+      Sfx.formReady(F.keyOf(p.form, p.core));
+      vibrate(30);
+      addText(p.x, p.y - 50, '¡DESPERTAR LISTO!', '#fff1c4', 0.8);
+    }
+    syncForm();
+  }
+  // redes de seguridad tras los jefes: llena el Ánima hasta el umbral del despertar que toca
+  function fillAnima(net) {
+    if (player.awak >= 2 || player.animaReady || !FX()) return;
+    netLog.push({ net, room, awak: player.awak });
+    gainAnima(1e9);
+  }
+
+  // Afinidad: máximo 2 elementos por partida. Al entrar el 2º se sella y los otros dos dejan de salir
+  // silent: sin anillo ni sonido (despertar, equipo); 'gear' = la ha sellado el equipo
+  function addAffinity(el, silent) {
+    const a = player.aff;
+    if (!FX() || !ELEMENTS.includes(el) || a.includes(el) || a.length >= 2) return false;
+    a.push(el);
+    if (a.length === 2) onAffinity(silent);
+    return true;
+  }
+  function onAffinity(silent) {
+    const p = player, F = Forms(), [a, b] = p.aff, cl = F.SQUARE.filter(x => !p.aff.includes(x));
+    pushToast({ text: `AFINIDAD · ${EL[a].name.toUpperCase()} + ${EL[b].name.toUpperCase()}`, sub: (silent === 'gear' ? 'Por tu equipo · ' : '') + `${EL[cl[0]].name} y ${EL[cl[1]].name} dejan de salir`, color: EL[b].color, t: 2.8, max: 2.8 });
+    if (!settings.tips.aff) { settings.tips.aff = 1; pushToast({ text: 'SOLO 2 ELEMENTOS POR PARTIDA', sub: 'Los demás dejan de salir hasta el final', color: '#fff1c4', t: 3, max: 3 }); }
+    if (F.isOpp(a, b) && !settings.tips.opp) { settings.tips.opp = 1; pushToast({ text: 'ALGO OSCURO DUERME…', sub: `…entre ${EL[a].name} y ${EL[b].name}`, color: '#c77dff', t: 3, max: 3 }); }
+    saveSettings();
+    if (silent) return;
+    rings.push({ x: p.x, y: p.y - 4, r0: 10, r1: 90, t: 0.45, max: 0.45, color: EL[a].color, w: 4 }); // anillo doble con los 2 colores
+    rings.push({ x: p.x, y: p.y - 4, r0: 10, r1: 90, t: 0.55, max: 0.55, color: EL[b].color, w: 4 });
+    burst(p.x, p.y - 4, EL[a].color, 14, 220); burst(p.x, p.y - 4, EL[b].color, 14, 220);
+    Sfx.fuse();
+  }
+
+  // ¿se ofrece ya el despertar? Sala limpia, sin menús ni cámara lenta, Ánima llena y alguna opción abierta (0,8 s de espera)
+  function canOfferAwaken(dt) {
+    const p = player, F = FX();
+    if (!F || !p.animaReady || p.awak >= 2) { awakenWait = 0; return false; }
+    p.awkLock = !F.options({ stage: p.awak + 1, aff: p.aff, core: p.core, pact: pactRun }).some(o => !o.locked); // opuestos sin pacto
+    if (p.awkLock || awakenFx || state !== 'play' || winTimer >= 0 || cine || slowT > 0 || !cleared || p.snoozeRoom === room) { awakenWait = 0; return false; }
+    return (awakenWait += dt) > F.ANIMA.wait;
+  }
+  // elegir carta del panel: empieza la transformación (state sigue en 'play', el mundo va a cámara lenta)
+  function startAwaken(el) {
+    const p = player, F = FX();
+    hideOverlay(); state = 'play'; last = performance.now(); resetJoy();
+    if (!F || awakenFx || !F.options({ stage: p.awak + 1, aff: p.aff, core: p.core, pact: pactRun }).some(o => o.el === el && !o.locked)) return;
+    awakenFx = { t: 0, el, st: p.awak + 1, boom: false, first: false };
+    banner = null; bannerNext = null; // la escena es del mago: fuera el rótulo de la sala
+    awakenWait = 0; musicHoldT = 1.4;
+    try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(0); } catch (_) { /* sin música */ }
+    Sfx.awakenCharge();
+    vibrate(20);
+  }
+  // "Aún no": vuelve a ofrecerse en la siguiente sala limpia (o en esta si firmas un pacto)
+  function awakenLater() {
+    if (!player) return;
+    hideOverlay(); state = 'play'; last = performance.now(); resetJoy();
+    player.snoozeRoom = room; awakenWait = 0;
+    Sfx.click();
+  }
+  // 1,4 s reales: carga con el mundo a ×0,15, estallido a los 0,9 s y vuelta a la normalidad
+  function updateAwaken(dt) {
+    const f = awakenFx;
+    f.t += dt;
+    const T = Forms().timeline(f.t);
+    player.lev = T.lev;
+    if (!f.boom) shake = Math.max(shake, T.shake);
+    if (!f.boom && f.t >= 0.9) { f.boom = true; awaken(f.el); boomFx(f); }
+    if (f.t >= 1.4) { awakenFx = null; player.lev = 0; announceForm(f); }
+  }
+  const awakenScale = () => (awakenFx ? Forms().timeline(awakenFx.t).scale : 1);
+
+  // el despertar en sí: núcleo o 2º elemento, runa +1 (Sintonía si ya estaba al máximo), forma y rasgos
+  function awaken(el) {
+    const p = player, F = Forms(), st = p.awak + 1;
+    if (!F || st > 2 || !ELEMENTS.includes(el)) return;
+    if (st === 1) p.core = el; else p.second = el;
+    addAffinity(el, true);
+    const sync = (p.sk[el] || 0) >= 2;
+    p.sk[el] = Math.min(2, (p.sk[el] || 0) + 1);
+    p.awak = st;
+    p.form = F.formFor(p.core, p.second);
+    p.anima = 0; p.animaReady = false; p.awkLock = false; p.snoozeRoom = -1;
+    p.tr = F.traitsFor(p.core, p.second, p.sk); // puro del núcleo + combinado (sin el puro del 2º)
+    if (st === 2 && p.tr.hpMul) { p.maxHp = Math.max(40, Math.round(p.maxHp * p.tr.hpMul)); p.hp = Math.min(p.hp, p.maxHp); } // precio de Eclipse
+    if (sync) { p.mana = 100; pushToast({ text: 'SINTONÍA', sub: 'Runa al máximo: definitivo lleno', color: F.FORMS[p.form].color, t: 2.2, max: 2.2 }); }
+    recalc(); refreshMixes(); syncUlt(true); syncForm(true);
+    discoverForm(p.form, st);
+  }
+  // ESTALLIDO: destello, onda, partículas con los colores del aura, se borran las balas y vuelve la música
+  function boomFx(f) {
+    const p = player, F = Forms(), D = F.FORMS[p.form], ecl = p.form === 'eclipse', x = p.x, y = p.y - 4 - p.lev;
+    screenFlash = ecl ? { color: '10,0,20', t: 0.25, max: 0.25, real: true } : { color: '255,255,255', t: 0.15, max: 0.15, real: true };
+    flashNext = { color: ecl ? '199,125,255' : rgbOf(D.color).join(','), t: ecl ? 0.5 : 0.45, max: ecl ? 0.5 : 0.45, real: true };
+    rings.push({ x, y, r0: 20, r1: 220, t: 0.45, max: 0.45, color: D.color, w: 8 });
+    rings.push({ x, y, r0: 20, r1: 160, t: 0.35, max: 0.35, color: '#ffffff', w: 4 });
+    for (const c of D.colors) burst(x, y, c, 20, 320); // 60 partículas (24 en calidad baja)
+    for (const b of bullets) sparks(b.x, b.y, D.color, 2);
+    bullets = [];
+    shake = f.st === 2 ? 18 : 14;
+    vibrate(f.st === 2 ? 200 : 120);
+    Sfx.awakenBoom(f.st, F.keyOf(p.form, p.core), ecl);
+    if (ecl) eclipseFx = { t: 3, max: 3 };
+    try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(1); } catch (_) { /* sin música */ }
+    musicHoldT = 6;
+  }
+  function announceForm(f) {
+    const F = Forms(), D = F.FORMS[player.form];
+    const main = { text: D.short, sub: D.line, color: D.color, t: 2.6, max: 2.6 };
+    if (player.form === 'eclipse' && f.first) { banner = { text: 'LA FORMA PROHIBIDA', sub: '', color: '#c77dff', t: 1.2, max: 1.2 }; bannerNext = main; }
+    else banner = main;
+    if (f.first) pushToast({ text: '¡NUEVA FORMA!', sub: `Grimorio ${F.count(meta.grim.f)}/10`, color: D.color, t: 2.6, max: 2.6 });
+  }
+  // Grimorio: forma descubierta (f), despertada pronto (e), veces (n), ritmo (k) y logros
+  function discoverForm(id, st) {
+    const F = Forms(), g = meta.grim, b = F.bit(id), i = F.FORMS[id].bit, first = !(g.f & b);
+    g.f |= b;
+    if (st === 1 && room <= 6) g.e |= b;
+    g.n = g.n.slice(0, i) + Math.min(9, +g.n[i] + 1) + g.n.slice(i + 1);
+    g.k[(st - 1) * 2] += room; g.k[(st - 1) * 2 + 1]++;
+    if (awakenFx) awakenFx.first = first;
+    unlock('awaken1');
+    if (st === 2) unlock('awaken2');
+    if (['plasma', 'aurora', 'mortaja', 'azufre'].every(x => F.has(g.f, x))) unlock('hybrids');
+    if (id === 'eclipse') unlock('eclipse');
+    if (F.count(g.f) >= 10) unlock('forms10');
+    saveMeta();
+  }
+
+  // estilo del disparo: elementos y colores (siempre) y, con forms.js, la silueta de la forma (cacheada allí)
+  function refreshStyle() {
+    const p = player, s = p.sk;
+    const els = ELEMENTS.filter(k => s[k]);
+    const main = els.includes(p.school) ? p.school : els[0] || 'arcane';
+    const second = els.find(k => k !== main);
+    p.shotEls = els; p.shotCol = EL[main].color; p.shotCol2 = second ? EL[second].color : null;
+    const F = FX(), cols = [p.shotCol, p.shotCol2];
+    p.sty = F ? F.shotStyle(p.form, s, false, cols, p.mixes) : null;
+    p.styEcho = F ? F.shotStyle(p.form, s, true, cols, p.mixes) : null;
+  }
+  // Mezclas activas (fase 2): solo las de tus 2 elementos
+  function refreshMixes() {
+    const p = player, F = FX();
+    p.mixes = F && flags.phase2 ? F.activeMixes(p.sk).filter(m => p.aff.length < 2 || p.aff.includes(m.el)) : [];
+    refreshStyle();
+  }
+
+  // cada frame: charcos, Sudario y partículas de ambiente de la forma (las fichas se recargan en update)
+  function updateForms(dt) {
+    const F = FX(), p = player;
+    if (!F) return;
+    if (pools.length) {
+      for (const o of pools) { o.t -= dt; if ((o.tick -= dt) <= 0) { o.tick = 0.5; poolTick(o); } }
+      pools = pools.filter(o => o.t > 0);
+    }
+    const sh = p.tr.shroud;
+    if (sh && (p.shroudT -= dt) <= 0) { p.shroudT = 0.5; shroudTick(sh); }
+    const A = F.FORMS[p.form].ambient;
+    if (A && !awakenFx && (ambT -= dt) <= 0) {
+      ambT = A.every * (lowQ() ? 2.5 : 1);
+      const q = F.spawnAmbient(p.form, p);
+      if (q) { const arr = q.normal ? ash : amb; arr.push(q); if (arr.length > (lowQ() ? 30 : 80)) arr.shift(); }
+    }
+    // el ambiente va sin rozamiento (las chispas de parts frenan enseguida)
+    if (amb.length) { for (const q of amb) { q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; } amb = amb.filter(q => q.life > 0); }
+    if (ash.length) { for (const q of ash) { q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; } ash = ash.filter(q => q.life > 0); }
+  }
+  // charco de Tóxica (veneno) o de Azufre (daño, fuego y veneno) cada 0,5 s a los que estén dentro
+  function poolTick(o) {
+    const atk = player.atk, els = o.sulfur ? ['fire', 'poison'] : ['poison'];
+    for (const e of enemies) {
+      if (e.dead || e.spawnT > 0) continue;
+      const dx = (e.x - o.x) / (o.r + e.r * 0.5), dy = (e.y - o.y) / (o.r * 0.62 + e.r * 0.5);
+      if (dx * dx + dy * dy > 1) continue;
+      if (o.k > 0) damageEnemy(e, atk * o.k, false, o.sulfur ? '#d6ff3a' : '#8dff6a', true);
+      if (!e.dead) applyElements(e, els);
+    }
+  }
+  // Sudario de Mortaja: ralentiza y envenena (con el tope de siempre) a los que están cerca
+  function shroudTick(sh) {
+    const p = player, atk = p.atk, cap = atk * (p.tr.poisonCap || 0.8) * (p.sk.poison || 1);
+    for (const e of enemies) {
+      if (e.dead || e.spawnT > 0 || (e.x - p.x) ** 2 + (e.y - p.y) ** 2 > (sh.r + e.r) ** 2) continue;
+      e.slow = Math.max(e.slow, 0.6);
+      if (e.poisonDps < cap) e.poisonDps = Math.min(cap, e.poisonDps + atk * sh.k);
+    }
+  }
+  // al morir: estallido de Ígnea (ardiendo), charco de Tóxica/Azufre y esquirlas de Aurora (congelado)
+  function formDeath(e) {
+    const tr = player.tr, atk = player.atk;
+    if (!FX() || !tr) return;
+    const d = tr.deathBlast;
+    if (d && e.burn > 0 && fxDepth === 0 && takeTok('blast')) { // las bajas de un estallido no estallan
+      fxDepth++;
+      rings.push({ x: e.x, y: e.y, r0: 10, r1: d.r, t: 0.3, max: 0.3, color: '#ff8a3d', w: 5 });
+      burst(e.x, e.y, '#ffb347', 14, 240);
+      shake = Math.max(shake, 4);
+      Sfx.blast();
+      for (const o of enemies) {
+        if (o === e || o.dead || o.spawnT > 0 || Math.hypot(o.x - e.x, o.y - e.y) > d.r + o.r) continue;
+        damageEnemy(o, atk * d.k, false, '#ff8a3d', true);
+        if (!o.dead) applyElements(o, ['fire']);
+      }
+      fxDepth--;
+    }
+    const pd = tr.puddle;
+    if (pd && (e.poisonDps > 0 || (pd.sulfur && e.burn > 0))) {
+      pools.push(Forms().newPool(e.x, e.y, pd));
+      if (pools.length > pd.max) pools.shift();
+    }
+    const sh = tr.shards;
+    if (sh && e.frozen > 0 && takeTok('shard')) {
+      const a0 = rand(0, TAU);
+      for (let i = 0; i < sh.n; i++) spawnSub(e.x, e.y, a0 + i * TAU / sh.n, atk * sh.k, ['ice'], { sub: 'shard' });
+      sparks(e.x, e.y, '#e6fbff', 6);
+    }
+  }
+  // Aniquilación de Eclipse: cada reacción atrae (no a jefes ni tótems) y daña a los de alrededor
+  function implode(e, d) {
+    const atk = player.atk;
+    rings.push({ x: e.x, y: e.y, r0: d.r, r1: 8, t: 0.3, max: 0.3, color: '#c77dff', w: 5 });
+    if (!lowQ()) for (let i = 0; i < 8; i++) {
+      const a = i * TAU / 8 + rand(-0.2, 0.2), r = d.r * rand(0.7, 1);
+      parts.push({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r, vx: -Math.cos(a) * r * 3, vy: -Math.sin(a) * r * 3, life: 0.3, max: 0.3, color: '#c77dff', size: rand(2, 3.5) });
+    }
+    if (Sfx.gate('implode', 90)) Sfx.tone(160, 0.22, 'sine', 0.08, 0.45);
+    for (const o of enemies) {
+      if (o.dead || o.spawnT > 0) continue;
+      const dd = Math.hypot(o.x - e.x, o.y - e.y);
+      if (dd > d.r + o.r) continue;
+      if (o !== e && o.kind !== 'boss' && o.kind !== 'totem' && dd > 1) {
+        const m = Math.min(d.pull, dd);
+        o.x += (e.x - o.x) / dd * m; o.y += (e.y - o.y) / dd * m;
+        if (o.ground) collideRocks(o);
+        clampArena(o, false);
+      }
+      damageEnemy(o, atk * d.k, false, '#c77dff', true);
+    }
+  }
+  // Arco de plasma: del enemigo que arde salta un arco al más cercano, con parte del daño, y lo prende
+  function plasmaArc(e, ar, pa) {
+    let best = null, bd = pa.r * pa.r;
+    for (const o of enemies) {
+      if (o === e || o.dead || o.spawnT > 0) continue;
+      const d2 = (o.x - e.x) ** 2 + (o.y - e.y) ** 2;
+      if (d2 < bd) { bd = d2; best = o; }
+    }
+    if (!best || !takeTok('arc')) return;
+    bolts.push({ x1: e.x, y1: e.y, x2: best.x, y2: best.y, life: 0.18, layers: Forms().BOLT_LAYERS.plasma });
+    damageEnemy(best, ar.dmg * pa.k, false, '#ff5ad1', true);
+    if (!best.dead) applyElements(best, ['fire']);
+    Sfx.zap();
+  }
+
   function liveEnemies() { return enemies.filter(e => !e.dead && e.spawnT <= 0); }
 
   // el enemigo con más vecinos cerca (el jefe pesa más): blanco de meteoro y singularidad
@@ -816,19 +1119,19 @@
     meta.stats.ults++;
     unlock('firstUlt');
     tutNext();
-    const col = EL[player.school].color;
+    const col = ultColor(), k = ultKey(), atk = uAtk(); // tras despertar: el del núcleo con el color de la forma
     rings.push({ x: player.x, y: player.y, r0: 10, r1: 120, t: 0.4, max: 0.4, color: col, w: 6 });
-    if (player.school === 'fire') {
+    if (k === 'fire') {
       const best = densest(live);
       meteors.push({ x: best.x, y: best.y, t: 0.75, max: 0.75, r: 140 });
       Sfx.whistle();
-    } else if (player.school === 'ice') {
+    } else if (k === 'ice') {
       for (const e of live) {
         // los bloques no se rompen todos a la vez: el estallido va crujiendo en cascada
         freezeEnemy(e, rand(2.8, 3.3), 1.8, true);
         e.shatter = true;
         e.slow = Math.max(e.slow, 3);
-        damageEnemy(e, player.atk * 5, false, EL.ice.color, true);
+        damageEnemy(e, atk * 5, false, EL.ice.color, true);
       }
       for (const b of bullets) sparks(b.x, b.y, EL.ice.color, 2);
       bullets = [];
@@ -837,17 +1140,17 @@
       }
       screenFlash = { color: '180,235,255', t: 0.5, max: 0.5 };
       Sfx.freeze();
-    } else if (player.school === 'poison') {
+    } else if (k === 'poison') {
       // Plaga: veneno fuerte para todos; los que mueran en 6 s revientan y contagian
       for (const e of live) {
-        e.poisonDps = Math.max(e.poisonDps, player.atk * 1.2);
+        e.poisonDps = Math.max(e.poisonDps, atk * 1.2);
         e.plague = 6;
-        damageEnemy(e, player.atk * 2, false, EL.poison.color, true);
+        damageEnemy(e, atk * 2, false, EL.poison.color, true);
         for (let i = 0; i < 6; i++) parts.push({ x: e.x + rand(-e.r, e.r), y: e.y, vx: rand(-20, 20), vy: rand(-70, -20), life: rand(0.5, 1), max: 1, color: EL.poison.color, size: rand(2, 4.5) });
       }
       screenFlash = { color: '150,255,110', t: 0.4, max: 0.4 };
       Sfx.plague();
-    } else if (player.school === 'arcane') {
+    } else if (k === 'arcane') {
       const best = densest(live);
       sing = { x: best.x, y: best.y, t: 2, max: 2, tick: 0 };
       Sfx.whistle();
@@ -864,8 +1167,8 @@
       m.t -= dt;
       if (m.t <= 0) {
         m.done = true;
-        explode(m.x, m.y, m.r, player.atk * 12, EL.fire.color);
-        for (const e of enemies) if (!e.dead && dist(e, m) < m.r + e.r) { e.burn = 3; e.burnDps = Math.max(e.burnDps, player.atk * 0.6); }
+        explode(m.x, m.y, m.r, uAtk() * 12, EL.fire.color);
+        for (const e of enemies) if (!e.dead && dist(e, m) < m.r + e.r) { e.burn = 3; e.burnDps = Math.max(e.burnDps, uAtk() * 0.6); }
         for (const b of bullets) if (dist(b, m) < m.r) b.dead = true;
         bullets = bullets.filter(b => !b.dead);
         burst(m.x, m.y, '#ffd27a', 40, 340);
@@ -888,7 +1191,7 @@
       }
       if (sing.tick <= 0) {
         sing.tick = 0.25;
-        for (const e of enemies) if (!e.dead && e.spawnT <= 0 && dist(e, sing) < 110 + e.r) damageEnemy(e, player.atk * 0.45, false, EL.arcane.color, true);
+        for (const e of enemies) if (!e.dead && e.spawnT <= 0 && dist(e, sing) < 110 + e.r) damageEnemy(e, uAtk() * 0.45, false, EL.arcane.color, true);
       }
       for (const b of bullets) if (dist(b, sing) < 220) { b.dead = true; sparks(b.x, b.y, EL.arcane.color, 2); }
       bullets = bullets.filter(b => !b.dead);
@@ -897,7 +1200,7 @@
         parts.push({ x: sing.x + Math.cos(a) * r, y: sing.y + Math.sin(a) * r, vx: -Math.cos(a) * r * 2.2 - Math.sin(a) * 120, vy: -Math.sin(a) * r * 2.2 + Math.cos(a) * 120, life: 0.4, max: 0.4, color: EL.arcane.color, size: rand(1.5, 3) });
       }
       if (sing.t <= 0) {
-        explode(sing.x, sing.y, 150, player.atk * 4.5, EL.arcane.color);
+        explode(sing.x, sing.y, 150, uAtk() * 4.5, EL.arcane.color);
         burst(sing.x, sing.y, '#ffffff', 30, 300);
         shake = Math.max(shake, 14);
         screenFlash = { color: '200,140,255', t: 0.35, max: 0.35 };
@@ -913,7 +1216,7 @@
         const e = pick(live);
         bolts.push({ x1: e.x + rand(-40, 40), y1: AY - 30, x2: e.x, y2: e.y, life: 0.25, sky: true });
         rings.push({ x: e.x, y: e.y, r0: 6, r1: 50, t: 0.25, max: 0.25, color: EL.bolt.color, w: 4 });
-        damageEnemy(e, player.atk * 3.2, false, EL.bolt.color);
+        damageEnemy(e, uAtk() * 3.2, false, EL.bolt.color);
         if (!e.dead) e.shock = 2;
         Sfx.zap();
         shake = Math.max(shake, 4);
@@ -931,6 +1234,9 @@
     player.critMul = 2 + 0.25 * (s.crit || 0);
     player.speed = 190 * (1 + 0.12 * (s.speed || 0)) * (1 + 0.04 * metaLv('paso')) * (1 + g.speedP);
     player.dodge = Math.min(0.6, 0.08 * (s.dodge || 0) + g.dodgeP); // nunca más de un 60% de esquiva
+    // runas del equipo que no caben en la Afinidad (+6% por nivel, tope +24%) y precio/bonus de la forma (Eclipse)
+    player.atk *= (1 + 0.06 * Math.min(4, player.fusedLv || 0)) * ((player.tr && player.tr.atkMul) || 1);
+    refreshStyle();
   }
 
   function heal(n, show = true) {
@@ -951,7 +1257,7 @@
   }
 
   function hurtPlayer(dmg, src) {
-    if (player.god) return; // depuración: ni golpes ni trampas
+    if (player.god || awakenFx) return; // depuración / transformación: ni golpes ni trampas
     if (state !== 'play') return;
     const trap = src === 'trap';
     if (trap) { // las trampas tienen su propio ritmo: no gastan escudo ni esquiva, ni dan invulnerabilidad
@@ -1024,45 +1330,44 @@
     return bestL || best;
   }
 
-  function spawnShot(x, y, a, dmg) {
+  // elementos y colores salen de refreshStyle (no se recalculan por disparo); sty = silueta de la forma (forms.js)
+  function spawnShot(x, y, a, dmg, sty, kind) {
     const s = player.sk;
-    const els = ELEMENTS.filter(k => s[k]);
-    const main = els.includes(player.school) ? player.school : els[0] || 'arcane';
-    const second = els.find(k => k !== main);
     shots.push({
       x: x + Math.cos(a) * 18, y: y + Math.sin(a) * 18,
       vx: Math.cos(a) * SHOT_SPEED, vy: Math.sin(a) * SHOT_SPEED,
       dmg, life: 1.6, hit: new Set(),
-      pierce: s.pierce || 0, rico: (s.ricochet || 0) * 2, wall: (s.wall || 0) * 2,
-      els, col: EL[main].color, col2: second ? EL[second].color : null,
+      pierce: (s.pierce || 0) + (player.tr.pierce || 0), rico: (s.ricochet || 0) * 2, wall: (s.wall || 0) * 2,
+      els: player.shotEls, col: player.shotCol, col2: player.shotCol2, sty: sty || null, kind: kind || null, nofx: false, split: false,
     });
   }
 
-  function fireVolley(target) {
+  function fireVolley(target, echo = false) {
     const s = player.sk;
     const base = angTo(player, target);
     const dmg = player.atk * Math.pow(0.88, s.front || 0) * Math.pow(0.9, s.multi || 0);
-    const nF = 1 + (s.front || 0);
+    const nF = 1 + (s.front || 0), sty = echo ? player.styEcho : player.sty;
     const px = Math.cos(base + Math.PI / 2), py = Math.sin(base + Math.PI / 2);
     for (let i = 0; i < nF; i++) {
       const off = (i - (nF - 1) / 2) * 13;
-      spawnShot(player.x + px * off, player.y + py * off, base, dmg);
+      spawnShot(player.x + px * off, player.y + py * off, base, dmg, sty);
     }
     const diagA = [0.5, 0.95];
     for (let i = 0; i < (s.diag || 0); i++) {
-      spawnShot(player.x, player.y, base + diagA[i], dmg);
-      spawnShot(player.x, player.y, base - diagA[i], dmg);
+      spawnShot(player.x, player.y, base + diagA[i], dmg, sty, 'diag');
+      spawnShot(player.x, player.y, base - diagA[i], dmg, sty, 'diag');
     }
-    if (s.side) { spawnShot(player.x, player.y, base + Math.PI / 2, dmg); spawnShot(player.x, player.y, base - Math.PI / 2, dmg); }
-    if (s.rear) spawnShot(player.x, player.y, base + Math.PI, dmg);
+    if (s.side) { spawnShot(player.x, player.y, base + Math.PI / 2, dmg, sty); spawnShot(player.x, player.y, base - Math.PI / 2, dmg, sty); }
+    if (s.rear) spawnShot(player.x, player.y, base + Math.PI, dmg, sty);
     player.face = base;
     player.castFx = 0.12;
-    Sfx.shoot();
+    const F = FX();
+    Sfx.shootV(F ? F.FORMS[player.form].voice : null); // cada forma tiene su voz
   }
 
   function updatePlayer(dt) {
     const p = player;
-    const [mx, my] = moveInput();
+    const [mx, my] = awakenFx ? [0, 0] : moveInput(); // durante la transformación no te mueves
     p.moving = mx !== 0 || my !== 0;
     const ground = hzAt(p.x, p.y);
     const spd = p.speed * (ground === HZ.POISON ? 0.6 : 1);
@@ -1081,7 +1386,7 @@
     // en el hielo solo se pierde la velocidad que choca contra la roca, no la que la roza
     if (ground === HZ.ICE && dt > 0) { p.vx = (p.x - ox) / dt; p.vy = (p.y - oy) / dt; }
     if (p.trapCd > 0) p.trapCd -= dt;
-    const ci = cellIndex(p.x, p.y), now = ci < 0 ? 0 : hz[ci]; // la casilla en la que estás ahora
+    const ci = cellIndex(p.x, p.y), now = ci < 0 || awakenFx ? 0 : hz[ci]; // la casilla en la que estás (sin trampas al transformarte)
     if (now === HZ.SPIKES && spikePhase(ci) === 2) hurtPlayer(10 * dmgMul(), 'trap');
     else if (now === HZ.LAVA) hurtPlayer(7 * dmgMul(), 'trap');
     if (p.inv > 0) p.inv -= dt;
@@ -1102,7 +1407,7 @@
       if (volleys[i] <= 0) {
         volleys.splice(i, 1);
         const t = findTarget();
-        if (t) fireVolley(t);
+        if (t) fireVolley(t, true); // ráfaga del eco
       }
     }
 
@@ -1527,6 +1832,7 @@
     if (e.dead) return;
     if (e.frozen > 0) dmg *= player.tr.frozenMul || 1.3; // los congelados reciben más daño
     if (e.corrode > 0) dmg *= e.corrMul || 1.4; // corrosión (rayo + veneno)
+    if (e.kind === 'boss' && FX()) gainAnima(Math.min(dmg, Math.max(0, e.hp)) / e.maxHp * Forms().ANIMA.boss); // +40 de Ánima por jefe entero
     e.hp -= dmg;
     e.flash = 0.08;
     if (e.kind === 'boss') gainMana(dmg / e.maxHp * 90);
@@ -1558,6 +1864,8 @@
     if (player.sk.blood) heal(player.maxHp * 0.02 * player.sk.blood);
     if (perkLv('lifeOnKill')) heal(player.maxHp * 0.01 * perkLv('lifeOnKill'));
     if (!isBoss) gainMana(e.minion ? 2 : e.elite ? 10 : 5);
+    const F = FX();
+    if (F && !isBoss && !e.wiped) gainAnima(e.minion ? F.ANIMA.minion : e.elite ? F.ANIMA.elite : F.ANIMA.kill);
     if (isBoss) {
       bossesKilled++;
       meta.stats.bosses++;
@@ -1566,9 +1874,17 @@
       if (!roomHit) unlock('untouchable');
       boss = null;
       for (const o of enemies) if (!o.dead && o !== e) { o.wiped = true; killEnemy(o); }
+      // redes de seguridad del despertar: (a) quien nunca ha despertado, tras el Gólem; (b) 1º tras el Rey Slime; (c) 2º tras el Brujo
+      if (F) {
+        const aw = player.awak;
+        if (e.tier === 1 && aw === 0 && !(meta.grim.f & ~1)) fillAnima('a');
+        else if (e.tier === 2 && aw === 0) fillAnima('b');
+        else if (e.tier === 3 && aw === 1) fillAnima('c');
+      }
       return;
     }
     if (e.wiped) return; // muerto por la caída del jefe: sin efectos en cadena
+    formDeath(e);
     if (e.kind === 'bigslime') { // se divide en dos slimes pequeños
       for (const s of [-1, 1]) {
         const m = makeEnemy('slime', e.x + s * 14, e.y, -0.6);
@@ -1608,8 +1924,9 @@
       .filter(x => x.d < r)
       .sort((a, b) => a.d - b.d)
       .slice(0, n);
+    const F = FX(), layers = F ? F.BOLT_LAYERS[player.form] || null : null; // Plasma, Aurora y Eclipse tiñen sus rayos
     for (const { o } of near) {
-      bolts.push({ x1: src.x, y1: src.y, x2: o.x, y2: o.y, life: 0.18 });
+      bolts.push({ x1: src.x, y1: src.y, x2: o.x, y2: o.y, life: 0.18, layers });
       damageEnemy(o, dmg, false, '#9fe8ff', true);
       if (!o.dead) o.shock = Math.max(o.shock, 1.5);
     }
@@ -1655,7 +1972,13 @@
     if (runReacts >= 50) unlock('react50');
     if (!seenReactions.has(r.id)) {
       seenReactions.add(r.id);
-      toast = { text: `¡${r.name}!`, sub: `${EL[r.a].name} + ${EL[r.b].name}: ${r.desc}`, color: r.color, t: 2.6, max: 2.6 };
+      pushToast({ text: `¡${r.name}!`, sub: `${EL[r.a].name} + ${EL[r.b].name}: ${r.desc}`, color: r.color, t: 2.6, max: 2.6 });
+    }
+    const F = FX();
+    if (F && roomReactA < F.ANIMA.reactCap) { // Ánima por reacción, con tope por sala
+      const v = Math.min(F.ANIMA.react, F.ANIMA.reactCap - roomReactA);
+      roomReactA += v;
+      gainAnima(v);
     }
     if (r.id === 'vapor') {
       e.burn = 0; e.burnDps = 0; e.slow = 0;
@@ -1695,6 +2018,7 @@
       }
       damageEnemy(e, clamp(pd * (tr.necroK || 3), 1.5 * atk, (tr.necroCap || 4) * atk), true, r.color);
     }
+    if (tr.implode && takeTok('implode')) implode(e, tr.implode); // Eclipse: Aniquilación
   }
 
   // ================================================================
@@ -1707,21 +2031,34 @@
     Sfx.hit();
     // estados previos al impacto: con ellos se decide si hay reacción
     const had = { fire: e.burn > 0, ice: e.slow > 0, bolt: e.shock > 0, poison: e.poisonDps > 0 };
+    const tr = player.tr, fx = !ar.nofx, els = ar.els;
+    // Eclipse (Desequilibrio): contra no jefes, los elementos del propio disparo cuentan como estado previo
+    const rx = tr.firstHit && fx && e.kind !== 'boss'
+      ? { fire: had.fire || els.includes('fire'), ice: had.ice || els.includes('ice'), bolt: had.bolt || els.includes('bolt'), poison: had.poison || els.includes('poison') } : had;
     damageEnemy(e, dmg, crit);
     if (!e.dead && !e.heavy) { // retroceso al recibir el impacto
       const sp = Math.hypot(ar.vx, ar.vy) || 1;
       e.kx = (e.kx || 0) + ar.vx / sp * 80; e.ky = (e.ky || 0) + ar.vy / sp * 80;
     }
     // nofx (esquirlas y proyectiles secundarios): sin reacciones, sin cadena y sin rasgos; solo daño y elementos
-    if (!ar.nofx && !e.dead && e.reactCd <= 0) {
+    if (fx && !e.dead && e.reactCd <= 0) {
       for (const r of REACTIONS) {
         if (r.id === 'freeze' && e.frzImm > 0) continue; // jefe aún inmune a congelar: no gasta sus estados
-        if ((ar.els.includes(r.a) && had[r.b]) || (ar.els.includes(r.b) && had[r.a])) { react(r, e); break; }
+        if ((els.includes(r.a) && rx[r.b]) || (els.includes(r.b) && rx[r.a])) { react(r, e); break; }
       }
     }
-    if (!e.dead) applyElements(e, ar.els);
-    const tr = player.tr;
-    if (!ar.nofx && ar.els.includes('bolt') && Math.random() < (tr.chainP || 0.16) * (player.sk.bolt || 1)) chainLightning(e, ar.dmg * (tr.chainK || 0.4), tr.chainN || 2, tr.chainR || 200);
+    if (!e.dead) applyElements(e, els);
+    if (ar.sty && ar.sty.hit) sparks(ar.x, ar.y, ar.sty.hit, lowQ() ? 2 : 4); // Glacial y Aurora: chispas de escarcha
+    if (fx && !e.dead) {
+      // Glacial (Gélido): golpear a un ralentizado puede congelarlo (jefes, menos y con rendimientos decrecientes)
+      if (tr.frzChance && had.ice && e.frozen <= 0 && Math.random() < tr.frzChance && freezeEnemy(e, tr.frzT || 0.7, tr.frzBossT || 0.35)) {
+        rings.push({ x: e.x, y: e.y, r0: e.r + 14, r1: e.r, t: 0.25, max: 0.25, color: '#bff4ff', w: 3 });
+        if (Sfx.gate('frz', 120)) Sfx.tone(1400, 0.15, 'sine', 0.04, 0.6);
+      }
+      // Plasma: arco al enemigo más cercano si este arde
+      if (tr.plasmaArc && e.burn > 0 && Math.random() < tr.plasmaArc.p) plasmaArc(e, ar, tr.plasmaArc);
+    }
+    if (fx && els.includes('bolt') && Math.random() < (tr.chainP || 0.16) * (player.sk.bolt || 1)) chainLightning(e, ar.dmg * (tr.chainK || 0.4), tr.chainN || 2, tr.chainR || 200);
 
     if (ar.rico > 0) {
       let best = null, bd = 280 * 280;
@@ -1875,9 +2212,11 @@
     bolts = bolts.filter(b => b.life > 0);
     for (const r of rings) r.t -= dt;
     rings = rings.filter(r => r.t > 0);
-    if (banner) { banner.t -= dt; if (banner.t <= 0) banner = null; }
-    if (toast) { toast.t -= dt; if (toast.t <= 0) toast = null; }
-    if (screenFlash) { screenFlash.t -= dt; if (screenFlash.t <= 0) screenFlash = null; }
+    if (banner) { banner.t -= dt; if (banner.t <= 0) { banner = bannerNext; bannerNext = null; } }
+    if (toast && !cine) { toast.t -= dt; if (toast.t <= 0) toast = toastQ.shift() || null; } // la cola espera a la entrada del jefe
+    else if (!toast && toastQ.length) toast = toastQ.shift();
+    if (screenFlash && !screenFlash.real) { screenFlash.t -= dt; if (screenFlash.t <= 0) screenFlash = null; }
+    if (eclipseFx) { eclipseFx.t -= dt; if (eclipseFx.t <= 0) eclipseFx = null; }
     if (cine) { cine.t -= dt; if (cine.t <= 0) { cine = null; hazardHints(); } }
     shake = Math.max(0, shake - dt * 40);
     if (hurtFlash > 0) hurtFlash -= dt;
@@ -1938,7 +2277,7 @@
     for (const t of [1, 2, 3, 4]) {
       if (seen[t] || !hz.includes(t)) continue;
       seen[t] = true; saveSettings();
-      toast = { text: HZ_INFO[t].name, sub: HZ_INFO[t].tip, color: HZ_INFO[t].color, t: 3, max: 3 };
+      pushToast({ text: HZ_INFO[t].name, sub: HZ_INFO[t].tip, color: HZ_INFO[t].color, t: 3, max: 3 });
       return;
     }
   }
@@ -2037,6 +2376,7 @@
     roomBgDirty = true;
     shots = []; shotQ = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null; chest = null; cine = null;
+    pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0;
     hz.fill(0);
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0, vx: 0, vy: 0 });
     if (perkLv('roomShield')) player.shield = Math.max(player.shield, 1);
@@ -2050,6 +2390,7 @@
     bullets = [];
     if (BOSSES[room]) heal(player.maxHp * 0.25);
     if (perkLv('roomShield') >= 2) heal(player.maxHp * 0.1);
+    if (!roomHit && FX() && (BOSSES[room] || !ALTAR_ROOMS.has(room))) gainAnima(Forms().ANIMA.clean); // sala limpia sin recibir daño
     if (room >= TOTAL_ROOMS) { winTimer = 2.2; pendingLevels = 0; }
     else Sfx.door();
     if (tut && room === 1) tut.step = 'door';
@@ -2061,6 +2402,8 @@
     room = 0; kills = 0; runTime = 0; winTimer = -1; bossesKilled = 0; runEssence = 0;
     shake = 0; hurtFlash = 0; fade = 0; banner = null;
     toast = null; screenFlash = null;
+    toastQ = []; bannerNext = null; flashNext = null; awakenFx = null; eclipseFx = null; musicHoldT = 0;
+    pactRun = false; pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; fxDepth = 0; netLog = [];
     seenReactions.clear();
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
@@ -2110,13 +2453,27 @@
     if (!schoolOpen(id)) return;
     const S = SCHOOLS[id];
     player.school = id;
-    if (S.el) player.sk[S.el] = 1;
-    for (const [k, v] of Object.entries(S.grant || {})) player.sk[k] = (player.sk[k] || 0) + v;
-    for (const [perk, lv] of Object.entries((player.gear && player.gear.perks) || {})) { // equipo
-      if (perk.startsWith('startRune:')) { const el = perk.slice(10); player.sk[el] = Math.min(2, Math.max(player.sk[el] || 0, lv)); }
-      else if (perk === 'extraShot') player.sk.front = Math.min(3, (player.sk.front || 0) + lv);
+    const F = FX(), p = player;
+    if (S.el) { p.sk[S.el] = 1; if (F) p.aff = [S.el]; } // la escuela fija el 1er elemento de la Afinidad
+    for (const [k, v] of Object.entries(S.grant || {})) p.sk[k] = (p.sk[k] || 0) + v;
+    const perks = Object.entries((p.gear && p.gear.perks) || {});
+    for (const [perk, lv] of perks) if (perk === 'extraShot') p.sk.front = Math.min(3, (p.sk.front || 0) + lv);
+    // runas del equipo: primero las de más nivel y, si empatan, las de bastón antes que la del anillo.
+    // Si caben en la Afinidad se aplican como siempre; si no, se funden en daño (+6% por nivel, tope +24%)
+    const BASTON = ['fire', 'ice', 'bolt'];
+    const runes = perks.filter(([k]) => k.startsWith('startRune:')).map(([k, lv]) => [k.slice(10), lv]).filter(([el]) => ELEMENTS.includes(el))
+      .sort((a, b) => b[1] - a[1] || (BASTON.includes(a[0]) ? 0 : 1) - (BASTON.includes(b[0]) ? 0 : 1));
+    for (const [el, lv] of runes) {
+      if (!F || p.aff.includes(el) || p.aff.length < 2) {
+        p.sk[el] = Math.min(2, Math.max(p.sk[el] || 0, lv));
+        if (F) addAffinity(el, 'gear');
+      } else {
+        p.fusedLv = Math.min(4, p.fusedLv + lv);
+        pushToast({ text: `RUNA DE ${EL[el].name.toUpperCase()} DEL EQUIPO`, sub: `No cabe en tu Afinidad → +${6 * lv}% de daño`, color: EL[el].color, t: 2.8, max: 2.8 });
+      }
     }
     recalc();
+    refreshMixes();
     Sfx.pick();
     hideOverlay();
     hud(true);
@@ -2125,18 +2482,33 @@
     music('dungeon');
   }
 
-  // botón del definitivo: carga circular con el color de la escuela
+  // botón del definitivo: carga circular con el color de la escuela (o de la forma, tras despertar)
   let ultShown = -1;
   function syncUlt(force) {
     if (!player) return;
+    syncForm(force);
     const p = Math.floor(player.mana);
     if (!force && p === ultShown) return;
     ultShown = p;
-    const s = SCHOOLS[player.school];
     btnUlt.style.setProperty('--p', p);
-    btnUlt.style.setProperty('--c', EL[player.school].color);
+    btnUlt.style.setProperty('--c', ultColor());
     btnUlt.classList.toggle('ready', p >= 100);
-    if (force) btnUlt.querySelector('.in').textContent = s.ultIcon;
+    if (force) btnUlt.querySelector('.in').textContent = ultIcon();
+  }
+  // anillo exterior del botón = Ánima: --a (0-100), --ac (color) y clases anima / animafull / animalock
+  let animaShown = -1, animaCls = '';
+  function syncForm(force) {
+    if (!player) return;
+    const p = player, F = FX(), on = !!F && p.awak < 2;
+    const a = on ? Math.round(clamp(p.anima / F.ANIMA.need[p.awak], 0, 1) * 100) : 0;
+    const cls = (on ? 'a' : '') + (on && p.animaReady ? (p.awkLock ? 'l' : 'f') : '') + p.awak;
+    if (!force && a === animaShown && cls === animaCls) return;
+    animaShown = a; animaCls = cls;
+    btnUlt.style.setProperty('--a', a);
+    btnUlt.style.setProperty('--ac', on && p.awak ? F.FORMS[p.form].color : '#fff1c4');
+    btnUlt.classList.toggle('anima', on);
+    btnUlt.classList.toggle('animafull', on && p.animaReady && !p.awkLock);
+    btnUlt.classList.toggle('animalock', on && p.animaReady && p.awkLock);
   }
 
   function die() {
@@ -2157,7 +2529,7 @@
     runTime += dt;
     meta.stats.time += dt;
     updatePlayer(dt);
-    if ((intensityT -= dt) <= 0) { // la música sube de capas con más enemigos
+    if ((intensityT -= dt) <= 0 && musicHoldT <= 0) { // la música sube de capas con más enemigos (salvo tras despertar)
       intensityT = 0.5;
       try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(clamp(enemies.length / 8, 0, 1)); } catch (_) { /* sin música */ }
     }
@@ -2168,6 +2540,7 @@
     updateShots(dt);
     updateUlts(dt);
     rechargeTok(dt);
+    updateForms(dt);
     updateBullets(dt);
     updateDrops(dt);
     updateFx(dt);
@@ -2176,13 +2549,13 @@
 
     if (!cleared && enemies.length === 0) onCleared();
     if (cleared) doorAnim = Math.min(1, doorAnim + dt * 2);
-    if (altar && !altar.used && state === 'play' && dist(player, altar) < player.r + 26) openAltar();
+    if (altar && !altar.used && state === 'play' && !awakenFx && dist(player, altar) < player.r + 26) openAltar();
     hzClock += dt;
     if (chest) {
       if (chest.opened) chest.openT += dt;
-      else if (cleared && state === 'play' && dist(player, chest) < player.r + 22) openChest();
+      else if (cleared && state === 'play' && !awakenFx && dist(player, chest) < player.r + 22) openChest();
     }
-    if (state === 'play' && cleared && room < TOTAL_ROOMS && player.y < AY - 24) {
+    if (state === 'play' && cleared && !awakenFx && room < TOTAL_ROOMS && player.y < AY - 24) {
       state = 'transition'; transPhase = 'out'; transT = 0; resetJoy();
     }
     if (winTimer > 0 && state === 'play') {
@@ -2190,6 +2563,7 @@
       if (winTimer <= 0) { showEnd(true); return; }
     }
     updateHud(dt);
+    if (awakenFx) return; // durante la transformación no se abre nada
     if (pendingLevels > 0 && state === 'play' && winTimer < 0 && (hudFx.lvlShow > player.lvl - pendingLevels || hudFx.wait > 1.5)) {
       hudFx.wait = 0;
       openLevelUp('level');
@@ -2197,6 +2571,7 @@
     else if (bonusPicks.length && state === 'play' && winTimer < 0 && !(bonusPicks[0] === 'chest' && chest && chest.opened && chest.openT < 0.8)) {
       openLevelUp(bonusPicks[0]); // el cofre espera a que se vea la apertura
     }
+    else if (!pendingLevels && !bonusPicks.length && canOfferAwaken(dt)) openLevelUp('awaken'); // el despertar va detrás de niveles y cofres
   }
 
   // barra de experiencia: se llena tras recibir las chispas; al completarse, destello, sonido y nivel
@@ -2251,17 +2626,25 @@
     clock += dt;
     fpsAcc += raw; fpsN++;
     if (fpsAcc >= 0.5) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
+    if (!flags.freeze) advance(dt);
+    if (state !== 'play' && state !== 'dying') shake = 0; // que no tiemble detrás de los menús
+    render();
+    requestAnimationFrame(frame);
+  }
+  // un paso de simulación (frame y depuración). La transformación va en tiempo real y escala el del mundo
+  function advance(dt) {
     if (slowT > 0) slowT -= dt;
-    if (state === 'play') update(slowT > 0 ? dt * 0.28 : dt);
-    else if (state === 'transition') updateTransition(dt);
+    if (musicHoldT > 0) musicHoldT = Math.max(0, musicHoldT - dt);
+    if (screenFlash && screenFlash.real) { screenFlash.t -= dt; if (screenFlash.t <= 0) { screenFlash = flashNext; flashNext = null; } }
+    if (state === 'play') {
+      if (awakenFx) updateAwaken(dt);
+      update(dt * (awakenFx ? awakenScale() : slowT > 0 ? 0.28 : 1));
+    } else if (state === 'transition') updateTransition(dt);
     else if (state === 'dying') {
       deathT -= dt;
       updateFx(dt);
       if (deathT <= 0) showEnd(false);
     }
-    if (state !== 'play' && state !== 'dying') shake = 0; // que no tiemble detrás de los menús
-    render();
-    requestAnimationFrame(frame);
   }
 
   // ================================================================
@@ -2385,6 +2768,8 @@
     ctx.globalAlpha = pa;
     ctx.globalCompositeOperation = op;
   }
+  // forms.js dibuja con estos mismos helpers (comparte la caché de brillos y la calidad gráfica)
+  if (Forms()) Forms().bind({ glow, circle, ellipse, star, lowQ, W, H });
 
   // sombra suave difuminada
   const shadowSpr = (() => {
@@ -2793,22 +3178,26 @@
   }
 
   function drawPlayer() {
-    const p = player;
-    const blink = p.inv > 0 && Math.floor(p.inv * 16) % 2 === 0;
+    const p = player, F = FX();
+    const L = F ? F.look(p.form, p, EL) : null; // paleta de la forma (Aprendiz: la de siempre con la cinta de la escuela)
+    const blink = p.inv > 0 && !awakenFx && Math.floor(p.inv * 16) % 2 === 0;
     ctx.globalAlpha = blink ? 0.4 : 1;
+    if (F) F.drawAura(ctx, p, p.form, clock, p.awak ? 0 : p.anima / F.ANIMA.need[0]); // aura detrás del mago
     shadow(p);
+    const lev = p.lev || 0; // levitación de la transformación
     const bob = p.moving ? Math.abs(Math.sin(p.walkT * 12)) * 3 : 0;
-    const x = p.x, y = p.y - bob, a = p.face, r = p.r;
+    const x = p.x, y = p.y - bob - lev, a = p.face, r = p.r;
     const col = EL[p.school].color;
     const lean = p.moving ? -Math.cos(a) * 4 : 0;
-    // capa ondeando detrás
+    // capa ondeando detrás (al levitar se abre hacia arriba)
     const wave = p.moving ? Math.sin(p.walkT * 14) * 3 : Math.sin(clock * 2) * 1;
-    ctx.fillStyle = '#2a1873';
+    const cu = lev * 0.45, cw = lev * 0.35 * (1 + 0.4 * Math.sin(clock * 18));
+    ctx.fillStyle = L ? L.cape : '#2a1873';
     ctx.beginPath();
     ctx.moveTo(x - r * 0.85, y - r * 0.15);
-    ctx.quadraticCurveTo(x - r * 1.2 - wave, y + r * 0.7, x - r * 0.7, y + r * 1.05);
-    ctx.lineTo(x + r * 0.7, y + r * 1.05);
-    ctx.quadraticCurveTo(x + r * 1.2 + wave, y + r * 0.7, x + r * 0.85, y - r * 0.15);
+    ctx.quadraticCurveTo(x - r * 1.2 - wave - cw, y + r * 0.7 - cu, x - r * 0.7 - cw, y + r * 1.05 - cu);
+    ctx.lineTo(x + r * 0.7 + cw, y + r * 1.05 - cu);
+    ctx.quadraticCurveTo(x + r * 1.2 + wave + cw, y + r * 0.7 - cu, x + r * 0.85, y - r * 0.15);
     ctx.closePath(); ctx.fill();
     // bastón (en la mano del lado hacia el que mira)
     const hx = x + Math.cos(a + 0.9) * (r - 1), hy = y + Math.sin(a + 0.9) * (r - 1) + 2;
@@ -2819,33 +3208,48 @@
     ctx.beginPath(); ctx.moveTo(hx - Math.cos(a) * 10, hy - Math.sin(a) * 10 + 4); ctx.lineTo(tx, ty); ctx.stroke();
     ctx.lineCap = 'butt';
     // túnica
-    blob(x, y + r * 0.2, r * 0.95, r * 0.85, '#5b3fd1');
-    ctx.strokeStyle = '#ffcf4a'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(x, y + r * 0.2, r * 0.8, 0.35, Math.PI - 0.35); ctx.stroke(); // ribete dorado
+    blob(x, y + r * 0.2, r * 0.95, r * 0.85, L ? L.robe : '#5b3fd1');
+    ctx.strokeStyle = L ? L.trim : '#ffcf4a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y + r * 0.2, r * 0.8, 0.35, Math.PI - 0.35); ctx.stroke(); // ribete
+    if (L && L.cracks) F.drawCracks(ctx, x, y, r, L, clock); // Azufre: grietas de lava
     // cabeza grande (chibi)
-    ball(x, y - r * 0.5, r * 0.66, '#ffd2a6');
-    eyes(x + Math.cos(a) * 3, y - r * 0.42 + Math.sin(a) * 2, a, 3.4, 2.4);
+    ball(x, y - r * 0.5, r * 0.66, L ? L.skin : '#ffd2a6');
+    eyes(x + Math.cos(a) * 3, y - r * 0.42 + Math.sin(a) * 2, a, 3.4, 2.4, L ? L.eyeW : '#fff', L ? L.eyeP : '#141018');
     circle(x - r * 0.42, y - r * 0.28, 2, 'rgba(255,120,120,.35)'); // mofletes
     circle(x + r * 0.42, y - r * 0.28, 2, 'rgba(255,120,120,.35)');
     // sombrero puntiagudo
     const hy0 = y - r * 0.92;
-    blob(x, hy0, r * 1.15, r * 0.4, '#3a24a0');
-    const hg = ctx.createLinearGradient(x - r, 0, x + r, 0);
-    hg.addColorStop(0, '#6a4ff0'); hg.addColorStop(0.55, '#4a30c0'); hg.addColorStop(1, '#2c1a7a');
-    ctx.fillStyle = hg;
-    ctx.beginPath();
-    ctx.moveTo(x - r * 0.72, hy0 - 1); ctx.lineTo(x + r * 0.72, hy0 - 1);
-    ctx.quadraticCurveTo(x + 4 + lean, hy0 - r * 1.05, x + 10 + lean * 1.6, hy0 - r * 1.75);
-    ctx.quadraticCurveTo(x - 1 + lean, hy0 - r * 1.0, x - r * 0.72, hy0 - 1);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#1f1250'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.fillStyle = col; // cinta del color de la escuela
-    ctx.beginPath(); ctx.moveTo(x - r * 0.7, hy0 - 2); ctx.lineTo(x + r * 0.7, hy0 - 2); ctx.lineTo(x + r * 0.6, hy0 - 6.5); ctx.lineTo(x - r * 0.6, hy0 - 6.5); ctx.closePath(); ctx.fill();
-    star(x + 1 + lean * 0.5, hy0 - r * 0.62, 4, '#ffcf4a');
+    blob(x, hy0, r * 1.15, r * 0.4, L ? L.brim : '#3a24a0');
+    if (L) { // degradado cacheado en forms.js, en coordenadas locales
+      ctx.save(); ctx.translate(x, 0);
+      ctx.fillStyle = F.hatGrad(ctx, L, r);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.72, hy0 - 1); ctx.lineTo(r * 0.72, hy0 - 1);
+      ctx.quadraticCurveTo(4 + lean, hy0 - r * 1.05, 10 + lean * 1.6, hy0 - r * 1.75);
+      ctx.quadraticCurveTo(-1 + lean, hy0 - r * 1.0, -r * 0.72, hy0 - 1);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = L.hatLine; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.restore();
+      F.drawBand(ctx, x, hy0, r, L); // cinta (bicolor con la Afinidad sellada)
+      F.drawHatStar(ctx, x + 1 + lean * 0.5, hy0 - r * 0.62, L);
+    } else {
+      const hg = ctx.createLinearGradient(x - r, 0, x + r, 0);
+      hg.addColorStop(0, '#6a4ff0'); hg.addColorStop(0.55, '#4a30c0'); hg.addColorStop(1, '#2c1a7a');
+      ctx.fillStyle = hg;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.72, hy0 - 1); ctx.lineTo(x + r * 0.72, hy0 - 1);
+      ctx.quadraticCurveTo(x + 4 + lean, hy0 - r * 1.05, x + 10 + lean * 1.6, hy0 - r * 1.75);
+      ctx.quadraticCurveTo(x - 1 + lean, hy0 - r * 1.0, x - r * 0.72, hy0 - 1);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#1f1250'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = col; // cinta del color de la escuela
+      ctx.beginPath(); ctx.moveTo(x - r * 0.7, hy0 - 2); ctx.lineTo(x + r * 0.7, hy0 - 2); ctx.lineTo(x + r * 0.6, hy0 - 6.5); ctx.lineTo(x - r * 0.6, hy0 - 6.5); ctx.closePath(); ctx.fill();
+      star(x + 1 + lean * 0.5, hy0 - r * 0.62, 4, '#ffcf4a');
+    }
     // cristal del bastón (delante de todo, brilla)
     const pulse = (p.castFx > 0 ? 9 : 0) + Math.sin(clock * 6) * 1.5;
-    glow(tx, ty, 16 + pulse, col);
-    circle(tx, ty, 5, col); circle(tx - 1.5, ty - 1.5, 2, '#fff');
+    if (L) F.drawGem(ctx, tx, ty, L, pulse);
+    else { glow(tx, ty, 16 + pulse, col); circle(tx, ty, 5, col); circle(tx - 1.5, ty - 1.5, 2, '#fff'); }
     ctx.globalAlpha = 1;
     if (p.shield > 0) { // escudo arcano del altar
       glow(p.x, p.y - 4, p.r + 18, '#9fe8ff', 0.35);
@@ -3093,8 +3497,10 @@
   }
 
   function drawShots() {
-    // orbes mágicos con estela (el color sale del elemento del hechizo)
+    // orbes mágicos con estela (el color sale del elemento del hechizo); con forms.js, la silueta de la forma
+    const F = FX();
     for (const a of shots) {
+      if (F && F.drawShot(ctx, a, clock)) continue;
       const col = a.col, k = a.nofx ? 0.6 : 1; // las esquirlas, más pequeñas
       const sp = Math.hypot(a.vx, a.vy) || 1, ux = a.vx / sp * k, uy = a.vy / sp * k;
       // estela afilada
@@ -3126,16 +3532,17 @@
   }
 
   function drawOrbs() {
-    const n = player.sk.orbs || 0;
+    const n = player.sk.orbs || 0, F = FX();
+    const col = F && player.awak ? F.FORMS[player.form].color : EL[player.school].color;
     for (let i = 0; i < n; i++) {
       const a = player.orbA + i * TAU / n;
       const x = player.x + Math.cos(a) * 72, y = player.y + Math.sin(a) * 72;
-      const col = EL[player.school].color;
       for (let k = 1; k <= 3; k++) { // estela
         ctx.globalAlpha = 0.25 * (1 - k / 4);
         circle(player.x + Math.cos(a - k * 0.12) * 72, player.y + Math.sin(a - k * 0.12) * 72, 9 - k, col);
       }
       ctx.globalAlpha = 1;
+      if (F) { F.drawOrb(ctx, x, y, player.form, clock, null, col); continue; }
       glow(x, y, 20, col);
       circle(x, y, 7, col); circle(x, y, 3.5, '#fff');
     }
@@ -3184,17 +3591,25 @@
     }
   }
 
+  // tamaño de letra para que un texto quepa en maxW (se mide una vez y se guarda en el objeto)
+  function fitSize(text, size, maxW) {
+    ctx.font = `800 ${size}px ${FONT}`;
+    const w = ctx.measureText(text).width;
+    return w > maxW ? Math.max(10, Math.floor(size * maxW / w)) : size;
+  }
   function drawToast() {
     if (!toast || cine) return;
     const a = clamp(Math.min(toast.t, toast.max - toast.t) / 0.25, 0, 1);
+    if (!toast.fs) { toast.fs = fitSize(toast.text, 24, 410); toast.ss = fitSize(toast.sub || '', 15, 416); }
     ctx.globalAlpha = a;
     ctx.fillStyle = 'rgba(12,8,22,.82)'; rrect(W / 2 - 220, 140, 440, 66, 18); ctx.fill();
     ctx.strokeStyle = toast.color; ctx.lineWidth = 2; ctx.stroke();
-    txt(toast.text, W / 2, 162, 24, toast.color, 'center', false);
-    txt(toast.sub, W / 2, 189, 15, '#e9e3ff', 'center', false);
+    txt(toast.text, W / 2, 162, toast.fs, toast.color, 'center', false);
+    txt(toast.sub, W / 2, 189, toast.ss, '#e9e3ff', 'center', false);
     ctx.globalAlpha = 1;
   }
 
+  const BOLT_SKY = [[10, 'rgba(255,230,90,.35)'], [4, '#fff7c2']], BOLT_CHAIN = [[6, 'rgba(120,220,255,.35)'], [2, '#ffffff']];
   function drawBolts() {
     for (const b of bolts) {
       const pts = [[b.x1, b.y1]];
@@ -3203,7 +3618,7 @@
         pts.push([b.x1 + (b.x2 - b.x1) * t + rand(-9, 9), b.y1 + (b.y2 - b.y1) * t + rand(-9, 9)]);
       }
       pts.push([b.x2, b.y2]);
-      const layers = b.sky ? [[10, 'rgba(255,230,90,.35)'], [4, '#fff7c2']] : [[6, 'rgba(120,220,255,.35)'], [2, '#ffffff']];
+      const layers = b.layers || (b.sky ? BOLT_SKY : BOLT_CHAIN);
       for (const [w, c] of layers) {
         ctx.strokeStyle = c; ctx.lineWidth = w;
         ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
@@ -3211,6 +3626,22 @@
         ctx.stroke();
       }
     }
+  }
+
+  // charcos de Tóxica y Azufre (en el suelo, bajo todo lo demás)
+  function drawPools() {
+    if (!pools.length || !Forms()) return;
+    for (const o of pools) Forms().drawPool(ctx, o, clock);
+  }
+  // partículas de ambiente de la forma: chispas que suman luz y ceniza con composición normal
+  function drawAmb() {
+    if (amb.length) {
+      const op = ctx.globalCompositeOperation;
+      ctx.globalCompositeOperation = 'lighter';
+      for (const q of amb) { const k = clamp(q.life / q.max, 0, 1); ctx.globalAlpha = k; circle(q.x, q.y, q.size * (0.5 + 0.5 * k), q.color); }
+      ctx.globalCompositeOperation = op; ctx.globalAlpha = 1;
+    }
+    if (ash.length && Forms()) Forms().drawNormalParts(ctx, ash);
   }
 
   function drawParts() {
@@ -3304,21 +3735,24 @@
     }
     if (tut && TUT_TEXT[tut.step]) hint(TUT_TEXT[tut.step](), '#ffd27a');
     else if (!settings.ultTip && player.mana >= 100 && enemies.length) {
-      hint(TOUCH ? '¡Definitivo listo! Toca el botón brillante' : '¡Definitivo listo! Pulsa Espacio', EL[player.school].color);
+      const uc = ultColor();
+      hint(TOUCH ? '¡Definitivo listo! Toca el botón brillante' : '¡Definitivo listo! Pulsa Espacio', uc);
       if (TOUCH) { // flecha hacia el botón
         const bxu = settings.lefty ? 74 : W - 74, bob = Math.sin(clock * 8) * 6;
-        txt('▼', bxu, 790 + bob * 0.7, 26, EL[player.school].color, 'center', true);
+        txt('▼', bxu, 790 + bob * 0.7, 26, uc, 'center', true);
       }
     }
+    // despertar listo pero bloqueado: opuestos sin pacto
+    else if (player.animaReady && player.awkLock && cleared && !awakenFx && FX()) hint('Opuestos: sella un Pacto oscuro en un altar para despertar', '#c77dff');
   }
 
   function hint(text, color) {
-    ctx.font = `800 17px ${FONT}`;
+    const fs = fitSize(text, 17, W - 80); // los textos largos encogen en vez de salirse de la píldora
     const w = Math.min(W - 40, ctx.measureText(text).width + 40), y = TOUCH ? 735 : 770;
     ctx.globalAlpha = 0.75 + 0.25 * Math.sin(clock * 4);
     ctx.fillStyle = 'rgba(12,8,22,.85)'; rrect(W / 2 - w / 2, y - 22, w, 44, 22); ctx.fill();
     ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
-    txt(text, W / 2, y, 17, color, 'center', false);
+    txt(text, W / 2, y, fs, color, 'center', false);
     ctx.globalAlpha = 1;
   }
 
@@ -3336,8 +3770,9 @@
   function drawBanner() {
     if (!banner) return;
     const a = clamp(Math.min(banner.t, banner.max - banner.t) / 0.25, 0, 1);
+    if (!banner.fs) banner.fs = fitSize(banner.text, 58, W - 50);
     ctx.globalAlpha = a;
-    txt(banner.text, W / 2, 430, 58, banner.color);
+    txt(banner.text, W / 2, 430, banner.fs, banner.color);
     if (banner.sub) txt(banner.sub, W / 2, 482, 22, '#ffd27a');
     ctx.globalAlpha = 1;
   }
@@ -3356,16 +3791,21 @@
     ctx.fillRect(0, 0, W, H);
     ctx.save();
     if (shake > 0 && settings.shake) ctx.translate(rand(-shake, shake) * 0.6, rand(-shake, shake) * 0.6);
+    // transformación: zoom del mundo (no del HUD) centrado en el mago y oscuridad bajo él
+    const T = awakenFx && player && Forms() ? Forms().timeline(awakenFx.t) : null;
+    if (T && T.zoom !== 1) { const zx = player.x, zy = player.y - 10; ctx.translate(zx, zy); ctx.scale(T.zoom, T.zoom); ctx.translate(-zx, -zy); }
     drawRoom();
     if (!player) drawMotes(); // motas mágicas flotando detrás de los menús
     if (player) {
       drawHazards();
+      drawPools();
       drawChest();
       drawTelegraphs();
       drawMeteorMarks();
       drawAltar();
       drawSingularity();
       drawDrops();
+      if (T && T.dark > 0) { ctx.fillStyle = `rgba(5,3,10,${T.dark.toFixed(3)})`; ctx.fillRect(-20, -20, W + 40, H + 40); }
       if (Biomes() && !lowQ()) { try { Biomes().ambient(ctx, clock, biomeId()); } catch (_) { /* sin biomas */ } }
       const list = enemies.slice();
       if (player.hp > 0) list.push(player);
@@ -3383,10 +3823,13 @@
       drawBolts();
       drawMeteors();
       drawParts();
+      drawAmb();
+      if ((awakenFx || eclipseFx) && Forms()) Forms().drawAwaken(ctx, awakenFx, player, clock, eclipseFx); // anillos, espiral y esquirlas de sombra
       drawTexts();
     }
     ctx.restore();
     ctx.drawImage(vignetteSpr, 0, 0, W, H);
+    if (player && player.form === 'eclipse' && FX()) { const v = Forms().vignette('eclipse'); if (v) ctx.drawImage(v, 0, 0, W, H); } // viñeta violeta de Eclipse
     if (player) {
       if (screenFlash) {
         ctx.fillStyle = `rgba(${screenFlash.color},${0.4 * screenFlash.t / screenFlash.max})`;
@@ -3481,7 +3924,8 @@
   }
   window.addEventListener('popstate', () => {
     backArmed = !!(history.state && history.state.arcano);
-    if (state === 'play' || state === 'paused') togglePause();
+    if (state === 'levelup' && pickSource === 'awaken') awakenLater(); // Atrás en el panel del despertar = "Aún no"
+    else if (state === 'play' || state === 'paused') togglePause();
     else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item'].includes(state)) goBack();
     else if (state === 'school') showMenu();
     else if (state === 'menu' || state === 'splash' || state === 'tap') history.back(); // en el menú sí sale
@@ -3494,6 +3938,7 @@
     enemies = []; shots = []; bullets = []; drops = []; parts = []; texts = []; bolts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null; toast = null; screenFlash = null;
     chest = null; cine = null; hz.fill(0);
+    awakenFx = null; eclipseFx = null; pools = []; amb = []; ash = []; toastQ = []; bannerNext = null; flashNext = null;
     cleared = true; doorAnim = 1; fade = 0; shake = 0;
     grid = genRocks(false);
     menuBiome = null; roomBgDirty = true;
@@ -3806,19 +4251,44 @@
 
 
   function rollSkills(n) {
-    const pool = SKILLS.filter(k => (player.sk[k.id] || 0) < k.max && (!k.cond || k.cond()));
+    const p = player, F = FX(), sealed = !!F && p.aff.length >= 2;
+    // con la Afinidad sellada las runas de los otros dos elementos no vuelven a salir (tampoco al cambiar cartas)
+    const pool = SKILLS.filter(k => (p.sk[k.id] || 0) < k.max && (!k.cond || k.cond()) && !(sealed && k.el && !p.aff.includes(k.id)));
+    // pesos: tus runas ×1,5 con la Afinidad sellada; la pieza que falta de una Mezcla de tus elementos ×1,3 (fase 2)
+    const w = pool.map(k => k.w * (sealed && k.el ? 1.5 : 1) * (F && flags.phase2 && F.mixHint(k.id, p.sk, p.aff) ? 1.3 : 1));
     const out = [];
     while (out.length < n && pool.length) {
-      const tot = pool.reduce((s, k) => s + k.w, 0);
+      const tot = w.reduce((s, v) => s + v, 0);
       let r = Math.random() * tot, idx = 0;
-      for (; idx < pool.length - 1; idx++) { r -= pool[idx].w; if (r <= 0) break; }
+      for (; idx < pool.length - 1; idx++) { r -= w[idx]; if (r <= 0) break; }
       out.push(pool.splice(idx, 1)[0]);
+      w.splice(idx, 1);
     }
     return out;
   }
 
+  // líneas extra de una carta: sellado de la Afinidad (2 líneas) > Mezcla (fase 2) > reacciones que desbloquea
+  function cardLines(k) {
+    const p = player, F = FX();
+    const combo = k.el ? unlocksWith(k.id) : [];
+    const unl = combo.length ? `Desbloquea ${combo.map(r => r.name).join(' y ')}` : '';
+    const si = F && k.el ? F.sealInfo(p.aff, k.id) : null;
+    if (si) {
+      const fn = F.has(meta.grim.f, si.form) ? F.FORMS[si.form].short : '???';
+      const l1 = unl ? `${unl} · Sella → ${fn}` : `Sella ${EL[si.pair[0]].name} + ${EL[si.pair[1]].name} → ${fn}`;
+      const l2 = si.opp ? 'Opuestos: el 2º despertar exigirá un Pacto oscuro' : `Cierra ${EL[si.closes[0]].name} y ${EL[si.closes[1]].name}`;
+      return { cls: ' seal', style: `--c:${EL[si.pair[0]].color};--c2:${EL[si.pair[1]].color};`, html: `<div class="combo">✨ ${l1}</div><div class="combo close">${l2}</div>` };
+    }
+    if (F && k.el && !p.aff.length && !p.aff.includes(k.id)) return { cls: combo.length ? ' hot' : '', style: '', html: `<div class="combo">✨ ${unl ? unl + ' · ' : ''}Será tu primer elemento</div>` };
+    const mx = F && flags.phase2 ? F.mixHint(k.id, p.sk, p.aff) : null;
+    if (mx) return { cls: ' hot', style: '', html: `<div class="combo mix">🧪 ${F.has(meta.grim.m, mx.id) ? 'Mezcla: ' + mx.name : 'Algo reacciona…'}</div>` };
+    return { cls: combo.length ? ' hot' : '', style: '', html: unl ? `<div class="combo">✨ ${unl}</div>` : '' };
+  }
+
   function openLevelUp(src = pickSource) {
+    if (src === 'awaken') return openAwaken();
     pickSource = src;
+    awakenWait = 0;
     const opts = rollSkills(3);
     if (!opts.length) { if (src === 'level') pendingLevels = 0; else bonusPicks = []; return; }
     state = 'levelup';
@@ -3828,11 +4298,10 @@
     const cards = opts.map((k, i) => {
       const lv = player.sk[k.id] || 0;
       const pips = k.max > 1 && k.max < 50 ? `<div class="pips">${'★'.repeat(lv + 1)}${'☆'.repeat(k.max - lv - 1)}</div>` : '';
-      const combo = k.el ? unlocksWith(k.id) : [];
-      const comboHtml = combo.length ? `<div class="combo">✨ Desbloquea ${combo.map(r => r.name).join(' y ')}</div>` : '';
-      return `<button class="card${combo.length ? ' hot' : ''}" data-act="pick" data-id="${k.id}" style="animation-delay:${i * 70}ms">
+      const cl = cardLines(k);
+      return `<button class="card${cl.cls}" data-act="pick" data-id="${k.id}" style="${cl.style}animation-delay:${i * 70}ms">
           <div class="ic">${k.icon}</div>
-          <div class="tx"><div class="nm">${k.name}</div><div class="ds">${k.desc}</div>${comboHtml}${pips}</div>
+          <div class="tx"><div class="nm">${k.name}</div><div class="ds">${k.desc}</div>${cl.html}${pips}</div>
           <kbd>${i + 1}</kbd>
         </button>`;
     }).join('');
@@ -3843,6 +4312,49 @@
         <div class="sub">Elige una habilidad</div>
         <div class="cards">${cards}</div>
         ${reroll}
+      </div>`);
+  }
+
+  // ---------- Despertar: panel con una carta por elemento (en el orden del cuadrado) y "Aún no" ----------
+  function openAwaken() {
+    const p = player, F = FX();
+    if (!F) return;
+    const st = p.awak + 1, S = SCHOOLS[p.school];
+    const opts = F.options({ stage: st, aff: p.aff, core: p.core, pact: pactRun });
+    if (!opts.some(o => !o.locked)) return;
+    pickSource = 'awaken';
+    state = 'levelup';
+    resetJoy();
+    awakenWait = 0;
+    lockUntil = performance.now() + 600; // que no se elija sin querer: no hay vuelta atrás
+    let n = 0;
+    const cards = opts.map((o, i) => {
+      const D = F.FORMS[o.form], ic = SKILL_BY_ID[o.el].icon, delay = `animation-delay:${i * 80}ms`;
+      if (o.locked) return `<button class="card awaken locked" data-act="noop" style="--c:#c77dff;--c2:#c77dff;${delay}">
+          <div class="ic">${ic}</div>
+          <div class="tx"><div class="nm">${EL[o.el].name} → <b>???</b></div><div class="ds">Opuestos · Sella un Pacto oscuro en un altar</div></div>
+        </button>`;
+      const name = F.has(meta.grim.f, o.form) ? D.title : '???';
+      // como mucho 1 línea extra: sellado > Sintonía > Linaje
+      let extra = '';
+      if (o.seals) {
+        const cl = F.SQUARE.filter(x => !o.seals.includes(x));
+        extra = `Sella ${F.pairText(o.seals[0], o.seals[1])} · ` + (F.isOpp(o.seals[0], o.seals[1]) ? 'el 2º despertar exigirá un Pacto oscuro' : `cierra ${EL[cl[0]].name.toLowerCase()} y ${EL[cl[1]].name.toLowerCase()}`);
+      }
+      else if ((p.sk[o.el] || 0) >= 2) extra = 'Runa al máximo: despiertas con el definitivo lleno';
+      else if (S.el && (o.el === S.el || (st === 2 && p.core === S.el))) extra = 'Fiel a tu escuela: definitivo +20%';
+      return `<button class="card awaken${o.seals ? ' seal' : ''}" data-act="pick" data-id="awk:${o.el}" style="--c:${EL[o.el].color};--c2:${D.color};${delay}">
+          <div class="ic">${ic}</div>
+          <div class="tx"><div class="nm">${EL[o.el].name} → <b>${name}</b></div><div class="ds">${D.desc}</div>${extra ? `<div class="combo${o.seals ? ' close' : ''}">${extra}</div>` : ''}</div>
+          <kbd>${++n}</kbd>
+        </button>`;
+    }).join('');
+    showOverlay(`
+      <div class="panel">
+        <div class="title gold${st === 1 ? '' : ' long'}">${st === 1 ? 'DESPIERTA' : 'SEGUNDO DESPERTAR'}</div>
+        <div class="sub">Elige tu elemento · no hay vuelta atrás</div>
+        <div class="cards">${cards}</div>
+        <button class="btn ghost later" data-act="later">Aún no</button>
       </div>`);
   }
 
@@ -3870,12 +4382,12 @@
             <div class="ic">🛡️</div>
             <div class="tx"><div class="nm">Escudo arcano</div><div class="ds">Bloquea por completo el primer golpe del jefe</div></div><kbd>3</kbd>
           </button>` : `<button class="card" data-act="altar" data-id="mana" style="animation-delay:140ms">
-            <div class="ic">${SCHOOLS[player.school].ultIcon}</div>
-            <div class="tx"><div class="nm">Ofrenda de maná</div><div class="ds">Tu ${SCHOOLS[player.school].ult} empieza el jefe cargado</div></div><kbd>3</kbd>
+            <div class="ic">${ultIcon()}</div>
+            <div class="tx"><div class="nm">Ofrenda de maná</div><div class="ds">Tu ${ultName()} empieza el jefe cargado</div></div><kbd>3</kbd>
           </button>`}
           ${player.maxHp >= 80 ? `<button class="card pact" data-act="altar" data-id="pact" style="animation-delay:210ms">
             <div class="ic">😈</div>
-            <div class="tx"><div class="nm">Pacto oscuro</div><div class="ds">Pierdes el 20% de la vida máxima a cambio de 2 habilidades ahora</div></div><kbd>4</kbd>
+            <div class="tx"><div class="nm">Pacto oscuro</div><div class="ds">Pierdes el 20% de la vida máxima a cambio de 2 habilidades ahora${FX() && player.aff.length === 2 && Forms().isOpp(player.aff[0], player.aff[1]) ? ' · Abre el camino a Eclipse si tus elementos son opuestos' : ''}</div></div><kbd>4</kbd>
           </button>` : ''}
         </div>
       </div>`);
@@ -3891,11 +4403,12 @@
       player.maxHp = Math.max(40, Math.round(player.maxHp * 0.8));
       player.hp = Math.min(player.hp, player.maxHp);
       bonusPicks.push('pact', 'pact'); // dos habilidades sin subir de nivel (no encarece la experiencia)
+      pactRun = true; player.snoozeRoom = -1; // abre el camino a Eclipse y reabre el despertar en esta sala
       meta.stats.pacts++;
       unlock('pact');
       burst(player.x, player.y, '#b0203a', 30, 240);
       screenFlash = { color: '120,0,30', t: 0.5, max: 0.5 };
-      toast = { text: 'PACTO SELLADO', sub: 'Tu vida máxima baja… pero tu poder crece', color: '#ff5a7a', t: 2.4, max: 2.4 };
+      pushToast({ text: 'PACTO SELLADO', sub: 'Tu vida máxima baja… pero tu poder crece', color: '#ff5a7a', t: 2.4, max: 2.4 });
       Sfx.boss();
     }
     else { player.mana = 100; syncUlt(true); }
@@ -3971,13 +4484,17 @@
   }
 
   function pickSkill(id) {
-    const s = player.sk;
+    if (id.startsWith('awk:')) return startAwaken(id.slice(4)); // carta del despertar
+    const s = player.sk, F = FX(), k = SKILL_BY_ID[id];
     if (id === 'heal') heal(player.maxHp * 0.4);
     else {
       s[id] = (s[id] || 0) + 1;
       if (id === 'hp') { player.maxHp += 25; player.hp += 25; }
     }
+    if (F && k && k.el && !player.aff.includes(id)) addAffinity(id); // runa de otro elemento: entra en la Afinidad (y quizá la sella)
+    if (F && id.startsWith('f_')) player.tr = F.traitsFor(player.core, player.second, s); // carta de forma: rasgos de nuevo
     recalc();
+    refreshMixes();
     Sfx.pick();
     if (pickSource === 'level') pendingLevels = Math.max(0, pendingLevels - 1);
     else bonusPicks.shift();
@@ -4028,6 +4545,11 @@
     S.best[player.school] = Math.max(S.best[player.school] || 0, win ? TOTAL_ROOMS + 1 : room);
     if (win) {
       S.wins++;
+      if (FX()) { // Grimorio: forma con la que has ganado (Aprendiz = sin despertar)
+        const F = Forms();
+        meta.grim.w |= F.bit(player.form);
+        if (['plasma', 'aurora', 'mortaja', 'azufre', 'eclipse'].every(x => F.has(meta.grim.w, x))) unlock('formWins');
+      }
       S.winsBy[player.school] = (S.winsBy[player.school] || 0) + 1;
       unlock('firstWin');
       if (runTime < 270) unlock('speedrun');
@@ -4073,6 +4595,7 @@
     else if (act === 'start') startFromTap();
     else if (act === 'play') { if (ready) { hideOverlay(); newRun(); } }
     else if (act === 'pick') { if (ready) pickSkill(el.dataset.id); }
+    else if (act === 'later') { if (ready) awakenLater(); }
     else if (act === 'school') { if (ready) pickSchool(el.dataset.id); }
     else if (act === 'altar') { if (ready) pickAltar(el.dataset.id); }
     else if (act === 'reroll') { if (ready && player.rerolls > 0) { player.rerolls--; Sfx.pick(); openLevelUp(pickSource); } }
@@ -4143,9 +4666,7 @@
       step(sec, hold = []) {
         hold.forEach(k => keys.add(k));
         for (let t = 0; t < sec; t += 1 / 60) {
-          if (state === 'play') update(1 / 60);
-          else if (state === 'transition') updateTransition(1 / 60);
-          else if (state === 'dying') { deathT -= 1 / 60; updateFx(1 / 60); if (deathT <= 0) showEnd(false); }
+          if (state === 'play' || state === 'transition' || state === 'dying') advance(1 / 60); // incluye la transformación y la cámara lenta
           else break;
         }
         hold.forEach(k => keys.delete(k));
@@ -4157,6 +4678,8 @@
       seen() { return [...seenReactions]; },
       gear() { return JSON.parse(JSON.stringify(meta.gear)); },
       giveGear(base, r) { const it = Gear().makeItem(base, r, meta.gear.next++); meta.gear.inv.push(it); saveMeta(); return it; },
+      equip(uid) { const it = gearItem(uid); if (!it) return false; meta.gear.eq[Gear().getBase(it.base).slot] = uid; saveMeta(); return true; },
+      unequipAll() { meta.gear.eq = {}; saveMeta(); },
       hazards() { const n = {}; for (const t of hz) if (t) n[t] = (n[t] || 0) + 1; return n; },
       hzCells(t) { const out = []; for (let i = 0; i < hz.length; i++) if (hz[i] === t) out.push({ x: AX + (i % COLS) * CELL + 20, y: AY + ((i / COLS) | 0) * CELL + 20, i }); return out; },
       spike(i) { return spikePhase(i); },
@@ -4166,7 +4689,7 @@
       give(id, n = 1) { for (let i = 0; i < n; i++) pickSkill(id); },
       goto(n) { room = n - 1; nextRoom(); state = 'play'; hideOverlay(); },
       toDoor() { player.x = AX + AW / 2; player.y = AY - 30; },
-      god(v = true) { player.inv = v ? 1e9 : 0; player.god = !!v; },
+      god(v = true) { player.god = !!v; player.inv = 0; }, // player.god ya ignora golpes y trampas (sin parpadeo)
       // azar con semilla para pruebas repetibles; seed(null) devuelve el Math.random original
       seed(n) {
         if (n == null) { Math.random = rnd0; return; }
@@ -4194,6 +4717,33 @@
       },
       sub(n = 1, els = ['ice']) { let k = 0; for (let i = 0; i < n; i++) if (spawnSub(player.x, player.y, -Math.PI / 2 + rand(-0.6, 0.6), player.atk * 0.6, els)) k++; return k; },
       tok, // referencia fija (Object.assign no copia getters)
+      flags, // flags.noForms = true: juego sin formas (para comparar); flags.phase2: cartas de forma y Mezclas
+      // estado del Despertar de la partida
+      formInfo() {
+        const p = player, F = FX();
+        if (!p) return null;
+        return JSON.parse(JSON.stringify({ form: p.form, core: p.core, second: p.second, aff: p.aff, awak: p.awak, anima: p.anima, need: F && p.awak < 2 ? F.ANIMA.need[p.awak] : null,
+          ready: p.animaReady, lock: p.awkLock, snooze: p.snoozeRoom, tr: p.tr, fusedLv: p.fusedLv, mixes: p.mixes.map(m => m.id), pactRun, atk: p.atk, maxHp: p.maxHp,
+          awakenFx: awakenFx && { t: awakenFx.t, el: awakenFx.el, st: awakenFx.st, boom: awakenFx.boom }, eclipseFx: !!eclipseFx, pools: pools.length, net: netLog, ultKey: ultKey(), linaje: linaje() }));
+      },
+      anima(v) { player.anima = v; player.animaReady = false; gainAnima(0); syncForm(true); return player.animaReady; },
+      // despertar en ese elemento: con fx, la cinemática entera (como al elegir la carta); sin fx, al instante
+      awaken(el, fx = false) { if (fx) { player.animaReady = true; startAwaken(el); return !!awakenFx; } awaken(el); return player.form; },
+      offer() { player.animaReady = true; openLevelUp('awaken'); return state; },
+      later() { if (state === 'levelup' && pickSource === 'awaken') awakenLater(); return state; },
+      pact() { pactRun = true; player.snoozeRoom = -1; return pactRun; },
+      // da la runa y la carta de una Mezcla
+      mix(id) {
+        const m = Forms() && Forms().MIXES.find(x => x.id === id);
+        if (!m) return null;
+        for (const k of [m.el, m.card]) { player.sk[k] = Math.max(1, player.sk[k] || 0); if (SKILL_BY_ID[k].el) addAffinity(k); }
+        recalc(); refreshMixes();
+        return player.mixes.map(x => x.id);
+      },
+      roll(n = 3) { return rollSkills(n).map(k => k.id); },
+      levelup() { pendingLevels = Math.max(1, pendingLevels); openLevelUp('level'); return state; },
+      toasts() { return [toast, ...toastQ].filter(Boolean).map(t => t.text + ' | ' + t.sub).concat(banner ? ['BANNER ' + banner.text] : [], bannerNext ? ['NEXT ' + bannerNext.text] : []); },
+      formStats() { return Forms() ? Object.assign(Forms().stats(), { glowGame: glowCache.size }) : null; },
     });
   }
 
