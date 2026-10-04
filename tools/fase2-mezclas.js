@@ -156,7 +156,7 @@ const CARD = [
   ['bolt', ['bolt', 'ice'], 'f_aurora', 'tr.shards.n', 8],
   ['ice', ['ice', 'poison'], 'f_mortaja', 'tr.shroud.r', 115],
   ['poison', ['poison', 'fire'], 'f_azufre', 'tr.puddle.r', 65],
-  ['fire', ['pact', 'fire', 'ice'], 'f_eclipse', 'tr.implode.r', 135],
+  ['fire', ['pact', 'fire', 'ice'], 'f_eclipse', 'tr.implode.r', 120], // 100 + 20 (balance con bots)
 ];
 for (const [s, path, card, field, exp] of CARD) {
   await ev(`__arcano.school('${s}')`);

@@ -162,7 +162,7 @@ await shot('07-panel2');
 await ev('__arcano.later()'); await ev('__arcano.pact()'); await ev('__arcano.offer()'); await sleep(700);
 ok(await ev(`!!document.querySelector('.rombo.mini .ctr.go')`) && await ev(`document.querySelectorAll('.rombo.mini line.go').length`) === 3, 'con pacto: Eclipse late en el centro y 3 caminos');
 ok(await fits(), 'con pacto: cabe');
-ok(/Sella Fuego \+ Hielo · forma prohibida: −15% de vida/.test(await txt()), 'carta opuesta: el precio de la forma prohibida a la vista');
+ok(/Sella Fuego \+ Hielo · forma prohibida: −20% de vida/.test(await txt()), 'carta opuesta: el precio de la forma prohibida a la vista');
 await shot('08-panel2-pacto');
 await ev('__arcano.later()');
 

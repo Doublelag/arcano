@@ -785,11 +785,13 @@
   }
 
   // Congelar. Los jefes tienen rendimientos decrecientes: tras cada congelación quedan inmunes
-  // (frzImm = duración + 2 s) salvo a lo que fuerza (definitivos). Devuelve si se ha congelado.
+  // (frzImm = duración + FRZ_DR) salvo a lo que fuerza (definitivos). Devuelve si se ha congelado.
+  // FRZ_DR era 2 s; con 3 los núcleos de hielo con definitivo bajan del 35% del combate congelado (balance con bots)
+  const FRZ_DR = 3;
   function freezeEnemy(e, t, tb, force) {
     if (e.kind === 'boss') {
       if (e.frzImm > 0 && !force) return false;
-      e.frozen = tb; e.frzImm = tb + 2;
+      e.frozen = tb; e.frzImm = tb + FRZ_DR;
     } else e.frozen = Math.max(e.frozen, t);
     unfade(e);
     return true;
@@ -1404,7 +1406,7 @@
     sing = null;
   }
   // Cortina boreal: cada columna se enciende tras su espera y, mientras brilla (0,35 s), golpea una vez a cada enemigo
-  // que esté o entre en ella (4,5× y congela) y borra las balas
+  // que esté o entre en ella (7× y congela) y borra las balas
   function updateCurtains(dt) {
     for (const c of curtains) {
       if (!c.on) {
@@ -1418,7 +1420,7 @@
       for (const e of enemies) {
         if (e.dead || e.spawnT > 0 || e.x < c.x || e.x >= c.x + c.w || c.hit.has(e)) continue;
         c.hit.add(e);
-        damageEnemy(e, uAtk() * 4.5, false, '#6affc8');
+        damageEnemy(e, uAtk() * 7, false, '#6affc8'); // 4,5× quedaba muy por debajo de la Ventisca (5× + 4× al romperse) que sustituye
         if (!e.dead) freezeEnemy(e, 2, 0.8, true);
       }
       for (const b of bullets) if (b.x >= c.x && b.x < c.x + c.w) { b.dead = true; sparks(b.x, b.y, '#bff4ff', 2); }
@@ -2669,7 +2671,7 @@
     shake = 0; hurtFlash = 0; fade = 0; banner = null;
     toast = null; screenFlash = null;
     toastQ = []; bannerNext = null; flashNext = null; awakenFx = null; eclipseFx = null; musicHoldT = 0;
-    pactRun = false; pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; fxDepth = 0; netLog = [];
+    pactRun = false; pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; fxDepth = 0; netLog = []; ambT = 0;
     curtains = []; fog = null; seenMixes.clear();
     runGrim0 = grimPages();
     seenReactions.clear();
@@ -4913,7 +4915,7 @@
       const name = F.has(meta.grim.f, o.form) ? D.title : '???';
       // como mucho 1 línea extra: sellado > Sintonía > Linaje
       let extra = '';
-      if (o.form === 'eclipse') extra = (o.seals ? `Sella ${F.pairText(o.seals[0], o.seals[1])} · ` : '') + 'forma prohibida: −15% de vida'; // el precio, siempre a la vista
+      if (o.form === 'eclipse') extra = (o.seals ? `Sella ${F.pairText(o.seals[0], o.seals[1])} · ` : '') + `forma prohibida: −${Math.round((1 - F.FORMS.eclipse.trait.hpMul) * 100)}% de vida`; // el precio, siempre a la vista
       else if (o.seals) {
         const cl = F.SQUARE.filter(x => !o.seals.includes(x));
         extra = `Sella ${F.pairText(o.seals[0], o.seals[1])} · ` + (F.isOpp(o.seals[0], o.seals[1]) ? 'el 2º despertar exigirá un Pacto oscuro' : `cierra ${EL[cl[0]].name.toLowerCase()} y ${EL[cl[1]].name.toLowerCase()}`);
@@ -5361,9 +5363,11 @@
     const med = a => { const v = a.filter(Number.isFinite).sort((x, y) => x - y), m = v.length >> 1; return !v.length ? null : v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
     // nada de lo que pase en una partida de bot se queda: ni esencia, ni logros, ni Grimorio, ni equipo, ni ajustes, ni sonido
     function sandbox(fn) {
-      const m0 = JSON.stringify(meta), s0 = JSON.stringify(settings), fr = flags.freeze, nf = flags.noForms, mu = Sfx.muted;
-      quiet = true; flags.freeze = true; Sfx.muted = true;
+      const m0 = JSON.stringify(meta), s0 = JSON.stringify(settings), fr = flags.freeze, nf = flags.noForms, mu = Sfx.muted, gt = Sfx.gate;
+      // Sfx.gate mira el reloj real y xpFill gasta Math.random si pasa: sin esto la misma semilla da partidas distintas
+      quiet = true; flags.freeze = true; Sfx.muted = true; Sfx.gate = () => false;
       try { return fn(); } finally {
+        Sfx.gate = gt;
         const m = JSON.parse(m0);
         for (const k of Object.keys(meta)) delete meta[k];
         Object.assign(meta, m, { grim: grimValid(m.grim) });
@@ -5372,6 +5376,16 @@
         Math.random = rnd0;
         showMenu();
       }
+    }
+    // atascado: sin línea de tiro 1 s (un jugador se movería) o 3 s sin bajar la vida de nadie (quemaduras y venenos
+    // también la bajan, así que la línea de tiro se mira aparte) → se planta cerca de su objetivo, con línea de tiro
+    function unstick(U, DT) {
+      const s = enemies.reduce((a, e) => a + e.hp, 0), t = findTarget();
+      U.idle = s < U.hpSum - 0.01 ? 0 : U.idle + DT; U.hpSum = s;
+      U.blind = t && !los(player.x, player.y, t.x, t.y) ? U.blind + DT : 0;
+      if (U.idle <= 3 && U.blind <= 1) return;
+      U.idle = U.blind = 0;
+      if (t) { const c = freeCellNear(t.x, t.y, 140); if (los(c.x, c.y, t.x, t.y)) { player.x = c.x; player.y = c.y; } }
     }
     // elección del bot: en el despertar, la ruta (C.path) o la primera opción abierta; en el resto, por prioridades
     const PRIO = ['atk', 'atkspd', 'front', 'multi', 'crit', 'pierce', 'ricochet', 'diag', 'orbs'];
@@ -5408,7 +5422,8 @@
         player.god = true;
         const L = { roomT: {}, ttk: {}, frz: {}, awk: [], offers: 0, badOffer: 0, maxShots: 0, maxParts: 0, maxAff: 0, ults: 0, stuck: 0 };
         const DT = 1 / 60;
-        let clT = 0, idle = 0, hpSum = 0, bT = 0, fT = 0, rStart = 0, rNow = room;
+        let clT = 0, bT = 0, fT = 0, rStart = 0, rNow = room;
+        const U = { idle: 0, hpSum: 0, blind: 0 };
         for (let i = 0; i < C.maxT * 60; i++) {
           if (state === 'play') {
             advance(DT);
@@ -5420,16 +5435,11 @@
               if (slowT <= 0) clT += DT; // tras un jefe, la cámara lenta no cuenta: da tiempo a la oferta del despertar (0,8 s)
               if (altar && !altar.used) { player.x = altar.x; player.y = altar.y + 12; }
               else if (chest && !chest.opened) { player.x = chest.x; player.y = chest.y + 12; }
-              else if (clT > 1.6 && room < TOTAL_ROOMS) { player.x = AX + AW / 2; player.y = AY - 30; }
+              // con "¡DESPERTAR LISTO!" en pantalla un jugador espera a la oferta (0,8 s tras las subidas de nivel): hasta 3 s
+              else if (clT > (player.animaReady && player.awak < C.stop && !player.awkLock && player.snoozeRoom !== room ? 3 : 1.6) && room < TOTAL_ROOMS) { player.x = AX + AW / 2; player.y = AY - 30; }
             } else if (!cleared) {
               clT = 0;
-              const s = enemies.reduce((a, e) => a + e.hp, 0);
-              idle = s < hpSum - 0.01 ? 0 : idle + DT; hpSum = s;
-              if (idle > 3) { // atascado: se planta cerca del enemigo más próximo, con línea de tiro
-                idle = 0;
-                const t = findTarget();
-                if (t) { const c = freeCellNear(t.x, t.y, 140); if (los(c.x, c.y, t.x, t.y)) { player.x = c.x; player.y = c.y; } }
-              }
+              unstick(U, DT);
               if (C.ult && player.mana >= 100 && !awakenFx && (boss || enemies.length >= 3)) { castUlt(); if (player.mana < 100) L.ults++; }
             }
             if (bT && !boss) { L.ttk[room] = r1(bT); L.frz[room] = r2(fT / bT); bT = fT = 0; }
@@ -5457,7 +5467,10 @@
       return {
         g: c.g, id: `${c.school}/${c.path.join('+') || '-'}${c.pact ? ' pacto' : ''}`, n: runs.length, win: r2(runs.filter(r => r.win).length / runs.length),
         time: med(runs.map(r => r.time)), aw1: aw(1), aw2: aw(2), netA: netP('a'), netB: netP('b'), netC: netP('c'),
-        frz: r2(Math.max(0, ...runs.flatMap(r => Object.values(r.frz)))), ttk, forms, locks: runs.filter(r => r.lock).length, linaje: runs.filter(r => r.linaje).length,
+        frz: r2(Math.max(0, ...runs.flatMap(r => Object.values(r.frz)))), ttk, forms,
+        // congelación de jefe sin los combates cortos (<8 s: una Ventisca de 1,8 s ya es media pelea) y pesada por tiempo
+        frz8: r2(Math.max(0, ...runs.flatMap(r => Object.keys(r.frz).filter(b => r.ttk[b] >= 8).map(b => r.frz[b])))),
+        frzW: r2(med(runs.map(r => { const b = Object.keys(r.frz), t = b.reduce((a, k) => a + r.ttk[k], 0); return t ? b.reduce((a, k) => a + r.ttk[k] * r.frz[k], 0) / t : 0; }))), locks: runs.filter(r => r.lock).length, linaje: runs.filter(r => r.linaje).length,
         badOffer: runs.reduce((a, r) => a + r.badOffer, 0), maxAff: Math.max(...runs.map(r => r.maxAff)), maxShots: Math.max(...runs.map(r => r.maxShots)),
         maxParts: Math.max(...runs.map(r => r.maxParts)), stuck: runs.reduce((a, r) => a + r.stuck, 0), ults: med(runs.map(r => r.ults)),
       };
@@ -5478,6 +5491,7 @@
       chk('red (b) <= 15%', avg(fr.map(r => r.netB)) <= 0.15, r2(avg(fr.map(r => r.netB))));
       chk('red (c) <= 20%', avg(fr.map(r => r.netC)) <= 0.2, r2(avg(fr.map(r => r.netC))));
       chk('congelación del jefe <= 35%', rows.every(r => r.frz <= 0.35), rows.filter(r => r.frz > 0.35).map(r => r.id + ' ' + r.frz));
+      chk('congelación del jefe <= 35% (combates de 8 s o más)', rows.every(r => r.frz8 <= 0.35), rows.filter(r => r.frz8 > 0.35).map(r => r.id + ' ' + r.frz8));
       chk('badOffer 0 y Afinidad <= 2', fr.every(r => !r.badOffer && r.maxAff <= 2), fr.filter(r => r.badOffer || r.maxAff > 2).map(r => r.id));
       chk('maxShots <= 200', rows.every(r => r.maxShots <= 200), Math.max(...rows.map(r => r.maxShots)));
       chk('maxParts <= 500', rows.every(r => r.maxParts <= 500), Math.max(...rows.map(r => r.maxParts)));
@@ -5545,7 +5559,42 @@
         return { cfg: C, ttk: r1(bT), killed, frz: bT ? r2(fT / bT) : 0, form: player.form, atk: r1(player.atk), linaje: linaje() };
       });
     }
-    Object.assign(window.__arcano, { sim, simMatrix, bench, botPick });
+    // banco de salas normales: misma build fija (como bench), despertares al instante y se mide lo que tarda en limpiar
+    // cada sala (sin subir de nivel: la build no cambia). Aísla lo que aportan los rasgos de la forma fuera de los jefes.
+    function roomBench(cfg) {
+      const C = Object.assign({ rooms: [7, 8, 11, 12, 13, 16, 17, 18], school: 'fire', path: [], build: 'mid', seed: 1, noForms: false, pact: false, maxT: 60 }, cfg);
+      return sandbox(() => {
+        dbg.seed(C.seed);
+        flags.noForms = !!C.noForms;
+        settings.tutorial = true;
+        dbg.school(C.school);
+        player.god = true;
+        const S = SCHOOLS[C.school], runes = C.path.length ? C.path : S.el ? [S.el] : [];
+        const B = C.build === 'mid' ? { atk: 3, atkspd: 2, front: 1, multi: 1, crit: 1, hp: 2 } : {};
+        for (const [k, n] of Object.entries(B)) for (let i = 0; i < n; i++) pickSkill(k);
+        for (const el of runes) while ((player.sk[el] || 0) < 2) pickSkill(el);
+        if (C.pact) pactRun = true;
+        if (FX()) for (const el of C.path.slice(0, 2)) awaken(el);
+        const DT = 1 / 60, T = {};
+        let tot = 0;
+        for (const r of C.rooms) {
+          pendingLevels = 0; bonusPicks = [];
+          dbg.goto(r);
+          let t = 0;
+          const U = { idle: 0, hpSum: 0, blind: 0 };
+          for (let i = 0; i < C.maxT * 60; i++) {
+            if (state === 'levelup') { hideOverlay(); state = 'play'; pendingLevels = 0; bonusPicks = []; }
+            if (state !== 'play') break;
+            advance(DT); t += DT;
+            if (cleared) break;
+            unstick(U, DT);
+          }
+          T[r] = r1(t); tot += t;
+        }
+        return { cfg: C, rooms: T, total: r1(tot), form: player.form, atk: r1(player.atk) };
+      });
+    }
+    Object.assign(window.__arcano, { sim, simMatrix, bench, botPick, roomBench });
   }
 
   if (Sfx.muted) { settings.musicVol = settings.music || SETTINGS_DEFAULT.music; settings.sfxVol = settings.sfx || SETTINGS_DEFAULT.sfx; settings.music = 0; settings.sfx = 0; saveSettings(); Sfx.setMuted(false); }

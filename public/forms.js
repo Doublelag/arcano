@@ -165,14 +165,16 @@
   });
   def('eclipse', 2, {
     name: 'Eclipse', short: 'ECLIPSE', title: 'ECLIPSE', line: 'Ni luz ni sombra. Solo yo.', icon: '🌑', color: '#c77dff', key: 311, els: [], powers: ['vapor', 'corrode'],
-    trName: 'Desequilibrio', desc: '+20% de daño y reacciones al primer golpe, a cambio de vida',
+    trName: 'Desequilibrio', desc: '+10% de daño y reacciones al primer golpe, a cambio de vida',
     pal: pal('eclipse', { cape: '#05030a', robe: '#0d0718', trim: '#c77dff', brim: '#120a22', hat: ['#3a2266', '#1a0f30', '#05030a'], hatLine: '#02010a', band: '#c77dff', star: '#e8d5ff', gem: '#0a0612', eyeW: '#e8d5ff', eyeP: '#2a1046', eyes: { white: '#e8d5ff', pupil: '#2a1046' }, sun: true, voidGem: true }),
     aura: 'void', colors: ['#c77dff', '#e8d5ff', '#7a3dff'],
     shot: { shape: 'void', sz: 1.2, glow: '#c77dff', glowR: 20, body: '#0a0612', core: '#f3e8ff', edge: '#f3e8ff', trail: '#7a3dff', len: 1.3, c2: '#c77dff' },
     voice: { f: 180, type: 'sine', slide: 1.6 },
-    trait: { atkMul: 1.2, hpMul: 0.85, pierce: 1, firstHit: true, reactCd: 0.6, implode: { r: 110, k: 1, pull: 40 }, vaporK: 3.6, corrMul: 1.5, corrT: 5 },
+    // balance con bots (docs/despertar-spec.md 7.2): con atk ×1,2, recarga 0,6 y implosión de 1×atk limpiaba las salas
+    // en el 62% del tiempo de la misma build sin formas (híbridas: 77-100%) y era la ruta más rápida
+    trait: { atkMul: 1.1, hpMul: 0.8, pierce: 1, firstHit: true, reactCd: 1, implode: { r: 100, k: 0.35, pull: 40 }, vaporK: 3.2, corrMul: 1.4, corrT: 5 },
     card: { id: 'f_eclipse', name: 'Horizonte negro', desc: 'Implosiones más grandes y dañinas',
-      apply(t, lv) { if (t.implode) { t.implode.r += 25 * lv; t.implode.k = r3(t.implode.k + 0.4 * lv); } } },
+      apply(t, lv) { if (t.implode) { t.implode.r += 20 * lv; t.implode.k = r3(t.implode.k + 0.15 * lv); } } },
     ult: ULT.void,
   });
   const CARDS = IDS.map(id => FORMS[id].card).filter(Boolean);

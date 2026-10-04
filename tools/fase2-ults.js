@@ -80,8 +80,9 @@ ok(r.dy != null && Math.abs(r.dy - 50) < 6, 'las balas enemigas van a la mitad (
 await shot('ult-invierno-negro');
 // justo antes del final y justo después: cada enemigo recibe al menos el mínimo de NECROSIS (1,5×atk)
 r = await P(`A.step(3.12); const left = A.ults().fog.t, hp0 = E.map(e => e.hp); A.step(0.12); const f = A.ults().fog;
-  return { left: +left.toFixed(2), f, atk: P.atk, n: E.length, dmg: E.map((e, i) => Math.round(hp0[i] - e.hp)) };`);
-ok(r.left < 0.12 && !r.f && r.dmg.every(d => d >= 1.5 * r.atk - 0.5), 'al acabar, NECROSIS en todos (≥ 1,5×atk cada uno)', r);
+  return { left: +left.toFixed(2), f, atk: P.atk, n: E.length, dmg: E.map((e, i) => Math.round(hp0[i] - e.hp)), kind: E.map(e => e.kind), self: E.map(e => !!e.selfBlast) };`);
+// un diablillo que se inmola junto al mago (modo dios) muere sin recibir daño: no cuenta (fallaba al azar)
+ok(r.left < 0.12 && !r.f && r.dmg.every((d, i) => r.self[i] || d >= 1.5 * r.atk - 0.5), 'al acabar, NECROSIS en todos (≥ 1,5×atk cada uno)', r);
 
 // ---------- LLUVIA DE AZUFRE (Azufre, núcleo veneno) ----------
 console.log('--- Lluvia de azufre');
@@ -105,7 +106,8 @@ await setup('fire', ['fire', 'ice'], true);
 r = await P(`return { form: P.form, ...A.ults() };`);
 ok(r.form === 'eclipse' && r.key === 'void' && r.name === 'Sol negro', 'Eclipse → Sol negro', { form: r.form, key: r.key });
 // los tótems no se mueven (como con la Singularidad); el resto, a menos de 400 px, se acerca
-r = await P(`const L = E.filter(e => e.kind !== 'totem'); L.forEach((e, i) => { e.x = 270 + Math.cos(i) * 300; e.y = 528 + Math.sin(i) * 300; e.kx = e.ky = 0; });
+// quietos (congelados): un embestidor a mitad de carga se aleja más rápido de lo que tira el sol, y eso no es lo que se mide
+r = await P(`const L = E.filter(e => e.kind !== 'totem'); L.forEach((e, i) => { e.x = 270 + Math.cos(i) * 300; e.y = 528 + Math.sin(i) * 300; e.kx = e.ky = 0; e.frozen = 2; });
   const d0 = L.map(e => Math.hypot(e.x - 270, e.y - 528)); A.ult(); const s = A.ults().sing; A.step(1.2);
   const d1 = L.map(e => Math.hypot(e.x - 270, e.y - 528));
   return { s, d0: d0.map(Math.round), d1: d1.map(Math.round), kinds: L.map(e => e.kind) };`);

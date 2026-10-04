@@ -200,11 +200,12 @@ test('traitsFor: el charco de Azufre sustituye al de Tóxica', () => {
 });
 test('traitsFor: Eclipse', () => {
   const t = F.traitsFor('fire', 'ice', {});
-  assert.equal(t.atkMul, 1.2); assert.equal(t.hpMul, 0.85); assert.equal(t.pierce, 1); assert.equal(t.firstHit, true); assert.equal(t.reactCd, 0.6);
-  assert.deepEqual(t.implode, { r: 110, k: 1, pull: 40 }); assert.equal(t.vaporK, 3.6); assert.equal(t.corrMul, 1.5); assert.equal(t.corrT, 5);
+  // números del balance con bots (la especificación pedía atk ×1,2, vida ×0,85, recarga 0,6, implosión 110/1, Vapor 3,6 y Corrosión ×1,5)
+  assert.equal(t.atkMul, 1.1); assert.equal(t.hpMul, 0.8); assert.equal(t.pierce, 1); assert.equal(t.firstHit, true); assert.equal(t.reactCd, 1);
+  assert.deepEqual(t.implode, { r: 100, k: 0.35, pull: 40 }); assert.equal(t.vaporK, 3.2); assert.equal(t.corrMul, 1.4); assert.equal(t.corrT, 5);
   assert.equal(t.burnK, 0.5); assert.equal(t.slowT, undefined);
   const u = F.traitsFor('poison', 'bolt', {});
-  assert.equal(u.atkMul, 1.2); assert.equal(u.poisonK, 0.15); assert.equal(u.chainP, undefined);
+  assert.equal(u.atkMul, 1.1); assert.equal(u.poisonK, 0.15); assert.equal(u.chainP, undefined);
 });
 test('traitsFor: cartas de forma', () => {
   let t = F.traitsFor('fire', null, { f_ignea: 2 });
@@ -217,7 +218,7 @@ test('traitsFor: cartas de forma', () => {
   t = F.traitsFor('ice', 'bolt', { f_aurora: 2 }); assert.equal(t.shards.n, 10); near(t.freezeT, 2.6); assert.equal(t.freezeBossT, 0.7);
   t = F.traitsFor('ice', 'poison', { f_mortaja: 1 }); assert.equal(t.shroud.r, 115); near(t.shroud.k, 0.15);
   t = F.traitsFor('poison', 'fire', { f_azufre: 1, f_toxica: 1 }); assert.equal(t.puddle.r, 65); assert.equal(t.puddle.t, 4); assert.equal(t.puddle.max, 7); assert.equal(t.puddle.sulfur, true);
-  t = F.traitsFor('bolt', 'poison', { f_eclipse: 2 }); assert.equal(t.implode.r, 160); near(t.implode.k, 1.8);
+  t = F.traitsFor('bolt', 'poison', { f_eclipse: 2 }); assert.equal(t.implode.r, 140); near(t.implode.k, 0.65);
   t = F.traitsFor('fire', null, { f_glacial: 2, f_mortaja: 1 }); // cartas sin su rasgo base: no inventan claves
   assert.equal(t.frzChance, undefined); assert.equal(t.shroud, undefined);
   t = F.traitsFor('fire', null, { f_ignea: 9 }); near(t.burnK, 0.7); // tope de 2 niveles

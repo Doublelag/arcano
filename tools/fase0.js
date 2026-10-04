@@ -160,16 +160,16 @@ const bossRun = async (noDR) => ev(`(() => {
     b.slow = 1; b.shock = 0; b.reactCd = 0;
     const h1 = A.hit(bi, ['bolt']);           // aún inmune: no hay CONGELACIÓN
     r.inmune = { frozen: h1.frozen, reactCd: h1.reactCd };
-    A.step(2);
+    A.step(3);
     b.slow = 1; b.shock = 0; b.reactCd = 0; b.frozen = 0;
-    const h2 = A.hit(bi, ['bolt']);           // ya no: 0,7 s y 2,7 s de inmunidad
+    const h2 = A.hit(bi, ['bolt']);           // ya no: 0,7 s y 3,7 s de inmunidad (DR de 3 s tras el balance con bots)
     r.libre = { frozen: h2.frozen, imm: h2.frzImm };
     return r;
   })()`);
-  ok('Ventisca en jefe: 1,8 s forzado (aunque sea inmune) e inmunidad 3,8 s', b.frozen === 1.8 && b.imm === 3.8 && b.shatter === true, b);
+  ok('Ventisca en jefe: 1,8 s forzado (aunque sea inmune) e inmunidad 4,8 s', b.frozen === 1.8 && Math.abs(b.imm - 4.8) < 1e-9 && b.shatter === true, b);
   ok('Ventisca en jefe: el bloque estalla al romperse', b.tras.shatter === false, b.tras);
   ok('jefe inmune: CONGELACIÓN no salta ni gasta estados', b.inmune.frozen <= 0 && b.inmune.reactCd <= 0, b.inmune);
-  ok('jefe sin inmunidad: CONGELACIÓN 0,7 s e inmunidad 2,7 s', Math.abs(b.libre.frozen - 0.7) < 1e-9 && Math.abs(b.libre.imm - 2.7) < 1e-9, b.libre);
+  ok('jefe sin inmunidad: CONGELACIÓN 0,7 s e inmunidad 3,7 s', Math.abs(b.libre.frozen - 0.7) < 1e-9 && Math.abs(b.libre.imm - 3.7) < 1e-9, b.libre);
 }
 
 // ---------- 5. Depuración: seed repetible y god inmune a trampas ----------

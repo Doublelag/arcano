@@ -102,10 +102,11 @@ await run('fire', ['fire', 'pact', 'ice'], 7);
 fi = await info();
 ok(fi.form === 'eclipse' && fi.tr.firstHit && fi.tr.implode, 'Eclipse con Desequilibrio y Aniquilación');
 r = await P(`${park} const a = E[0], b = E[1]; a.x = 250; a.y = 400; b.x = 330; b.y = 400; b.kind = b.kind === 'totem' ? 'slime' : b.kind; const ha = a.hp, hb = b.hp; A.hit(0, ['fire', 'ice']); return { dmgA: ha - a.hp, cd: a.reactCd, bx: b.x, dmgB: hb - b.hp, atk: P.atk };`);
-ok(r.dmgA > 3 * r.atk && Math.abs(r.cd - 0.6) < 1e-9, 'Eclipse: VAPOR al primer golpe y recarga de 0,6 s', r);
+const ET = await ev('ArcanoForms.FORMS.eclipse.trait'); // números del balance con bots (forms.js)
+ok(r.dmgA > ET.vaporK * r.atk && Math.abs(r.cd - ET.reactCd) < 1e-9, `Eclipse: VAPOR al primer golpe (${ET.vaporK}×) y recarga de ${ET.reactCd} s`, r);
 ok(Math.abs(r.bx - 290) < 1 && r.dmgB > 0, 'Eclipse: la implosión atrae 40 px y daña', r);
 r = await P(`const b = E.find(e => !e.dead); return Math.round(P.atk / (10 * (1 + 0.06 * 0)) * 100) / 100;`);
-ok(r >= 1.2, 'Eclipse: atk ×1,2', r);
+ok(Math.abs(r - ET.atkMul) < 0.011, `Eclipse: atk ×${ET.atkMul}`, r);
 
 // ---------- Equipo: runas que caben y que no caben en la Afinidad ----------
 console.log('--- Equipo');
