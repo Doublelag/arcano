@@ -324,6 +324,7 @@
   const hz = new Uint8Array(COLS * ROWS), hzOff = new Float32Array(COLS * ROWS); // trampas del suelo
   let hzClock = 0;
   let chest = null, chestsThisRun = 0, runBonusEss = 0, pickSource = 'level';
+  let runLoot = []; // objetos de equipo conseguidos en la partida
   let bonusPicks = []; // elecciones de habilidad que no suben de nivel: 'chest' | 'pact' | 'bless'
   let cine = null; // entrada cinematográfica del jefe
   // HUD animado: la barra de experiencia se llena con retraso y con chispas que vuelan hasta ella
@@ -339,7 +340,7 @@
 
   // progreso permanente: esencia, mejoras compradas y escuelas desbloqueadas
   const META_DEFAULT = () => ({
-    essence: 0, up: {}, schools: ['fire', 'ice', 'bolt'], runs: 0, ach: {},
+    essence: 0, up: {}, schools: ['fire', 'ice', 'bolt'], runs: 0, ach: {}, gear: { inv: [], eq: {}, next: 1 },
     stats: { kills: 0, wins: 0, bosses: 0, elites: 0, reactions: 0, ults: 0, time: 0, essenceTotal: 0, chests: 0, pacts: 0, best: {}, winsBy: {}, reactSeen: {} },
   });
   const meta = loadMeta();
@@ -355,6 +356,10 @@
     const m = Object.assign(d, s);
     m.up = Object.assign({}, s.up);
     m.ach = Object.assign({}, s.ach);
+    const sg = s.gear || {}; // equipo: inventario, huecos equipados y contador de ids
+    m.gear = { inv: Array.isArray(sg.inv) ? sg.inv.filter(it => it && it.uid != null && it.base) : [], eq: Object.assign({}, sg.eq), next: 1 };
+    m.gear.next = Math.max(sg.next > 0 ? sg.next : 1, 1 + m.gear.inv.reduce((a, it) => Math.max(a, +it.uid || 0), 0));
+    for (const k of Object.keys(m.gear.eq)) if (!m.gear.inv.some(it => it.uid === m.gear.eq[k])) delete m.gear.eq[k];
     m.schools = Array.isArray(s.schools) ? [...new Set(['fire', 'ice', 'bolt', ...s.schools])].filter(id => SCHOOLS[id]) : d.schools;
     m.stats = Object.assign(META_DEFAULT().stats, s.stats);
     for (const k of ['best', 'winsBy', 'reactSeen']) m.stats[k] = Object.assign({}, s.stats && s.stats[k]);
@@ -367,6 +372,24 @@
   }
   const metaLv = id => meta.up[id] || 0;
   const schoolOpen = id => meta.schools.includes(id);
+
+  // ---------- Equipo (lógica en equipment.js) ----------
+  const Gear = () => window.ArcanoGear;
+  const GEAR_MAX = 60;
+  const EMPTY_GEAR = { atkPct: 0, hpFlat: 0, critPct: 0, rateP: 0, speedP: 0, dodgeP: 0, manaStart: 0, xpPct: 0, perks: {} };
+  const gearItem = uid => meta.gear.inv.find(it => it.uid === uid);
+  const isEquipped = uid => Object.values(meta.gear.eq).includes(uid);
+  const equippedList = () => Object.values(meta.gear.eq).map(gearItem).filter(Boolean);
+  function gearStats() {
+    try { return (Gear() && Gear().statsOf(equippedList())) || EMPTY_GEAR; } catch (_) { return EMPTY_GEAR; }
+  }
+  function addGear(drop) { // devuelve el objeto añadido o null si no cabe
+    if (!Gear() || !drop || meta.gear.inv.length >= GEAR_MAX) return null;
+    const it = Gear().makeItem(drop.base, drop.r, meta.gear.next++);
+    if (it) meta.gear.inv.push(it);
+    return it;
+  }
+  const perkLv = id => (player && player.gear && player.gear.perks[id]) || 0;
 
   // ---------- Logros: aviso flotante que funciona en cualquier pantalla ----------
   const achEl = document.createElement('div');
@@ -424,7 +447,7 @@
     if (state === 'tap') { startFromTap(); return; }
     if (e.code === 'Escape' || e.code === 'KeyP') {
       if (state === 'play' || state === 'paused') togglePause();
-      else if (['settings', 'credits', 'stats', 'shop'].includes(state)) goBack();
+      else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item'].includes(state)) goBack();
       else if (state === 'school') showMenu();
     }
     const onButton = document.activeElement && document.activeElement.tagName === 'BUTTON';
@@ -639,12 +662,14 @@
   //  Jugador
   // ================================================================
   function newPlayer() {
-    const hp = 100 + 10 * metaLv('vida'); // mejoras del Santuario
+    const gear = gearStats();
+    const hp = 100 + 10 * metaLv('vida') + gear.hpFlat; // Santuario + equipo
     return {
+      gear,
       x: AX + AW / 2, y: AY + AH - 50, r: 15, hp, maxHp: hp, lvl: 1, xp: 0, sk: {},
       atk: 10, rate: 1.5, crit: 0.05, critMul: 2, speed: 190, dodge: 0,
       cd: 0, still: 0, inv: 0, face: -Math.PI / 2, moving: false, orbA: 0, walkT: 0,
-      school: 'fire', mana: 30 + 15 * metaLv('mana'), castFx: 0,
+      school: 'fire', mana: Math.min(100, 30 + 15 * metaLv('mana') + gear.manaStart), castFx: 0,
       revives: metaLv('fenix'), rerolls: metaLv('suerte'), shield: 0, vx: 0, vy: 0, trapCd: 0,
     };
   }
@@ -652,7 +677,7 @@
   // ---------- Maná y hechizo definitivo ----------
   function gainMana(v) {
     if (!player || player.mana >= 100) return;
-    player.mana = Math.min(100, player.mana + v * (1 + 0.35 * (player.sk.channel || 0)));
+    player.mana = Math.min(100, player.mana + v * (1 + 0.35 * (player.sk.channel || 0)) * (1 + 0.4 * perkLv('manaRegen')));
     if (player.mana >= 100) { Sfx.ultReady(); addText(player.x, player.y - 50, '¡DEFINITIVO LISTO!', EL[player.school].color, 0.8); }
   }
 
@@ -786,12 +811,13 @@
 
   function recalc() {
     const s = player.sk;
-    player.atk = 10 * (1 + 0.25 * (s.atk || 0)) * (1 + 0.06 * metaLv('poder'));
-    player.rate = 1.5 * (1 + 0.22 * (s.atkspd || 0));
-    player.crit = 0.05 + 0.1 * (s.crit || 0);
+    const g = player.gear || EMPTY_GEAR;
+    player.atk = 10 * (1 + 0.25 * (s.atk || 0)) * (1 + 0.06 * metaLv('poder')) * (1 + g.atkPct);
+    player.rate = 1.5 * (1 + 0.22 * (s.atkspd || 0)) * (1 + g.rateP);
+    player.crit = 0.05 + 0.1 * (s.crit || 0) + g.critPct;
     player.critMul = 2 + 0.25 * (s.crit || 0);
-    player.speed = 190 * (1 + 0.12 * (s.speed || 0)) * (1 + 0.04 * metaLv('paso'));
-    player.dodge = 0.08 * (s.dodge || 0);
+    player.speed = 190 * (1 + 0.12 * (s.speed || 0)) * (1 + 0.04 * metaLv('paso')) * (1 + g.speedP);
+    player.dodge = Math.min(0.6, 0.08 * (s.dodge || 0) + g.dodgeP); // nunca más de un 60% de esquiva
   }
 
   function heal(n, show = true) {
@@ -802,7 +828,7 @@
   }
 
   function addXp(v) {
-    player.xp += v * (1 + 0.1 * metaLv('sabio'));
+    player.xp += v * (1 + 0.1 * metaLv('sabio') + (player.gear ? player.gear.xpPct : 0) + 0.15 * perkLv('magnet'));
     while (player.xp >= xpNeed(player.lvl)) {
       player.xp -= xpNeed(player.lvl);
       player.lvl++;
@@ -1235,6 +1261,10 @@
     // daño por contacto
     if ((e.alpha === undefined || e.alpha > 0.5) && dist(e, player) < e.r + player.r - 3) {
       hurtPlayer(e.kind === 'boss' ? e.dmg * 1.4 : e.dmg);
+      if (perkLv('thorns') && !e.dead && runTime - (e.thornT || -9) > 0.5) {
+        e.thornT = runTime;
+        damageEnemy(e, player.atk * 1.5 * perkLv('thorns'), false, '#9be36a', true);
+      }
       if (e.kind === 'bat') {
         const a = angTo(player, e);
         e.knock = 0.5; e.vx = Math.cos(a) * 160; e.vy = Math.sin(a) * 160;
@@ -1407,6 +1437,7 @@
     const hearts = isBoss ? 2 : Math.random() < (e.elite ? 0.3 : 0.06) ? 1 : 0;
     for (let i = 0; i < hearts; i++) drops.push({ type: 'heart', x: e.x, y: e.y, vx: rand(-120, 120), vy: rand(-120, 120), t: 0 });
     if (player.sk.blood) heal(player.maxHp * 0.02 * player.sk.blood);
+    if (perkLv('lifeOnKill')) heal(player.maxHp * 0.01 * perkLv('lifeOnKill'));
     if (!isBoss) gainMana(e.minion ? 2 : e.elite ? 10 : 5);
     if (isBoss) {
       bossesKilled++;
@@ -1631,7 +1662,7 @@
     for (const g of drops) {
       g.t += dt;
       const d = dist(g, player);
-      if ((cleared || d < 70) && !g.magnet) { // empieza el imán: cada gema con su pequeño retraso
+      if ((cleared || d < (perkLv('magnet') ? 150 : 70)) && !g.magnet) { // empieza el imán: cada gema con su pequeño retraso
         g.magnet = true; g.mt = -(cleared ? 0.2 + (k++) * 0.035 : 0); g.curl = rand(-1, 1) * 260;
       }
       if (g.magnet) {
@@ -1768,6 +1799,14 @@
     for (let i = 0; i < 5; i++) drops.push({ type: 'gem', v: 5, x: chest.x, y: chest.y - 8, vx: rand(-170, 170), vy: rand(-200, -40), t: 0 });
     heal(player.maxHp * 0.15);
     runBonusEss += 5;
+    if (Gear()) { // un objeto de equipo, algo mejor que el de la sala
+      const it = addGear(Gear().rollDrop(Math.min(20, room + 3), Math.random));
+      if (it) {
+        runLoot.push(it); saveMeta();
+        const d = Gear().describe(it);
+        addText(chest.x, chest.y - 64, d.icon + ' ' + d.rarityName, d.color, 1.1);
+      }
+    }
     addText(chest.x, chest.y - 40, '+✨ 5', '#ffcf4a', 1.1);
     bonusPicks.push('chest');
     meta.stats.chests++;
@@ -1840,6 +1879,7 @@
     rings = []; meteors = []; storm = null; sing = null; altar = null; chest = null; cine = null;
     hz.fill(0);
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0, vx: 0, vy: 0 });
+    if (perkLv('roomShield')) player.shield = Math.max(player.shield, 1);
     cleared = false; doorAnim = 0; flowT = 0;
     spawnRoom();
   }
@@ -1849,6 +1889,7 @@
     for (const b of bullets) sparks(b.x, b.y, b.color, 2);
     bullets = [];
     if (BOSSES[room]) heal(player.maxHp * 0.25);
+    if (perkLv('roomShield') >= 2) heal(player.maxHp * 0.1);
     if (room >= TOTAL_ROOMS) { winTimer = 2.2; pendingLevels = 0; }
     else Sfx.door();
     if (tut && room === 1) tut.step = 'door';
@@ -1864,7 +1905,7 @@
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
     runSeed = Math.floor(Math.random() * 1e9);
-    chestsThisRun = 0; bonusPicks = []; runBonusEss = 0; hzClock = 0;
+    chestsThisRun = 0; bonusPicks = []; runBonusEss = 0; hzClock = 0; runLoot = [];
     Object.assign(hudFx, { xpShow: 0, lvlShow: 1, hold: 0, flash: 0, pulse: 0, wait: 0 }); flyers = []; hudParts = [];
     slowT = 0;
     // nada de la partida anterior: ni gemas en el suelo ni efectos a medias
@@ -1910,6 +1951,10 @@
     player.school = id;
     if (S.el) player.sk[S.el] = 1;
     for (const [k, v] of Object.entries(S.grant || {})) player.sk[k] = (player.sk[k] || 0) + v;
+    for (const [perk, lv] of Object.entries((player.gear && player.gear.perks) || {})) { // equipo
+      if (perk.startsWith('startRune:')) { const el = perk.slice(10); player.sk[el] = Math.min(2, Math.max(player.sk[el] || 0, lv)); }
+      else if (perk === 'extraShot') player.sk.front = Math.min(3, (player.sk.front || 0) + lv);
+    }
     recalc();
     Sfx.pick();
     hideOverlay();
@@ -3274,7 +3319,7 @@
   window.addEventListener('popstate', () => {
     backArmed = false;
     if (state === 'play' || state === 'paused') togglePause();
-    else if (['settings', 'credits', 'stats', 'shop'].includes(state)) goBack();
+    else if (['settings', 'credits', 'stats', 'shop', 'gear', 'item'].includes(state)) goBack();
     else if (state === 'school') showMenu();
     else if (state === 'menu' || state === 'splash' || state === 'tap') history.back(); // en el menú sí sale
     // se vuelve a armar en el siguiente toque (Chrome ignora las entradas creadas sin gesto del usuario)
@@ -3299,7 +3344,10 @@
         <div class="logo">ARCANO</div>
         <div class="tag">Roguelite de magia · ${TOTAL_ROOMS} salas · 4 jefes</div>
         <button class="btn primary menu-play" data-act="play">JUGAR</button>
-        <button class="btn ghost" data-act="shop">🏛️ Santuario <span class="ess">✨ ${meta.essence}</span></button>
+        <div class="btn-row">
+          <button class="btn ghost" data-act="shop">🏛️ Santuario <span class="ess">✨ ${meta.essence}</span></button>
+          <button class="btn ghost" data-act="gear">🎒 Equipo</button>
+        </div>
         <div class="btn-row">
           <button class="btn ghost" data-act="stats">🏆 Logros <span class="cnt">${done}/${ACHIEVEMENTS.length}</span></button>
           <button class="btn ghost" data-act="settings">⚙️ Ajustes</button>
@@ -3422,6 +3470,112 @@
       </div>`);
   }
 
+  // ---------- Equipo ----------
+  const GSTAT = [['atkPct', 'Daño', true], ['hpFlat', 'Vida', false], ['critPct', 'Crítico', true], ['rateP', 'Cadencia', true],
+    ['speedP', 'Velocidad', true], ['dodgeP', 'Esquiva', true], ['manaStart', 'Maná', false], ['xpPct', 'Experiencia', true]];
+  function gearSummary(g) {
+    const parts = GSTAT.filter(([k]) => g[k] > 0).map(([k, n, pct]) => `<span><b>+${pct ? Math.round(g[k] * 100) + '%' : g[k]}</b> ${n}</span>`);
+    const perks = Object.entries(g.perks).map(([id, lv]) => {
+      const P = Gear().PERKS && Gear().PERKS[id];
+      return `<span class="gperk">✨ ${P ? P.name : id}${lv > 1 ? ' II' : ''}</span>`;
+    });
+    return parts.length + perks.length ? parts.concat(perks).join('') : '<span class="dim">Sin equipo: equipa objetos para hacerte más fuerte</span>';
+  }
+
+  function showGear() {
+    const G = Gear();
+    if (!G) { showMenu(); return; }
+    const st = state === 'gear' ? panelScroll() : 0;
+    state = 'gear';
+    const slots = G.SLOTS.map(sl => {
+      const it = gearItem(meta.gear.eq[sl.id]), d = it ? G.describe(it) : null;
+      return `<button class="gslot ${it ? '' : 'empty'}" data-act="${it ? 'item' : 'noop'}" data-uid="${it ? it.uid : ''}" style="--rc:${d ? d.color : '#4a4060'}">
+          <span class="gi">${d ? d.icon : sl.icon}</span><span class="gn">${d ? d.name : sl.name}</span></button>`;
+    }).join('');
+    const inv = meta.gear.inv.slice().sort((a, b) => G.power(b) - G.power(a));
+    const tiles = inv.map(it => {
+      const d = G.describe(it), eq = isEquipped(it.uid);
+      return `<button class="gtile ${eq ? 'eq' : ''}" data-act="item" data-uid="${it.uid}" style="--rc:${d.color}"><span class="gi">${d.icon}</span>${eq ? '<i>E</i>' : ''}</button>`;
+    }).join('');
+    const groups = G.mergeGroups(meta.gear.inv.filter(it => !isEquipped(it.uid)));
+    showOverlay(`
+      <div class="panel shop gear">
+        <div class="title gold">EQUIPO</div>
+        ${notice ? `<div class="notice">${notice}</div>` : ''}
+        <div class="gslots">${slots}</div>
+        <div class="gsum">${gearSummary(gearStats())}</div>
+        <div class="sec">Inventario · ${inv.length}/${GEAR_MAX}</div>
+        ${groups.length ? `<button class="btn primary wide" data-act="mergeall">⚒️ Fusionar todo (${groups.length})</button>` : ''}
+        ${inv.length ? `<div class="ginv">${tiles}</div>` : '<div class="empty">Aún no tienes objetos: caen al final de cada partida y en los cofres</div>'}
+        <div class="dim">3 objetos iguales de la misma rareza se fusionan en uno mejor</div>
+        <button class="btn primary sticky" data-act="back">VOLVER</button>
+      </div>`);
+    notice = '';
+    restoreScroll(st);
+  }
+
+  function showItem(uid) {
+    const G = Gear(), it = gearItem(uid);
+    if (!G || !it) { showGear(); return; }
+    state = 'item';
+    const d = G.describe(it), eq = isEquipped(uid), slot = G.SLOTS.find(sl => sl.id === d.slot);
+    const same = meta.gear.inv.filter(o => o.base === it.base && o.r === it.r && !isEquipped(o.uid));
+    const canMerge = !eq && it.r < G.RARITIES.length - 1 && same.length >= 3;
+    showOverlay(`
+      <div class="popup">
+        <div class="pop-head" style="background:linear-gradient(${shade(d.color, 0.2)}, ${shade(d.color, -0.3)})"><span>${d.rarityName.toUpperCase()}</span>
+          <button class="pop-x" data-act="gearback" aria-label="Cerrar">✕</button></div>
+        <div class="pop-body">
+          <div class="ibig" style="--rc:${d.color}">${d.icon}</div>
+          <div class="iname" style="color:${d.color}">${d.name}</div>
+          <div class="islot">${slot ? slot.icon + ' ' + slot.name : ''}</div>
+          <div class="ilines">${d.lines.map(l => `<div>${l}</div>`).join('')}</div>
+          ${d.perk ? `<div class="iperk">✨ ${d.perk}</div>` : ''}
+          ${d.nextPerk ? `<div class="inext">🔒 ${d.nextPerk}</div>` : ''}
+          <div class="btn-row">
+            <button class="btn ${eq ? 'ghost' : 'primary'}" data-act="${eq ? 'unequip' : 'equip'}" data-uid="${uid}">${eq ? 'Quitar' : 'Equipar'}</button>
+            ${canMerge ? `<button class="btn ghost" data-act="merge" data-uid="${uid}">⚒️ Fusionar</button>` : ''}
+          </div>
+          ${!canMerge && !eq && it.r < G.RARITIES.length - 1 ? `<div class="dim">Para fusionar: ${same.length}/3 iguales sin equipar</div>` : ''}
+        </div>
+      </div>`);
+  }
+
+  function gearAction(act, uid) {
+    const G = Gear(), it = gearItem(uid);
+    if (act === 'equip' && it) { meta.gear.eq[G.getBase(it.base).slot] = uid; Sfx.pick(); }
+    else if (act === 'unequip' && it) { delete meta.gear.eq[G.getBase(it.base).slot]; Sfx.click(); }
+    else if (act === 'merge' && it) {
+      const others = meta.gear.inv.filter(o => o.uid !== uid && o.base === it.base && o.r === it.r && !isEquipped(o.uid)).slice(0, 2);
+      const made = others.length === 2 && G.merge(meta.gear.inv, [uid, others[0].uid, others[1].uid], meta.gear.next);
+      if (made) {
+        meta.gear.next++;
+        const gone = new Set([uid, others[0].uid, others[1].uid]);
+        meta.gear.inv = meta.gear.inv.filter(o => !gone.has(o.uid));
+        meta.gear.inv.push(made);
+        saveMeta(); Sfx.buy();
+        showItem(made.uid);
+        return;
+      }
+    } else if (act === 'mergeall') { // fusiona en cadena hasta que no quede nada que fusionar
+      let n = 0;
+      for (let guard = 0; guard < 50; guard++) {
+        const groups = G.mergeGroups(meta.gear.inv.filter(o => !isEquipped(o.uid)));
+        if (!groups.length) break;
+        for (const grp of groups) {
+          const made = G.merge(meta.gear.inv, grp, meta.gear.next);
+          if (!made) continue;
+          meta.gear.next++;
+          meta.gear.inv = meta.gear.inv.filter(o => !grp.includes(o.uid));
+          meta.gear.inv.push(made); n++;
+        }
+      }
+      if (n) { Sfx.buy(); notice = `⚒️ ${n} fusión${n > 1 ? 'es' : ''} hecha${n > 1 ? 's' : ''}`; }
+    }
+    saveMeta();
+    showGear();
+  }
+
   // ---------- Logros y estadísticas ----------
   const fmtLong = s => s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min` : `${Math.floor(s / 60)} min`;
   function showStats() {
@@ -3463,6 +3617,7 @@
   function goBack() {
     Sfx.click();
     if (state === 'shop' && shopFrom === 'school') { shopFrom = 'menu'; hideOverlay(); return newRun(); }
+    if (state === 'item') return showGear();
     if (state === 'settings') return settingsFrom === 'pause' ? showPause() : showMenu();
     if (state === 'credits') return creditsFrom === 'settings' ? showSettings() : showMenu();
     showMenu();
@@ -3690,6 +3845,10 @@
     if (better) store.set('best', cur);
     runEssence = calcEssence(win);
     meta.essence += runEssence;
+    if (Gear() && room >= 3) { // botín de equipo según hasta dónde llegaste
+      const n = 1 + Math.min(2, bossesKilled) + (win ? 1 : 0);
+      for (let i = 0; i < n; i++) { const it = addGear(Gear().rollDrop(room, Math.random)); if (it) runLoot.push(it); }
+    }
     meta.runs++;
     const S = meta.stats;
     S.essenceTotal += runEssence;
@@ -3711,6 +3870,8 @@
         <div class="sub">${SCHOOLS[player.school].icon} ${SCHOOLS[player.school].name} · ${sub}</div>
         <div class="earn">+✨ ${runEssence} de esencia <span>(tienes ${meta.essence})</span></div>
         <div class="earn-parts">${essenceParts(win).map(([k, v]) => `${k} +${v}`).join(' · ')}</div>
+        ${runLoot.length && Gear() ? `<div class="loot">${runLoot.map(it => { const d = Gear().describe(it); return `<span class="gtile" style="--rc:${d.color}" title="${d.name}"><span class="gi">${d.icon}</span></span>`; }).join('')}</div>
+        <div class="loot-txt">Botín nuevo en tu <b>Equipo</b>${meta.gear.inv.length >= GEAR_MAX ? ' · inventario lleno' : ''}</div>` : ''}
         <div class="stats">
           <div><span>Sala</span><b>${room}/${TOTAL_ROOMS}</b></div>
           <div><span>Nivel</span><b>${player.lvl}</b></div>
@@ -3755,6 +3916,10 @@
     else if (act === 'credits') { Sfx.click(); showCredits(state === 'settings' ? 'settings' : 'menu'); lockUntil = now + 350; }
     else if (act === 'toggle') { if (ready) toggleSetting(el.dataset.key); }
     else if (act === 'tset') { if (ready) toggleTile(el.dataset.key); }
+    else if (act === 'gear') { Sfx.click(); showGear(); lockUntil = now + 350; }
+    else if (act === 'item') { if (ready) { Sfx.click(); showItem(+el.dataset.uid); lockUntil = now + 300; } }
+    else if (act === 'gearback') { Sfx.click(); showGear(); lockUntil = now + 300; }
+    else if (['equip', 'unequip', 'merge', 'mergeall'].includes(act)) { if (ready) { gearAction(act, +el.dataset.uid); lockUntil = now + 350; } }
     else if (act === 'mute') { if (ready) { Sfx.init(); Sfx.setMuted(!Sfx.muted); syncMute(); Sfx.click(); showSettings(); } }
     else if (act === 'quality') { if (ready) { settings.quality = el.dataset.v; saveSettings(); applySettings(); Sfx.click(); showSettings(); } }
     else if (act === 'tutorial') { if (ready) { settings.tutorial = false; settings.ultTip = false; settings.seenHz = {}; saveSettings(); Sfx.click(); showSettings(); } }
@@ -3811,6 +3976,8 @@
       pick(i = 0) { const c = overlay.querySelectorAll('[data-act="pick"],[data-act="school"]:not(.locked),[data-act="altar"]')[i]; if (c) { lockUntil = 0; c.click(); } return state; },
       ult() { player.mana = 100; castUlt(); },
       seen() { return [...seenReactions]; },
+      gear() { return JSON.parse(JSON.stringify(meta.gear)); },
+      giveGear(base, r) { const it = Gear().makeItem(base, r, meta.gear.next++); meta.gear.inv.push(it); saveMeta(); return it; },
       hazards() { const n = {}; for (const t of hz) if (t) n[t] = (n[t] || 0) + 1; return n; },
       hzCells(t) { const out = []; for (let i = 0; i < hz.length; i++) if (hz[i] === t) out.push({ x: AX + (i % COLS) * CELL + 20, y: AY + ((i / COLS) | 0) * CELL + 20, i }); return out; },
       spike(i) { return spikePhase(i); },
