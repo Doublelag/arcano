@@ -183,7 +183,7 @@
   const ELEMENTS = ['fire', 'ice', 'bolt', 'poison'];
   const SCHOOLS = {
     fire:   { name: 'Piromante',    el: 'fire',   icon: '🔥', ultIcon: '☄️', ult: 'Meteoro',  desc: 'Tus hechizos queman', ultDesc: 'Un meteorito arrasa la zona con más enemigos' },
-    ice:    { name: 'Criomante',    el: 'ice',    icon: '❄️', ultIcon: '🌨️', ult: 'Ventisca', desc: 'Tus hechizos ralentizan', ultDesc: 'Congela a todos los enemigos y borra sus disparos' },
+    ice:    { name: 'Criomante',    el: 'ice',    icon: '❄️', ultIcon: '🌨️', ult: 'Ventisca', desc: 'Tus hechizos ralentizan', ultDesc: 'Congela a todos y borra sus disparos; al romperse, el hielo estalla' },
     bolt:   { name: 'Electromante', el: 'bolt',   icon: '⚡', ultIcon: '🌩️', ult: 'Tormenta', desc: 'Tus hechizos electrocutan y saltan', ultDesc: 'Ocho rayos caen sobre los enemigos' },
     poison: { name: 'Pestilente',   el: 'poison', icon: '☠️', ultIcon: '☣️', ult: 'Plaga', cost: 300, desc: 'Tus hechizos envenenan', ultDesc: 'Envenena a todos: los que mueran revientan y contagian' },
     arcane: { name: 'Arcanista',    el: null, grant: { front: 1 }, icon: '🔮', ultIcon: '🌌', ult: 'Singularidad', cost: 500, desc: 'Sin elemento, pero +1 proyectil', ultDesc: 'Un agujero negro atrae a los enemigos y estalla' },
@@ -720,10 +720,12 @@
       Sfx.whistle();
     } else if (player.school === 'ice') {
       for (const e of live) {
-        e.frozen = e.kind === 'boss' ? 1.2 : 2.5;
+        // los bloques no se rompen todos a la vez: el estallido va crujiendo en cascada
+        e.frozen = e.kind === 'boss' ? 1.8 : rand(2.8, 3.3);
+        e.shatter = true;
         unfade(e);
         e.slow = Math.max(e.slow, 3);
-        damageEnemy(e, player.atk * 4, false, EL.ice.color, true);
+        damageEnemy(e, player.atk * 5, false, EL.ice.color, true);
       }
       for (const b of bullets) sparks(b.x, b.y, EL.ice.color, 2);
       bullets = [];
@@ -1123,7 +1125,11 @@
       e.plague -= dt;
       if (Math.random() < dt * 18) parts.push({ x: e.x + rand(-e.r, e.r), y: e.y, vx: 0, vy: -40, life: 0.4, max: 0.4, color: EL.poison.color, size: 2 });
     }
-    if (e.frozen > 0) { e.frozen -= dt; return; } // congelado: ni se mueve ni ataca
+    if (e.frozen > 0) { // congelado: ni se mueve ni ataca
+      e.frozen -= dt;
+      if (e.frozen <= 0 && e.shatter) shatter(e);
+      return;
+    }
     if (e.kx || e.ky) { // empujón del impacto, se frena rápido
       e.x += e.kx * dt; e.y += e.ky * dt;
       const f = Math.pow(0.0004, dt);
@@ -1697,6 +1703,26 @@
     texts.push({ x, y, vx: rand(-25, 25), vy: -110, text: String(text), color, size, life: 0.8, max: 0.8 });
     if (texts.length > 80) texts.shift();
   }
+  // final de la Ventisca: el bloque de hielo revienta, daña al enemigo y salpica a los de al lado
+  let shatterSfxT = 0;
+  function shatter(e) {
+    e.shatter = false;
+    if (e.dead || !player) return;
+    const atk = player.atk;
+    rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 46, t: 0.3, max: 0.3, color: '#dff8ff', w: 4 });
+    for (let i = 0; i < 10; i++) {
+      const a = rand(0, TAU), v = rand(120, 260);
+      parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, life: rand(0.35, 0.6), max: 0.6, color: i % 2 ? '#bff4ff' : '#ffffff', size: rand(2.5, 4.5) });
+    }
+    for (const o of enemies) {
+      if (o === e || o.dead || o.spawnT > 0) continue;
+      if (Math.hypot(o.x - e.x, o.y - e.y) < 70 + o.r) damageEnemy(o, atk, false, '#bff4ff', true);
+    }
+    damageEnemy(e, atk * 4, false, '#bff4ff');
+    shake = Math.max(shake, 5);
+    if (clock - shatterSfxT > 0.08) { shatterSfxT = clock; Sfx.freeze(); }
+  }
+
   function sparks(x, y, color, n) {
     for (let i = 0; i < n; i++) {
       const a = rand(0, TAU), s = rand(40, 160);
@@ -2855,7 +2881,8 @@
     ctx.globalAlpha = 1;
     if (spawning) return;
     if (e.frozen > 0) { // bloque de hielo
-      ctx.fillStyle = 'rgba(170,235,255,.45)'; rrect(e.x - e.r - 5, e.y - e.r - 5 - fly, e.r * 2 + 10, e.r * 2 + 10, 6); ctx.fill();
+      const crack = e.shatter && e.frozen < 0.5 && Math.sin(clock * 50) > 0;
+      ctx.fillStyle = crack ? 'rgba(235,252,255,.75)' : 'rgba(170,235,255,.45)'; rrect(e.x - e.r - 5, e.y - e.r - 5 - fly, e.r * 2 + 10, e.r * 2 + 10, 6); ctx.fill();
       ctx.strokeStyle = '#e6fbff'; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(e.x - e.r, e.y - e.r - fly, 4, e.r);
     } else if (e.slow > 0) { ctx.strokeStyle = 'rgba(143,233,255,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y - fly, e.r + 3, 0, TAU); ctx.stroke(); }
