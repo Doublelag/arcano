@@ -799,6 +799,12 @@ a.btn { text-decoration: none; text-align: center; }
 .card.seal { border-color: transparent; background: linear-gradient(#2e2548, #211a36) padding-box, linear-gradient(90deg, var(--c), var(--c2)) border-box; }
 .card .combo.close { color: #ff9a9a; }
 .card .combo.mix { color: #8dffb0; }
+/* fase 2: cartas de forma (borde del color de la forma) y Mezclas activas en la pausa */
+.card.formcard { border-color: var(--c); }
+.card.formcard .ic { background: radial-gradient(circle, var(--c) -80%, rgba(0, 0, 0, .3) 70%); }
+.card .combo.fm { color: var(--c); }
+.mixline { margin-top: calc(var(--u) * 6px); color: #8dffb0; font-weight: 700; font-size: max(11px, calc(var(--u) * 15px)); }
+.mixline b { color: var(--c); font-weight: 800; }
 .title.long { font-size: calc(var(--u) * 36px); }
 .btn.later { margin-top: calc(var(--u) * 12px); padding: calc(var(--u) * 10px) calc(var(--u) * 26px); font-size: calc(var(--u) * 18px); }
 

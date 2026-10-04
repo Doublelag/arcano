@@ -51,9 +51,9 @@
 
   // Despertar (forms.js): si no carga, Forms() no existe y el juego queda como siempre (sin tope de elementos,
   // sin Ánima y con el dibujo de siempre). flags.noForms (depuración) hace lo mismo para comparar.
-  // flags.phase2: cartas de forma y Mezclas (fase 2), apagadas por ahora
+  // flags.phase2: definitivos combinados, cartas de forma y Mezclas (fase 2)
   const Forms = () => window.ArcanoForms;
-  const flags = { noForms: false, phase2: false, freeze: false }; // freeze (pruebas): el bucle no avanza, solo step()
+  const flags = { noForms: false, phase2: true, freeze: false }; // freeze (pruebas): el bucle no avanza, solo step()
   const FX = () => (!flags.noForms && Forms()) || null;
 
   // ================================================================
@@ -392,6 +392,8 @@
   // Despertar: cinemática, esquirlas de Eclipse, espera de la oferta, música retenida, cola de avisos, charcos...
   let awakenFx = null, eclipseFx = null, awakenWait = 0, musicHoldT = 0, toastQ = [], bannerNext = null, flashNext = null;
   let pools = [], amb = [], ash = [], pactRun = false, roomReactA = 0, ambT = 0, fxDepth = 0, netLog = [];
+  let curtains = [], fog = null; // definitivos combinados: columnas de Cortina boreal y niebla de Invierno negro
+  const seenMixes = new Set();   // Mezclas ya anunciadas en esta partida
   let runGrim0 = null; // páginas del Grimorio al empezar la partida (para "Nueva página" en el final)
 
   const dmgMul = () => 1 + 0.07 * (room - 1);
@@ -770,7 +772,7 @@
       god: false,  // solo depuración: inmune a todo, también a las trampas
       // Despertar: forma, núcleo y 2º elemento, Afinidad (máx. 2 elementos), despertares y Ánima
       form: 'aprendiz', core: null, second: null, aff: [], awak: 0, anima: 0, animaReady: false, awkLock: false,
-      snoozeRoom: -1, fusedLv: 0, lev: 0, shroudT: 0, mixes: [],
+      snoozeRoom: -1, fusedLv: 0, lev: 0, shroudT: 0, mixes: [], mixM: {}, haloT: 2, ringT: 0, // mixM: id → multiplicador (1 o 1,25)
       sty: null, styEcho: null, shotEls: [], shotCol: EL.arcane.color, shotCol2: null, // estilo del disparo (refreshStyle)
     };
   }
@@ -818,11 +820,19 @@
   // ================================================================
   //  Despertar: Afinidad, Ánima, despertares y rasgos de forma (datos y dibujo en forms.js)
   // ================================================================
-  // definitivo: el de la escuela hasta despertar; después, el del núcleo con el color de la forma
-  const ultKey = () => (player.awak >= 1 && player.core && FX() ? player.core : player.school);
+  // definitivo: el de la escuela hasta despertar; después, el del núcleo con el color de la forma;
+  // en la forma combinada (fase 2), el suyo: sun, curtain, fog, sulfur o void (claves de ULT en forms.js)
+  const ultKey = () => {
+    const p = player, F = FX();
+    if (!F || !p.awak || !p.core) return p.school;
+    return p.awak >= 2 && flags.phase2 && F.FORMS[p.form].ult ? F.FORMS[p.form].ult.key : p.core;
+  };
   const ultColor = () => (player.awak && FX() ? Forms().FORMS[player.form].color : EL[player.school].color);
-  const ultIcon = () => SCHOOLS[ultKey()].ultIcon;
-  const ultName = () => SCHOOLS[ultKey()].ult;
+  const ultIcon = () => { const k = ultKey(); return SCHOOLS[k] ? SCHOOLS[k].ultIcon : Forms().ULT[k].icon; };
+  const ultName = () => { const k = ultKey(); return SCHOOLS[k] ? SCHOOLS[k].ult : Forms().ULT[k].name; };
+  // Mezclas activas: 0 si no está; si está, su multiplicador (1,25 si tu forma tiene su elemento); MIXP = datos y números
+  const MIXP = Forms() ? Object.fromEntries(Forms().MIXES.map(m => [m.id, m])) : {};
+  const mixOn = id => (player && player.mixM[id]) || 0;
   // Linaje: tu forma contiene el elemento de tu escuela (el Arcanista nunca lo tiene) → definitivo ×1,2
   const linaje = () => { const p = player, el = SCHOOLS[p.school].el; return !!el && p.awak > 0 && !!FX() && (p.core === el || p.second === el); };
   const uAtk = () => player.atk * (linaje() ? 1.2 : 1);
@@ -958,6 +968,7 @@
     const main = { text: D.short, sub: D.line, color: D.color, t: 2.6, max: 2.6 };
     if (player.form === 'eclipse' && f.first) { banner = { text: 'LA FORMA PROHIBIDA', sub: '', color: '#c77dff', t: 1.2, max: 1.2 }; bannerNext = main; }
     else banner = main;
+    if (f.st === 2 && flags.phase2 && D.ult) pushToast({ text: `NUEVO DEFINITIVO: ${D.ult.name.toUpperCase()}`, sub: D.ult.desc, color: D.color, t: 2.8, max: 2.8 }); // lo que cambia al jugar, primero
     if (f.first) pushToast({ text: '¡NUEVA FORMA!', sub: `Grimorio ${F.count(meta.grim.f)}/10`, color: D.color, t: 2.6, max: 2.6 });
   }
   // Grimorio: forma descubierta (f), despertada pronto (e), veces (n), ritmo (k) y logros
@@ -987,11 +998,31 @@
     p.sty = F ? F.shotStyle(p.form, s, false, cols, p.mixes) : null;
     p.styEcho = F ? F.shotStyle(p.form, s, true, cols, p.mixes) : null;
   }
-  // Mezclas activas (fase 2): solo las de tus 2 elementos
+  // Mezclas activas (fase 2): solo las de tus 2 elementos. Se activan solas (runa + carta) y se anuncian una vez por partida
   function refreshMixes() {
     const p = player, F = FX();
     p.mixes = F && flags.phase2 ? F.activeMixes(p.sk).filter(m => p.aff.length < 2 || p.aff.includes(m.el)) : [];
+    p.mixM = {};
+    for (const m of p.mixes) {
+      p.mixM[m.id] = F.mixMul(m, p.core, p.second); // ×1,25 si tu forma contiene su elemento
+      if (!seenMixes.has(m.id)) { seenMixes.add(m.id); announceMix(m); }
+    }
     refreshStyle();
+  }
+  // MEZCLA: texto flotante en su color, aviso con la receta y sonido; si es nueva, página del Grimorio
+  function announceMix(m) {
+    const p = player, F = Forms(), g = meta.grim, b = F.bit(m.id), fresh = !(g.m & b);
+    addText(p.x, p.y - 56, 'MEZCLA: ' + m.name.toUpperCase(), m.color, 1.05);
+    rings.push({ x: p.x, y: p.y - 4, r0: 12, r1: 70, t: 0.4, max: 0.4, color: m.color, w: 4 });
+    sparks(p.x, p.y - 4, m.color, 10);
+    pushToast({ text: 'MEZCLA: ' + m.name.toUpperCase(), sub: `${m.recipe} · ${m.tip}`, color: m.color, t: 2.8, max: 2.8 });
+    if (!settings.tips.mix) { settings.tips.mix = 1; saveSettings(); pushToast({ text: 'MEZCLAS SECRETAS', sub: 'Una runa y una carta concretas se combinan solas', color: '#8dffb0', t: 3, max: 3 }); }
+    Sfx.mix();
+    if (fresh) {
+      g.m |= b;
+      if (F.count(g.m) >= F.MIXES.length) unlock('mixes8');
+      saveMeta();
+    }
   }
 
   // cada frame: charcos, Sudario y partículas de ambiente de la forma (las fichas se recargan en update)
@@ -1004,6 +1035,9 @@
     }
     const sh = p.tr.shroud;
     if (sh && (p.shroudT -= dt) <= 0) { p.shroudT = 0.5; shroudTick(sh); }
+    const no = p.sk.orbs || 0;
+    if (no && mixOn('halo') && (p.haloT -= dt) <= 0) { p.haloT = MIXP.halo.p.every; if (!cleared) haloTick(no); } // sin enemigos, sin anillos
+    if (no && mixOn('anillo') && (p.ringT -= dt) <= 0) { p.ringT = MIXP.anillo.p.every; ringTick(no); }
     const A = F.FORMS[p.form].ambient;
     if (A && !awakenFx && (ambT -= dt) <= 0) {
       ambT = A.every * (lowQ() ? 2.5 : 1);
@@ -1024,6 +1058,47 @@
       if (o.k > 0) damageEnemy(e, atk * o.k, false, o.sulfur ? '#d6ff3a' : '#8dff6a', true);
       if (!e.dead) applyElements(e, els);
     }
+  }
+  // posición del orbe guardián i de n (giran a 72 px del mago)
+  const ORB_R = 72;
+  const orbX = (i, n) => player.x + Math.cos(player.orbA + i * TAU / n) * ORB_R;
+  const orbY = (i, n) => player.y + Math.sin(player.orbA + i * TAU / n) * ORB_R;
+  // Halo solar: cada orbe lanza un anillo de fuego (r70·m, 0,6×atk·m)
+  function haloTick(n) {
+    const m = mixOn('halo'), P = MIXP.halo.p, r = P.r * m, d = player.atk * P.k * m;
+    for (let i = 0; i < n; i++) {
+      const x = orbX(i, n), y = orbY(i, n);
+      rings.push({ x, y, r0: 10, r1: r, t: 0.35, max: 0.35, color: '#ffb347', w: 4 });
+      for (const e of enemies) {
+        if (e.dead || e.spawnT > 0 || (e.x - x) ** 2 + (e.y - y) ** 2 > (r + e.r) ** 2) continue;
+        damageEnemy(e, d, false, '#ffb347', true);
+      }
+    }
+    if (Sfx.gate('halo', 200)) Sfx.tone(330, 0.25, 'triangle', 0.05, 1.6);
+  }
+  // Anillo voltaico: arcos entre orbes consecutivos (o orbe↔mago si solo hay uno); daña y electrocuta lo que toca
+  function orbSegs(n) {
+    const p = player;
+    if (n === 1) return [[orbX(0, 1), orbY(0, 1), p.x, p.y - 4]];
+    const out = [];
+    for (let i = 0; i < (n === 2 ? 1 : n); i++) out.push([orbX(i, n), orbY(i, n), orbX((i + 1) % n, n), orbY((i + 1) % n, n)]);
+    return out;
+  }
+  function ringTick(n) {
+    const m = mixOn('anillo'), P = MIXP.anillo.p, d = player.atk * P.k * m;
+    let hit = false;
+    for (const [x1, y1, x2, y2] of orbSegs(n)) {
+      const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy || 1;
+      for (const e of enemies) {
+        if (e.dead || e.spawnT > 0) continue;
+        const u = clamp(((e.x - x1) * dx + (e.y - y1) * dy) / L2, 0, 1), qx = x1 + dx * u - e.x, qy = y1 + dy * u - e.y;
+        if (qx * qx + qy * qy > (e.r + P.pad) ** 2) continue;
+        damageEnemy(e, d, false, '#ffe45c', true);
+        if (!e.dead) e.shock = Math.max(e.shock, P.shock);
+        hit = true;
+      }
+    }
+    if (hit) Sfx.zap();
   }
   // Sudario de Mortaja: ralentiza y envenena (con el tope de siempre) a los que están cerca
   function shroudTick(sh) {
@@ -1159,6 +1234,37 @@
       const best = densest(live);
       sing = { x: best.x, y: best.y, t: 2, max: 2, tick: 0 };
       Sfx.whistle();
+    } else if (k === 'sun') {
+      // SOL CAUTIVO (Plasma): esfera sobre el grupo más denso; 8 rayos (uno cada 0,15 s) y al final estalla
+      const best = densest(live);
+      sing = { kind: 'sun', x: best.x, y: best.y, t: 1.2, max: 1.2, tick: 0.05, n: 8 };
+      screenFlash = { color: '255,90,209', t: 0.25, max: 0.25 };
+      Sfx.tone(392, 0.9, 'sine', 0.06, 2); Sfx.tone(587, 0.9, 'triangle', 0.04, 2);
+    } else if (k === 'curtain') {
+      // CORTINA BOREAL (Aurora): 5 columnas de luz polar, una cada 0,2 s, desde tu lado de la sala
+      const w = AW / 5, dir = player.x < AX + AW / 2 ? 1 : -1;
+      curtains = [];
+      for (let j = 0; j < 5; j++) { const i = dir > 0 ? j : 4 - j; curtains.push({ x: AX + i * w, w, d: j * 0.2, t: 0.35, max: 0.35, seed: rand(0, 99), on: false, hit: new Set() }); }
+      screenFlash = { color: '106,255,200', t: 0.2, max: 0.2 };
+    } else if (k === 'fog') {
+      // INVIERNO NEGRO (Mortaja): niebla 4 s en toda la sala; al acabar, NECROSIS sobre todos
+      fog = { t: 4, max: 4, tick: 0, atk };
+      for (const b of bullets) sparks(b.x, b.y, '#5fffd0', 1);
+      screenFlash = { color: '30,60,55', t: 0.5, max: 0.5 };
+      Sfx.plague();
+    } else if (k === 'sulfur') {
+      // LLUVIA DE AZUFRE (Azufre): 6 bolas sobre los más densos (repiten objetivo si hay pocos), una cada 0,12 s con aviso de 0,5 s
+      const dens = live.map(e => ({ e, c: live.filter(o => dist(o, e) < 130).length + (e.kind === 'boss' ? 3 : 0) })).sort((a, b) => b.c - a.c);
+      for (let i = 0; i < 6; i++) {
+        const e = dens[i % dens.length].e, j = i < dens.length ? 0 : 22;
+        meteors.push({ x: e.x + rand(-j, j), y: e.y + rand(-j, j), d: i * 0.12, t: 0.5, max: 0.5, r: 85, dmg: 3.5, col: '#d6ff3a', pool: true });
+      }
+      Sfx.whistle();
+    } else if (k === 'void') {
+      // SOL NEGRO (Eclipse): 2,5 s en el centro de la sala; lo atrae todo, oscurece la pantalla y tus disparos hacen +50%
+      sing = { kind: 'void', x: AX + AW / 2, y: AY + AH / 2, t: 2.5, max: 2.5, tick: 0.25 };
+      screenFlash = { color: '10,0,20', t: 0.35, max: 0.35 };
+      Sfx.tone(55, 2.5, 'sine', 0.15); Sfx.tone(110, 1.2, 'triangle', 0.05, 0.5);
     } else {
       storm = { n: 8, t: 0 };
       for (const b of bullets) if (dist(b, player) < 170) { b.dead = true; sparks(b.x, b.y, EL.bolt.color, 2); }
@@ -1169,65 +1275,172 @@
 
   function updateUlts(dt) {
     for (const m of meteors) {
+      if (m.d > 0) { m.d -= dt; continue; } // Lluvia de azufre: caen escalonadas
       m.t -= dt;
-      if (m.t <= 0) {
-        m.done = true;
-        explode(m.x, m.y, m.r, uAtk() * 12, EL.fire.color);
-        for (const e of enemies) if (!e.dead && dist(e, m) < m.r + e.r) { e.burn = 3; e.burnDps = Math.max(e.burnDps, uAtk() * 0.6); }
-        for (const b of bullets) if (dist(b, m) < m.r) b.dead = true;
-        bullets = bullets.filter(b => !b.dead);
-        burst(m.x, m.y, '#ffd27a', 40, 340);
-        shake = Math.max(shake, 16);
-        screenFlash = { color: '255,150,60', t: 0.3, max: 0.3 };
-        Sfx.boom();
+      if (m.t > 0) continue;
+      m.done = true;
+      explode(m.x, m.y, m.r, uAtk() * (m.dmg || 12), m.col || EL.fire.color);
+      if (m.pool) { // bola de azufre: fuego y veneno a los alcanzados y charco de azufre de 3 s
+        for (const e of enemies) if (!e.dead && e.spawnT <= 0 && dist(e, m) < m.r + e.r) applyElements(e, ['fire', 'poison']);
+        const pd = player.tr.puddle && player.tr.puddle.sulfur ? player.tr.puddle : { r: 50, t: 3, k: 0.3, max: 6, sulfur: true };
+        pools.push(Forms().newPool(m.x, m.y, pd));
+        if (pools.length > pd.max) pools.shift();
+        burst(m.x, m.y, '#ffb000', 16, 260);
+        shake = Math.max(shake, 9);
+        Sfx.blast();
+        continue;
       }
+      for (const e of enemies) if (!e.dead && dist(e, m) < m.r + e.r) { e.burn = 3; e.burnDps = Math.max(e.burnDps, uAtk() * 0.6); }
+      for (const b of bullets) if (dist(b, m) < m.r) b.dead = true;
+      bullets = bullets.filter(b => !b.dead);
+      burst(m.x, m.y, '#ffd27a', 40, 340);
+      shake = Math.max(shake, 16);
+      screenFlash = { color: '255,150,60', t: 0.3, max: 0.3 };
+      Sfx.boom();
     }
     meteors = meteors.filter(m => !m.done);
     if (sing) {
-      // Singularidad: atrae a los enemigos, los daña poco a poco y al final estalla
-      sing.t -= dt; sing.tick -= dt;
-      for (const e of enemies) {
-        if (e.dead || e.spawnT > 0 || e.kind === 'totem') continue;
-        const d = dist(e, sing);
-        if (d < 270 && d > 3) {
-          const pull = Math.min(d, (e.kind === 'boss' ? 45 : 175) * dt);
-          e.x += (sing.x - e.x) / d * pull; e.y += (sing.y - e.y) / d * pull;
-        }
-      }
-      if (sing.tick <= 0) {
-        sing.tick = 0.25;
-        for (const e of enemies) if (!e.dead && e.spawnT <= 0 && dist(e, sing) < 110 + e.r) damageEnemy(e, uAtk() * 0.45, false, EL.arcane.color, true);
-      }
-      for (const b of bullets) if (dist(b, sing) < 220) { b.dead = true; sparks(b.x, b.y, EL.arcane.color, 2); }
-      bullets = bullets.filter(b => !b.dead);
-      if (Math.random() < dt * 40) {
-        const a = rand(0, TAU), r = rand(80, 150);
-        parts.push({ x: sing.x + Math.cos(a) * r, y: sing.y + Math.sin(a) * r, vx: -Math.cos(a) * r * 2.2 - Math.sin(a) * 120, vy: -Math.sin(a) * r * 2.2 + Math.cos(a) * 120, life: 0.4, max: 0.4, color: EL.arcane.color, size: rand(1.5, 3) });
-      }
-      if (sing.t <= 0) {
-        explode(sing.x, sing.y, 150, uAtk() * 4.5, EL.arcane.color);
-        burst(sing.x, sing.y, '#ffffff', 30, 300);
-        shake = Math.max(shake, 14);
-        screenFlash = { color: '200,140,255', t: 0.35, max: 0.35 };
-        Sfx.boom();
-        sing = null;
-      }
+      if (sing.kind === 'sun') updateSun(dt);
+      else updateHole(dt);
     }
+    if (curtains.length) updateCurtains(dt);
+    if (fog) updateFog(dt);
     if (storm) {
       storm.t -= dt;
       if (storm.t <= 0) {
         const live = liveEnemies();
-        if (!live.length || storm.n <= 0) { storm = null; return; }
-        const e = pick(live);
-        bolts.push({ x1: e.x + rand(-40, 40), y1: AY - 30, x2: e.x, y2: e.y, life: 0.25, sky: true });
-        rings.push({ x: e.x, y: e.y, r0: 6, r1: 50, t: 0.25, max: 0.25, color: EL.bolt.color, w: 4 });
-        damageEnemy(e, uAtk() * 3.2, false, EL.bolt.color);
-        if (!e.dead) e.shock = 2;
-        Sfx.zap();
-        shake = Math.max(shake, 4);
-        storm.n--; storm.t = 0.14;
+        if (!live.length || storm.n <= 0) storm = null;
+        else {
+          const e = pick(live);
+          bolts.push({ x1: e.x + rand(-40, 40), y1: AY - 30, x2: e.x, y2: e.y, life: 0.25, sky: true });
+          rings.push({ x: e.x, y: e.y, r0: 6, r1: 50, t: 0.25, max: 0.25, color: EL.bolt.color, w: 4 });
+          damageEnemy(e, uAtk() * 3.2, false, EL.bolt.color);
+          if (!e.dead) e.shock = 2;
+          Sfx.zap();
+          shake = Math.max(shake, 4);
+          storm.n--; storm.t = 0.14;
+        }
       }
     }
+  }
+  // Singularidad (Arcanista) y Sol negro (Eclipse): atraen, dañan poco a poco y al final estallan
+  function updateHole(dt) {
+    const v = sing.kind === 'void', R = v ? 400 : 270, col = v ? '#c77dff' : EL.arcane.color;
+    sing.t -= dt; sing.tick -= dt;
+    for (const e of enemies) {
+      if (e.dead || e.spawnT > 0 || e.kind === 'totem') continue;
+      const d = dist(e, sing);
+      if (d < R && d > 3) {
+        const pull = Math.min(d, (e.kind === 'boss' ? 45 : 175) * dt);
+        e.x += (sing.x - e.x) / d * pull; e.y += (sing.y - e.y) / d * pull;
+      }
+    }
+    if (sing.tick <= 0) {
+      sing.tick = 0.25;
+      const rr = v ? 130 : 110, k = v ? 0.5 : 0.45;
+      for (const e of enemies) if (!e.dead && e.spawnT <= 0 && dist(e, sing) < rr + e.r) damageEnemy(e, uAtk() * k, false, col, true);
+      if (v) rings.push({ x: sing.x, y: sing.y, r0: 130, r1: 30, t: 0.25, max: 0.25, color: '#7a3dff', w: 3 });
+    }
+    const br = v ? 130 : 220; // el Sol negro se traga las balas de su zona de daño
+    for (const b of bullets) if (dist(b, sing) < br) { b.dead = true; sparks(b.x, b.y, col, 2); }
+    bullets = bullets.filter(b => !b.dead);
+    if (Math.random() < dt * (v ? (lowQ() ? 25 : 60) : 40)) { // polvo que cae en espiral
+      const a = rand(0, TAU), r = rand(80, v ? 220 : 150);
+      parts.push({ x: sing.x + Math.cos(a) * r, y: sing.y + Math.sin(a) * r, vx: -Math.cos(a) * r * 2.2 - Math.sin(a) * 120, vy: -Math.sin(a) * r * 2.2 + Math.cos(a) * 120, life: 0.4, max: 0.4, color: v && Math.random() < 0.4 ? '#e8d5ff' : col, size: rand(1.5, 3) });
+    }
+    if (sing.t > 0) return;
+    if (v) {
+      explode(sing.x, sing.y, 220, uAtk() * 12, '#c77dff');
+      rings.push({ x: sing.x, y: sing.y, r0: 20, r1: 260, t: 0.5, max: 0.5, color: '#e8d5ff', w: 6 });
+      burst(sing.x, sing.y, '#e8d5ff', 40, 380);
+      burst(sing.x, sing.y, '#7a3dff', 30, 300);
+      shake = Math.max(shake, 18);
+      screenFlash = { color: '232,213,255', t: 0.45, max: 0.45 };
+    } else {
+      explode(sing.x, sing.y, 150, uAtk() * 4.5, EL.arcane.color);
+      burst(sing.x, sing.y, '#ffffff', 30, 300);
+      shake = Math.max(shake, 14);
+      screenFlash = { color: '200,140,255', t: 0.35, max: 0.35 };
+    }
+    Sfx.boom();
+    sing = null;
+  }
+  // Sol cautivo: la esfera flota sobre el grupo y baja al final; cada 0,15 s un rayo (2,2×) a un enemigo a 260 px o menos
+  const sunLift = () => 46 * clamp(sing.t / 0.25, 0, 1);
+  function updateSun(dt) {
+    sing.t -= dt; sing.tick -= dt;
+    if (sing.tick <= 0 && sing.n > 0) {
+      sing.tick = 0.15; sing.n--;
+      const sy = sing.y - sunLift(), near = enemies.filter(e => !e.dead && e.spawnT <= 0 && (e.x - sing.x) ** 2 + (e.y - sy) ** 2 < (260 + e.r) ** 2);
+      if (near.length) {
+        const e = pick(near);
+        bolts.push({ x1: sing.x, y1: sy, x2: e.x, y2: e.y, life: 0.2, layers: Forms().BOLT_LAYERS.plasma });
+        rings.push({ x: e.x, y: e.y, r0: 6, r1: 40, t: 0.2, max: 0.2, color: '#ff5ad1', w: 3 });
+        damageEnemy(e, uAtk() * 2.2, false, '#ff5ad1');
+        if (!e.dead) { e.shock = 2; applyElements(e, ['fire']); }
+        shake = Math.max(shake, 3);
+        Sfx.zap();
+      }
+    }
+    if (Math.random() < dt * (lowQ() ? 10 : 30)) { // chispas que saltan de la esfera
+      const a = rand(0, TAU), s = rand(60, 160);
+      parts.push({ x: sing.x, y: sing.y - sunLift(), vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.3, max: 0.3, color: Math.random() < 0.5 ? '#ffb347' : '#ff5ad1', size: rand(1.5, 3) });
+    }
+    if (sing.t > 0) return;
+    const R = 160;
+    explode(sing.x, sing.y, R, uAtk() * 9, '#ff5ad1');
+    for (const e of enemies) if (!e.dead && dist(e, sing) < R + e.r) { e.burn = 3; e.burnDps = Math.max(e.burnDps, uAtk() * 0.6); }
+    for (const b of bullets) if (dist(b, sing) < R) { b.dead = true; sparks(b.x, b.y, '#ffb347', 2); }
+    bullets = bullets.filter(b => !b.dead);
+    rings.push({ x: sing.x, y: sing.y, r0: 20, r1: R + 30, t: 0.4, max: 0.4, color: '#ffb347', w: 6 });
+    burst(sing.x, sing.y, '#fff0ff', 30, 360);
+    burst(sing.x, sing.y, '#ff5ad1', 30, 300);
+    shake = Math.max(shake, 16);
+    screenFlash = { color: '255,120,220', t: 0.35, max: 0.35 };
+    Sfx.boom();
+    sing = null;
+  }
+  // Cortina boreal: cada columna se enciende tras su espera y, mientras brilla (0,35 s), golpea una vez a cada enemigo
+  // que esté o entre en ella (4,5× y congela) y borra las balas
+  function updateCurtains(dt) {
+    for (const c of curtains) {
+      if (!c.on) {
+        if ((c.d -= dt) > 0) continue;
+        c.on = true;
+        for (let i = 0; i < (lowQ() ? 6 : 16); i++) parts.push({ x: c.x + rand(0, c.w), y: rand(AY, AY + AH), vx: rand(-15, 15), vy: rand(-120, -40), life: rand(0.3, 0.6), max: 0.6, color: i % 3 ? '#6affc8' : '#b07cff', size: rand(1.5, 3.5) });
+        shake = Math.max(shake, 5);
+        Sfx.freeze();
+      }
+      c.t -= dt;
+      for (const e of enemies) {
+        if (e.dead || e.spawnT > 0 || e.x < c.x || e.x >= c.x + c.w || c.hit.has(e)) continue;
+        c.hit.add(e);
+        damageEnemy(e, uAtk() * 4.5, false, '#6affc8');
+        if (!e.dead) freezeEnemy(e, 2, 0.8, true);
+      }
+      for (const b of bullets) if (b.x >= c.x && b.x < c.x + c.w) { b.dead = true; sparks(b.x, b.y, '#bff4ff', 2); }
+    }
+    bullets = bullets.filter(b => !b.dead);
+    curtains = curtains.filter(c => c.t > 0);
+  }
+  // Invierno negro: renueva la lentitud (sin bajar del frío normal) y el veneno (1×atk) de todos; al acabar, NECROSIS en todos
+  function updateFog(dt) {
+    fog.t -= dt;
+    if ((fog.tick -= dt) <= 0) {
+      fog.tick = 0.25;
+      for (const e of enemies) {
+        if (e.dead || e.spawnT > 0) continue;
+        e.slow = Math.max(e.slow, 0.6);
+        e.poisonDps = Math.max(e.poisonDps, fog.atk);
+      }
+    }
+    if (fog.t > 0) return;
+    const a = fog.atk;
+    fog = null;
+    for (const e of liveEnemies()) if (!e.dead && e.poisonDps > 0) necrosis(e, a);
+    screenFlash = { color: '95,255,208', t: 0.35, max: 0.35 };
+    shake = Math.max(shake, 10);
+    Sfx.freeze(); Sfx.tone(1100, 0.3, 'sine', 0.07, 0.5);
   }
 
   function recalc() {
@@ -1336,14 +1549,16 @@
   }
 
   // elementos y colores salen de refreshStyle (no se recalculan por disparo); sty = silueta de la forma (forms.js)
+  // Aguijón (Mezcla): las diagonales son agujas más rápidas, que atraviesan uno más y envenenan doble. Sol negro: +50% de daño
   function spawnShot(x, y, a, dmg, sty, kind) {
-    const s = player.sk;
+    const s = player.sk, nd = kind === 'diag' && !!mixOn('aguijon'), sp = SHOT_SPEED * (nd ? MIXP.aguijon.p.spd : 1);
+    if (sing && sing.kind === 'void') dmg *= 1.5;
     shots.push({
       x: x + Math.cos(a) * 18, y: y + Math.sin(a) * 18,
-      vx: Math.cos(a) * SHOT_SPEED, vy: Math.sin(a) * SHOT_SPEED,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       dmg, life: 1.6, hit: new Set(),
-      pierce: (s.pierce || 0) + (player.tr.pierce || 0), rico: (s.ricochet || 0) * 2, wall: (s.wall || 0) * 2,
-      els: player.shotEls, col: player.shotCol, col2: player.shotCol2, sty: sty || null, kind: kind || null, nofx: false, split: false,
+      pierce: (s.pierce || 0) + (player.tr.pierce || 0) + (nd ? MIXP.aguijon.p.pierce : 0), rico: (s.ricochet || 0) * 2, wall: (s.wall || 0) * 2,
+      els: player.shotEls, col: player.shotCol, col2: player.shotCol2, sty: sty || null, kind: kind || null, nofx: false, split: false, needle: nd,
     });
   }
 
@@ -1416,19 +1631,20 @@
       }
     }
 
-    // orbes guardianes
+    // orbes guardianes (Halo solar: además queman al contacto)
     const n = p.sk.orbs || 0;
     if (n) {
       p.orbA += dt * 3.4;
+      const halo = mixOn('halo');
       for (let i = 0; i < n; i++) {
-        const a = p.orbA + i * TAU / n;
-        const ox = p.x + Math.cos(a) * 72, oy = p.y + Math.sin(a) * 72;
+        const ox = orbX(i, n), oy = orbY(i, n);
         for (const e of enemies) {
           if (e.dead || e.spawnT > 0 || e.orbCd > 0) continue;
           if ((e.x - ox) ** 2 + (e.y - oy) ** 2 < (e.r + 11) ** 2) {
             e.orbCd = 0.4;
-            sparks(ox, oy, '#d9d2ff', 4);
-            damageEnemy(e, p.atk * 0.8, false, '#d9d2ff', true);
+            sparks(ox, oy, halo ? '#ffb347' : '#d9d2ff', 4);
+            damageEnemy(e, p.atk * 0.8, false, halo ? '#ffb347' : '#d9d2ff', true);
+            if (halo && !e.dead) applyElements(e, ['fire']);
           }
         }
       }
@@ -1922,14 +2138,14 @@
     if (detonated && !e.dead) killEnemy(e); // selfBlast: no cuenta como baja tuya
   }
 
-  function chainLightning(src, dmg, n = 2, r = 200) {
+  function chainLightning(src, dmg, n = 2, r = 200, lay = null) {
     const near = enemies
       .filter(o => o !== src && !o.dead && o.spawnT <= 0)
       .map(o => ({ o, d: dist(o, src) }))
       .filter(x => x.d < r)
       .sort((a, b) => a.d - b.d)
       .slice(0, n);
-    const F = FX(), layers = F ? F.BOLT_LAYERS[player.form] || null : null; // Plasma, Aurora y Eclipse tiñen sus rayos
+    const F = FX(), layers = lay || (F ? F.BOLT_LAYERS[player.form] || null : null); // Plasma, Aurora y Eclipse tiñen sus rayos (Chispazo: los del cielo)
     for (const { o } of near) {
       bolts.push({ x1: src.x, y1: src.y, x2: o.x, y2: o.y, life: 0.18, layers });
       damageEnemy(o, dmg, false, '#9fe8ff', true);
@@ -2008,22 +2224,26 @@
       e.burn = 0; e.burnDps = 0;
       explode(e.x, e.y, tr.combR || 85, atk * (tr.combK || 1.5), r.color, atk * 0.15 * Math.max(1, player.sk.poison || 1));
     } else if (r.id === 'necro') {
-      // NECROSIS (hielo + veneno): el veneno acumulado revienta de golpe (con tope) y la mitad salta a los de al lado
-      const pd = e.poisonDps, half = pd * 0.5, spread = tr.necroSpread || 70;
-      e.poisonDps = 0;
-      rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 40, t: 0.3, max: 0.3, color: r.color, w: 4 });
-      for (let i = 0; i < 10; i++) {
-        const a = rand(0, TAU), v = rand(60, 180);
-        parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.3, 0.55), max: 0.55, color: '#eafffa', size: rand(2, 3.5) });
-      }
+      necrosis(e, atk);
       Sfx.tone(1100, 0.25, 'sine', 0.06, 0.5);
-      if (half > 0) for (const o of enemies) {
-        if (o === e || o.dead || o.spawnT > 0) continue;
-        if (Math.hypot(o.x - e.x, o.y - e.y) < spread + o.r) o.poisonDps = Math.max(o.poisonDps, half);
-      }
-      damageEnemy(e, clamp(pd * (tr.necroK || 3), 1.5 * atk, (tr.necroCap || 4) * atk), true, r.color);
     }
     if (tr.implode && takeTok('implode')) implode(e, tr.implode); // Eclipse: Aniquilación
+  }
+  // NECROSIS (hielo + veneno): el veneno acumulado revienta de golpe (con tope) y la mitad salta a los de al lado.
+  // También la lanza Invierno negro sobre todos al acabar (con los valores de Mortaja)
+  function necrosis(e, atk) {
+    const tr = player.tr, pd = e.poisonDps, half = pd * 0.5, spread = tr.necroSpread || 70;
+    e.poisonDps = 0;
+    rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 40, t: 0.3, max: 0.3, color: '#5fffd0', w: 4 });
+    for (let i = 0; i < (lowQ() ? 4 : 10); i++) {
+      const a = rand(0, TAU), v = rand(60, 180);
+      parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.3, 0.55), max: 0.55, color: '#eafffa', size: rand(2, 3.5) });
+    }
+    if (half > 0) for (const o of enemies) {
+      if (o === e || o.dead || o.spawnT > 0) continue;
+      if (Math.hypot(o.x - e.x, o.y - e.y) < spread + o.r) o.poisonDps = Math.max(o.poisonDps, half);
+    }
+    damageEnemy(e, clamp(pd * (tr.necroK || 3), 1.5 * atk, (tr.necroCap || 4) * atk), true, '#5fffd0');
   }
 
   // ================================================================
@@ -2041,6 +2261,8 @@
     const rx = tr.firstHit && fx && e.kind !== 'boss'
       ? { fire: had.fire || els.includes('fire'), ice: had.ice || els.includes('ice'), bolt: had.bolt || els.includes('bolt'), poison: had.poison || els.includes('poison') } : had;
     damageEnemy(e, dmg, crit);
+    // Chispazo (Mezcla): cada crítico lanza una cadena de rayos
+    if (crit && fx && mixOn('chispazo') && takeTok('spark')) { const P = MIXP.chispazo.p; chainLightning(e, dmg * P.k * mixOn('chispazo'), P.n, P.r, BOLT_SKY); }
     if (!e.dead && !e.heavy) { // retroceso al recibir el impacto
       const sp = Math.hypot(ar.vx, ar.vy) || 1;
       e.kx = (e.kx || 0) + ar.vx / sp * 80; e.ky = (e.ky || 0) + ar.vy / sp * 80;
@@ -2052,7 +2274,7 @@
         if ((els.includes(r.a) && rx[r.b]) || (els.includes(r.b) && rx[r.a])) { react(r, e); break; }
       }
     }
-    if (!e.dead) applyElements(e, els);
+    if (!e.dead) applyElements(e, els, ar.needle ? MIXP.aguijon.p.poison * mixOn('aguijon') : 1); // Aguijón: veneno ×2
     if (ar.sty && ar.sty.hit) sparks(ar.x, ar.y, ar.sty.hit, lowQ() ? 2 : 4); // Glacial y Aurora: chispas de escarcha
     if (fx && !e.dead) {
       // Glacial (Gélido): golpear a un ralentizado puede congelarlo (jefes, menos y con rendimientos decrecientes)
@@ -2077,11 +2299,35 @@
         const a = angTo(ar, best);
         ar.vx = Math.cos(a) * SHOT_SPEED; ar.vy = Math.sin(a) * SHOT_SPEED;
         ar.life = Math.max(ar.life, 0.8);
+        if (fx) {
+          // Granizo: 2 esquirlas de hielo a ±35° del salto
+          const mg = mixOn('granizo');
+          if (mg) { const P = MIXP.granizo.p; for (const s of [-1, 1]) spawnSub(ar.x, ar.y, a + s * P.ang * Math.PI / 180, player.atk * P.k * mg, ['ice'], { life: P.life, sub: 'hail' }); }
+          // Contagio: el veneno del que recibe el golpe pasa al siguiente
+          if (mixOn('contagio') && e.poisonDps > best.poisonDps) { best.poisonDps = e.poisonDps; sparks(best.x, best.y, '#8dff6a', 4); }
+        }
         return;
       }
     }
-    if (ar.pierce > 0) { ar.pierce--; return; }
+    if (ar.pierce > 0) {
+      ar.pierce--;
+      const mc = fx ? mixOn('cometa') : 0;
+      if (mc && takeTok('comet')) cometa(ar.x, ar.y, mc); // Cometa: llamarada al atravesar
+      return;
+    }
     ar.dead = true;
+  }
+  // Cometa (Mezcla): llamarada r40·m que hace 0,5×atk·m y prende a los de alrededor
+  function cometa(x, y, m) {
+    const P = MIXP.cometa.p, r = P.r * m, d = player.atk * P.k * m;
+    rings.push({ x, y, r0: 6, r1: r, t: 0.25, max: 0.25, color: '#ff8a3d', w: 4 });
+    burst(x, y, '#ffb347', 8, 180);
+    for (const o of enemies) {
+      if (o.dead || o.spawnT > 0 || (o.x - x) ** 2 + (o.y - y) ** 2 > (r + o.r) ** 2) continue;
+      damageEnemy(o, d, false, '#ff8a3d', true);
+      if (!o.dead) applyElements(o, ['fire']);
+    }
+    if (Sfx.gate('comet', 70)) Sfx.tone(240, 0.18, 'sawtooth', 0.05, 0.5);
   }
 
   function updateShots(dt) {
@@ -2106,6 +2352,17 @@
             else if (hy && !hx) ar.vy = -ar.vy;
             else { ar.vx = -ar.vx; ar.vy = -ar.vy; }
             ar.x = px; ar.y = py; ar.hit.clear();
+            // Glaciar (Mezcla): la primera vez que rebota se parte en 2 (±25°) con el 60% del daño cada uno;
+            // la otra mitad es un secundario (nofx) que entra en shots al acabar el bucle
+            const mg = !ar.nofx && !ar.split ? mixOn('glaciar') : 0;
+            if (mg) {
+              const P = MIXP.glaciar.p, a = Math.atan2(ar.vy, ar.vx), da = P.ang * Math.PI / 180, sp = Math.hypot(ar.vx, ar.vy);
+              ar.dmg *= P.k * mg; ar.split = true;
+              ar.vx = Math.cos(a + da) * sp; ar.vy = Math.sin(a + da) * sp;
+              const o = spawnSub(ar.x, ar.y, a - da, ar.dmg, ar.els, { life: ar.life, wall: ar.wall, split: true, col: ar.col, col2: ar.col2 });
+              if (o) { o.vx = Math.cos(a - da) * sp; o.vy = Math.sin(a - da) * sp; }
+              if (Sfx.gate('split', 80)) Sfx.tone(1700, 0.08, 'triangle', 0.04, 0.7);
+            }
           } else {
             ar.dead = true;
             sparks(px, py, '#d8d0ea', 3);
@@ -2118,8 +2375,9 @@
   }
 
   function updateBullets(dt) {
+    const k = fog ? 0.5 : 1; // Invierno negro: las balas enemigas van a la mitad
     for (const b of bullets) {
-      b.x += b.vx * dt; b.y += b.vy * dt;
+      b.x += b.vx * dt * k; b.y += b.vy * dt * k;
       if (isRock(b.x, b.y)) { b.dead = true; sparks(b.x, b.y, b.color, 3); continue; }
       const rr = b.r + player.r - 4;
       if ((b.x - player.x) ** 2 + (b.y - player.y) ** 2 < rr * rr) { hurtPlayer(b.dmg); b.dead = true; }
@@ -2381,7 +2639,7 @@
     roomBgDirty = true;
     shots = []; shotQ = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null; chest = null; cine = null;
-    pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0;
+    pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; curtains = []; fog = null;
     hz.fill(0);
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0, vx: 0, vy: 0 });
     if (perkLv('roomShield')) player.shield = Math.max(player.shield, 1);
@@ -2409,6 +2667,7 @@
     toast = null; screenFlash = null;
     toastQ = []; bannerNext = null; flashNext = null; awakenFx = null; eclipseFx = null; musicHoldT = 0;
     pactRun = false; pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; fxDepth = 0; netLog = [];
+    curtains = []; fog = null; seenMixes.clear();
     runGrim0 = grimPages();
     seenReactions.clear();
     pendingLevels = 0;
@@ -3142,8 +3401,123 @@
     }
   }
 
+  // ---------- definitivos combinados (fase 2) ----------
+  const DASH_VOID = [5, 9], DASH_SUN = [10, 8], NODASH = [];
+  // Sol negro: disco negro con aro claro, corona violeta y arcos de acreción girando (sobre la oscuridad, bajo los enemigos)
+  function drawVoid() {
+    if (!sing || sing.kind !== 'void') return;
+    const k = 1 - sing.t / sing.max, x = sing.x, y = sing.y, inA = Math.min(1, k * 6), r = (18 + 14 * Math.min(1, k * 3)) * (sing.t < 0.15 ? 1 + (0.15 - sing.t) * 4 : 1);
+    glow(x, y, 150, '#7a3dff', 0.35 * inA);
+    glow(x, y, 80 + 6 * Math.sin(clock * 9), '#c77dff', 0.75 * inA);
+    ctx.globalAlpha = 0.22 * inA; ctx.strokeStyle = '#c77dff'; ctx.lineWidth = 2; // zona de daño (r130)
+    ctx.setLineDash(DASH_VOID); ctx.lineDashOffset = clock * 30;
+    ctx.beginPath(); ctx.arc(x, y, 130, 0, TAU); ctx.stroke();
+    ctx.setLineDash(NODASH); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
+    if (!lowQ()) { // arcos de acreción
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 4; i++) {
+        const a = -clock * (5 + i) + i * TAU / 4, rr = r + 9 + i * 7;
+        ctx.globalAlpha = (0.85 - i * 0.15) * inA;
+        ctx.strokeStyle = i % 2 ? '#e8d5ff' : '#c77dff'; ctx.lineWidth = 3 - i * 0.5;
+        ctx.beginPath(); ctx.arc(x, y, rr, a, a + 1.3 + i * 0.2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+    }
+    circle(x, y, r, '#05030a');
+    ctx.strokeStyle = '#e8d5ff'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+  }
+  // Sol cautivo: esfera de plasma flotando (núcleo claro, anillo que gira y chisporroteo) sobre los enemigos
+  function drawSun() {
+    if (!sing || sing.kind !== 'sun') return;
+    const k = 1 - sing.t / sing.max, x = sing.x, y = sing.y - sunLift(), r = 13 + 11 * Math.min(1, k * 4) + Math.sin(clock * 30) * 1.5;
+    ctx.globalAlpha = 0.07 + 0.06 * k; circle(sing.x, sing.y, 160, '#ff5ad1'); // zona del estallido: tenue, con un aro que se cierra
+    ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 2.5;
+    ctx.setLineDash(DASH_SUN); ctx.lineDashOffset = -clock * 40;
+    ctx.beginPath(); ctx.arc(sing.x, sing.y, 160 * (1 - 0.15 * k), 0, TAU); ctx.stroke();
+    ctx.setLineDash(NODASH); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
+    glow(x, y, 110 + 30 * k, '#ff5ad1', 1);
+    glow(x, y, 50 + 10 * Math.sin(clock * 12), '#ffb347', 0.9);
+    if (!lowQ()) for (let i = 0; i < 4; i++) { // chisporroteo alrededor
+      const a = clock * 7 + i * TAU / 4;
+      Forms().drawArc(ctx, x + Math.cos(a) * (r + 2), y + Math.sin(a) * (r + 2), x + Math.cos(a + 0.8) * (r + 28), y + Math.sin(a + 0.8) * (r + 28), clock, '#ff5ad1', i, 3, 0.06);
+    }
+    circle(x, y, r, '#ff5ad1'); circle(x, y, r * 0.7, '#ffc4ee'); circle(x, y, r * 0.42, '#ffffff');
+    ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(x, y, r + 12, (r + 12) * 0.36, clock * 6, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = '#fff0ff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(x, y, r + 18, (r + 18) * 0.3, -clock * 4 + 1, 0, TAU); ctx.stroke();
+  }
+  // Cortina boreal: columna de luz polar (sprite cacheado: degradado verde→violeta con bordes suaves)
+  let curtainSpr = null;
+  function curtainSprite() {
+    if (curtainSpr) return curtainSpr;
+    const c = document.createElement('canvas');
+    c.width = 48; c.height = 256;
+    const g = c.getContext('2d'), gv = g.createLinearGradient(0, 0, 0, 256);
+    gv.addColorStop(0, 'rgba(176,124,255,0)'); gv.addColorStop(0.18, 'rgba(176,124,255,.75)'); gv.addColorStop(0.55, 'rgba(106,255,200,.85)');
+    gv.addColorStop(0.9, 'rgba(127,227,255,.6)'); gv.addColorStop(1, 'rgba(127,227,255,0)');
+    g.fillStyle = gv; g.fillRect(0, 0, 48, 256);
+    for (let i = 0; i < 7; i++) { g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(4 + i * 6.5 + (i % 2) * 2, 0, 1.5, 256); } // rayas de luz
+    g.globalCompositeOperation = 'destination-in'; // bordes laterales suaves
+    const gh = g.createLinearGradient(0, 0, 48, 0);
+    gh.addColorStop(0, 'rgba(0,0,0,0)'); gh.addColorStop(0.3, 'rgba(0,0,0,1)'); gh.addColorStop(0.7, 'rgba(0,0,0,1)'); gh.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gh; g.fillRect(0, 0, 48, 256);
+    return (curtainSpr = c);
+  }
+  function drawCurtains() {
+    if (!curtains.length) return;
+    const op = ctx.globalCompositeOperation, spr = curtainSprite();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const c of curtains) {
+      if (!c.on) { // aviso: la columna se dibuja tenue antes de caer
+        if (c.d > 0.45) continue;
+        ctx.globalAlpha = 0.18 * (1 - c.d / 0.45);
+        ctx.drawImage(spr, c.x, AY, c.w, AH);
+        continue;
+      }
+      const k = c.t / c.max, sw = 1 + 0.15 * Math.sin(clock * 20 + c.seed);
+      ctx.globalAlpha = Math.min(1, k * 1.6);
+      ctx.drawImage(spr, c.x - c.w * 0.1 * sw, AY - 30, c.w * 1.2 * sw, AH + 60);
+      if (!lowQ()) { ctx.globalAlpha = 0.5 * k; ctx.drawImage(spr, c.x + c.w * 0.3, AY - 30, c.w * 0.4, AH + 60); } // núcleo más brillante
+    }
+    ctx.globalCompositeOperation = op; ctx.globalAlpha = 1;
+  }
+  // Invierno negro: niebla helada por toda la sala (sprite de nubes cacheado que deriva), bajo los enemigos
+  let fogSpr = null;
+  function fogSprite() {
+    if (fogSpr) return fogSpr;
+    const c = document.createElement('canvas');
+    c.width = 120; c.height = 200;
+    const g = c.getContext('2d');
+    let s = 7;
+    const r = () => ((s = (s * 16807) % 2147483647) / 2147483647); // nubes siempre iguales
+    for (let i = 0; i < 26; i++) {
+      const x = r() * 120, y = r() * 200, rr = 18 + r() * 26, gr = g.createRadialGradient(x, y, 0, x, y, rr);
+      gr.addColorStop(0, i % 3 ? 'rgba(159,181,176,.55)' : 'rgba(95,255,208,.35)'); gr.addColorStop(1, 'rgba(159,181,176,0)');
+      g.fillStyle = gr;
+      for (const ox of [-120, 0, 120]) for (const oy of [-200, 0, 200]) { g.save(); g.translate(ox, oy); g.beginPath(); g.arc(x, y, rr, 0, TAU); g.fill(); g.restore(); } // se repite sin cortes
+    }
+    return (fogSpr = c);
+  }
+  function drawFog() {
+    if (!fog) return;
+    const k = Math.min(1, (fog.max - fog.t) / 0.4, fog.t / 0.5), spr = fogSprite();
+    ctx.globalAlpha = 0.28 * k; ctx.fillStyle = '#0e2a26'; ctx.fillRect(AX, AY, AW, AH);
+    const off = (clock * 18) % AH;
+    for (let i = 0; i < (lowQ() ? 1 : 2); i++) {
+      const dy = i ? -off : off - AH, dx = i ? 0 : -AW * 0.5;
+      ctx.globalAlpha = (i ? 0.45 : 0.6) * k;
+      ctx.save(); ctx.beginPath(); ctx.rect(AX, AY, AW, AH); ctx.clip();
+      ctx.drawImage(spr, AX + dx, AY + dy, AW, AH); ctx.drawImage(spr, AX + dx, AY + dy + AH, AW, AH);
+      if (dx) { ctx.drawImage(spr, AX + dx + AW, AY + dy, AW, AH); ctx.drawImage(spr, AX + dx + AW, AY + dy + AH, AW, AH); }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function drawSingularity() {
-    if (!sing) return;
+    if (!sing || sing.kind) return; // Singularidad del Arcanista (el Sol negro y el Sol cautivo se dibujan aparte)
     const k = 1 - sing.t / sing.max, r = 22 + 10 * k;
     const g = ctx.createRadialGradient(sing.x, sing.y, r * 0.5, sing.x, sing.y, r * 3.2);
     g.addColorStop(0, 'rgba(199,125,255,.45)'); g.addColorStop(1, 'rgba(199,125,255,0)');
@@ -3537,18 +3911,23 @@
     }
   }
 
+  const orbMix = { halo: false, anillo: false };
   function drawOrbs() {
     const n = player.sk.orbs || 0, F = FX();
-    const col = F && player.awak ? F.FORMS[player.form].color : EL[player.school].color;
+    if (!n) return;
+    orbMix.halo = !!mixOn('halo'); orbMix.anillo = !!mixOn('anillo');
+    const col = orbMix.halo ? '#ffb347' : F && player.awak ? F.FORMS[player.form].color : EL[player.school].color;
+    // Anillo voltaico: zigzags entre orbes (o orbe↔mago con uno solo), regenerados cada 0,1 s
+    if (F && orbMix.anillo) orbSegs(n).forEach((s, i) => F.drawArc(ctx, s[0], s[1], s[2], s[3], clock, '#ffe45c', i + 1, 4, 0.1));
     for (let i = 0; i < n; i++) {
       const a = player.orbA + i * TAU / n;
-      const x = player.x + Math.cos(a) * 72, y = player.y + Math.sin(a) * 72;
+      const x = player.x + Math.cos(a) * ORB_R, y = player.y + Math.sin(a) * ORB_R;
       for (let k = 1; k <= 3; k++) { // estela
         ctx.globalAlpha = 0.25 * (1 - k / 4);
-        circle(player.x + Math.cos(a - k * 0.12) * 72, player.y + Math.sin(a - k * 0.12) * 72, 9 - k, col);
+        circle(player.x + Math.cos(a - k * 0.12) * ORB_R, player.y + Math.sin(a - k * 0.12) * ORB_R, 9 - k, col);
       }
       ctx.globalAlpha = 1;
-      if (F) { F.drawOrb(ctx, x, y, player.form, clock, null, col); continue; }
+      if (F) { F.drawOrb(ctx, x, y, player.form, clock, orbMix, col); continue; }
       glow(x, y, 20, col);
       circle(x, y, 7, col); circle(x, y, 3.5, '#fff');
     }
@@ -3577,23 +3956,28 @@
 
   function drawMeteorMarks() { // aviso en el suelo
     for (const m of meteors) {
-      const k = 1 - m.t / m.max;
-      ctx.fillStyle = `rgba(255,90,40,${0.12 + 0.15 * k})`;
-      ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, TAU); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,140,60,.8)'; ctx.lineWidth = 3;
+      if (m.d > 0) continue;
+      const k = 1 - m.t / m.max, s = !!m.pool; // s: bola de azufre
+      ctx.globalAlpha = 0.12 + 0.15 * k;
+      circle(m.x, m.y, m.r, s ? '#d6ff3a' : '#ff5a28');
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = s ? '#ffb000' : '#ff8c3c'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(m.x, m.y, m.r * k, 0, TAU); ctx.stroke();
+      ctx.globalAlpha = 1;
     }
   }
 
-  function drawMeteors() { // la roca cayendo
+  function drawMeteors() { // la roca cayendo (azufre: bola verde ácido con núcleo de lava, más pequeña y más recta)
     for (const m of meteors) {
-      const k = m.t / m.max, x = m.x + 160 * k, y = m.y - 620 * k;
+      if (m.d > 0) continue;
+      const s = !!m.pool, k = m.t / m.max, x = m.x + (s ? 70 : 160) * k, y = m.y - (s ? 560 : 620) * k, z = s ? 0.85 : 1;
       for (let i = 1; i <= 6; i++) {
         ctx.globalAlpha = 0.5 * (1 - i / 7);
-        circle(x + i * 9, y - i * 34 * 0.6, 22 - i * 2, i < 3 ? '#ffd27a' : '#ff6a2a');
+        circle(x + i * 9 * (s ? 0.45 : 1), y - i * 34 * 0.6, (22 - i * 2) * z, s ? (i < 3 ? '#d6ff3a' : i < 5 ? '#ff8a3d' : '#7a7a70') : i < 3 ? '#ffd27a' : '#ff6a2a');
       }
       ctx.globalAlpha = 1;
-      circle(x, y, 24, '#ff7a2a'); circle(x, y, 17, '#5a2a14'); circle(x - 5, y - 5, 6, '#8a4a24');
+      if (s) { glow(x, y, 46, '#d6ff3a', 0.8); circle(x, y, 20, '#9aba1a'); circle(x, y, 17, '#d6ff3a'); circle(x + 2, y + 2, 10, '#ff8a3d'); circle(x - 4, y - 4, 4.5, '#fff3c4'); }
+      else { circle(x, y, 24, '#ff7a2a'); circle(x, y, 17, '#5a2a14'); circle(x - 5, y - 5, 6, '#8a4a24'); }
     }
   }
 
@@ -3812,6 +4196,11 @@
       drawSingularity();
       drawDrops();
       if (T && T.dark > 0) { ctx.fillStyle = `rgba(5,3,10,${T.dark.toFixed(3)})`; ctx.fillRect(-20, -20, W + 40, H + 40); }
+      if (sing && sing.kind === 'void') { // Sol negro: la pantalla se oscurece al 55% (el mundo, no los enemigos ni tus disparos)
+        ctx.globalAlpha = 0.55 * clamp(Math.min((sing.max - sing.t) / 0.3, sing.t / 0.2), 0, 1); ctx.fillStyle = '#05030a'; ctx.fillRect(-20, -20, W + 40, H + 40); ctx.globalAlpha = 1;
+        drawVoid();
+      }
+      drawFog();
       if (Biomes() && !lowQ()) { try { Biomes().ambient(ctx, clock, biomeId()); } catch (_) { /* sin biomas */ } }
       const list = enemies.slice();
       if (player.hp > 0) list.push(player);
@@ -3825,8 +4214,10 @@
       }
       drawShots();
       drawBullets();
+      drawCurtains();
       drawRings();
       drawBolts();
+      drawSun();
       drawMeteors();
       drawParts();
       drawAmb();
@@ -3945,7 +4336,7 @@
     enemies = []; shots = []; bullets = []; drops = []; parts = []; texts = []; bolts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null; toast = null; screenFlash = null;
     chest = null; cine = null; hz.fill(0);
-    awakenFx = null; eclipseFx = null; pools = []; amb = []; ash = []; toastQ = []; bannerNext = null; flashNext = null;
+    awakenFx = null; eclipseFx = null; pools = []; amb = []; ash = []; toastQ = []; bannerNext = null; flashNext = null; curtains = []; fog = null;
     cleared = true; doorAnim = 1; fade = 0; shake = 0;
     grid = genRocks(false);
     menuBiome = null; roomBgDirty = true;
@@ -4356,6 +4747,12 @@
       : ['Aprendiz', aff ? 'Afinidad: ' + aff : ''];
     return `<div class="formline" style="--c:${D.color}">${D.icon} ${parts.concat(prog).filter(Boolean).join(' · ')}</div>`;
   }
+  // pausa: Mezclas activas en esta partida
+  function mixLine() {
+    const p = player;
+    if (!p || !p.mixes.length) return '';
+    return `<div class="mixline">🧪 Mezclas: ${p.mixes.map(m => `<b style="--c:${m.color}">${m.name}</b>`).join(' · ')}</div>`;
+  }
   // final: con qué forma acabas, qué te falta por descubrir y si hubo página nueva
   function endGrim(win, quit) {
     const F = FX();
@@ -4421,6 +4818,7 @@
       return { cls: ' seal', style: `--c:${EL[si.pair[0]].color};--c2:${EL[si.pair[1]].color};`, html: `<div class="combo">✨ ${l1}</div><div class="combo close">${l2}</div>` };
     }
     if (F && k.el && !p.aff.length && !p.aff.includes(k.id)) return { cls: combo.length ? ' hot' : '', style: '', html: `<div class="combo">✨ ${unl ? unl + ' · ' : ''}Será tu primer elemento</div>` };
+    if (F && k.form) { const D = F.FORMS[k.form]; return { cls: ' formcard', style: `--c:${D.color};`, html: `<div class="combo fm">${D.icon} Carta de tu forma ${D.short}</div>` }; } // fase 2: solo sale en esa forma
     const mx = F && flags.phase2 ? F.mixHint(k.id, p.sk, p.aff) : null;
     if (mx) return { cls: ' hot', style: '', html: `<div class="combo mix">🧪 ${F.has(meta.grim.m, mx.id) ? 'Mezcla: ' + mx.name : 'Algo reacciona…'}</div>` };
     return { cls: combo.length ? ' hot' : '', style: '', html: unl ? `<div class="combo">✨ ${unl}</div>` : '' };
@@ -4656,6 +5054,7 @@
         <div class="sub">${SCHOOLS[player.school].icon} ${SCHOOLS[player.school].name} · Sala ${room} · Nivel ${player.lvl} · ${Math.ceil(player.hp)}/${player.maxHp} vida</div>
         ${formLine()}
         ${skillChips()}
+        ${mixLine()}
         <div class="sec">Reacciones</div>
         ${reactionList()}
         <button class="btn primary" data-act="resume" style="margin-top:calc(var(--u)*26px)">CONTINUAR</button>
@@ -4893,6 +5292,19 @@
       levelup() { pendingLevels = Math.max(1, pendingLevels); openLevelUp('level'); return state; },
       toasts() { return [toast, ...toastQ].filter(Boolean).map(t => t.text + ' | ' + t.sub).concat(banner ? ['BANNER ' + banner.text] : [], bannerNext ? ['NEXT ' + bannerNext.text] : []); },
       formStats() { return Forms() ? Object.assign(Forms().stats(), { glowGame: glowCache.size }) : null; },
+      // tiempo medio (ms) de update() y de render() en n pasos de 1/60 s (sin requestAnimationFrame)
+      perf(n = 600) {
+        let tu = 0, tr = 0, mx = 0, k = 0;
+        for (; k < n && state === 'play'; k++) {
+          const a = performance.now(); update(1 / 60);
+          const b = performance.now(); render();
+          const c = performance.now(); tu += b - a; tr += c - b; mx = Math.max(mx, b - a);
+        }
+        k = Math.max(1, k);
+        return { steps: k, update: +(tu / k).toFixed(3), updateMax: +mx.toFixed(2), render: +(tr / k).toFixed(3), shots: shots.length, parts: parts.length, enemies: enemies.length };
+      },
+      // definitivos en curso
+      ults() { return { key: player && ultKey(), name: player && ultName(), icon: player && ultIcon(), sing: sing && { kind: sing.kind || 'arcane', t: sing.t, n: sing.n }, curtains: curtains.map(c => ({ x: c.x, d: c.d, t: c.t })), fog: fog && { t: fog.t, atk: fog.atk }, meteors: meteors.map(m => ({ d: m.d || 0, t: m.t, r: m.r, pool: !!m.pool })), pools: pools.length, storm: !!storm }; },
     });
 
     // ---------- Bots de prueba (sección 7 de docs/despertar-spec.md): partidas enteras sin dibujar, en modo dios ----------

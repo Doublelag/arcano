@@ -56,7 +56,7 @@ await run('fire', ['fire'], 7);
 r = await P(`${park} const a = E[0], b = E[1]; a.x = 200; a.y = 400; b.x = 240; b.y = 400; a.burn = 2; a.hp = 1; const hb = b.hp; A.hit(0, []); return { dead: a.dead, dmg: hb - b.hp, burn: b.burn, atk: P.atk };`);
 ok(r.dead && Math.abs(r.dmg - 0.8 * r.atk) < 0.01 && r.burn === 3.5, 'Ígnea: estalla (0,8×atk) y prende al vecino (3,5 s)', r);
 await ev('__arcano.goto(16)'); await ev('__arcano.god(true)'); await ev('__arcano.step(0.5)'); // que se recarguen las fichas
-r = await P(`${park} const L = E.filter(e => e.kind !== 'boss'), b = L[L.length - 1]; let n = 0; for (let i = 0; i < Math.min(5, L.length - 1); i++) { const a = L[i]; a.x = 300; a.y = 500; b.x = 330; b.y = 500; a.burn = 2; a.hp = 1; const h = b.hp; A.hit(E.indexOf(a), []); if (b.hp < h) n++; } return { n, tries: Math.min(5, L.length - 1) };`);
+r = await P(`${park} const L = E.filter(e => e.kind !== 'boss' && e.kind !== 'bomber'), b = L[L.length - 1]; let n = 0; /* el diablillo revienta al morir por su cuenta */ for (let i = 0; i < Math.min(5, L.length - 1); i++) { const a = L[i]; a.x = 300; a.y = 500; b.x = 330; b.y = 500; a.burn = 2; a.hp = 1; const h = b.hp; A.hit(E.indexOf(a), []); if (b.hp < h) n++; } return { n, tries: Math.min(5, L.length - 1), kinds: L.slice(0, 5).map(e => e.kind) };`);
 ok(r.n === 3 && r.tries >= 4, 'fichas: como mucho 3 estallidos seguidos (sin tiempo para recargar)', r);
 
 // ---------- Tóxica: charcos ----------

@@ -35,7 +35,7 @@ console.log('--- 2. Grimorio vacío');
 await click('[data-act="grimoire"]'); await wait();
 ok(await st() === 'grimoire', 'state grimoire', await st());
 t = await txt();
-ok(/GRIMORIO/.test(t) && /1 de 16 páginas · 6%/.test(t), 'título y contador 1/16', t.split('\n').slice(0, 3));
+ok(/GRIMORIO/.test(t) && /1 de 24 páginas · 4%/.test(t), 'título y contador 1/24 (fase 2: 10 formas + 6 reacciones + 8 Mezclas)', t.split('\n').slice(0, 3));
 ok(await ev(`document.querySelectorAll('.shop-item.grim').length`) === 10, '10 formas');
 ok(await ev(`document.querySelectorAll('.shop-item.grim.locked').length`) === 9, '9 huecos (Aprendiz siempre descubierta)');
 ok(/La forma prohibida\. Algo duerme entre los opuestos/.test(t), 'Eclipse: "La forma prohibida…"');
@@ -49,7 +49,7 @@ await shot('03-grimorio-vacio-abajo');
 await click('[data-act="grim"][data-tab="reacciones"]'); await wait();
 t = await txt();
 ok(await ev(`document.querySelectorAll('.shop-item.grim').length`) === 6, 'pestaña Reacciones: 6 entradas');
-ok(!/data-tab="mezclas"/.test(await ev(`document.getElementById('overlay').innerHTML`)), 'sin pestaña de Mezclas en la fase 1');
+ok(/data-tab="mezclas"/.test(await ev(`document.getElementById('overlay').innerHTML`)), 'pestaña de Mezclas (fase 2)');
 await shot('04-grimorio-reacciones');
 await key('Escape'); await sleep(200);
 ok(await st() === 'menu', 'Escape vuelve al menú', await st());
@@ -154,7 +154,7 @@ ok(await st() === 'menu', 'Atrás de Android en el Grimorio vuelve al menú', aw
 await click('[data-act="grimoire"]'); await wait();
 await ev(`(() => { const m = JSON.parse(localStorage.getItem('arcano.meta')); m.grim.f = 1023; localStorage.setItem('arcano.meta', JSON.stringify(m)); window.dispatchEvent(new StorageEvent('storage', { key: 'arcano.meta', newValue: JSON.stringify(m) })); })()`);
 await sleep(200);
-ok(await st() === 'grimoire' && /10 de 16|1[0-6] de 16/.test(await txt()), 'storage: el Grimorio se redibuja con el progreso de otra pestaña', (await txt()).split('\n')[1]);
+ok(await st() === 'grimoire' && /1[0-9] de 24|2[0-4] de 24/.test(await txt()), 'storage: el Grimorio se redibuja con el progreso de otra pestaña', (await txt()).split('\n')[1]);
 
 // ---------- 9. Eclipse: logros eclipse y forms10, marca e (sala <= 6) solo en el 1er despertar ----------
 await ev(`(() => { const g = __arcano.grim(true); g.f = 1023 & ~(1 << 9); })()`);

@@ -181,15 +181,16 @@
   //  Las 8 Mezclas (runa + carta, receta oculta)
   // ================================================================
   const MIX_M = 1.25; // daño y radio si tu forma contiene el elemento de la Mezcla
+  // tip = efecto en pocas palabras para el aviso en partida (desc completo en el Grimorio)
   const MIXES = [
-    { id: 'cometa',   bit: 0, el: 'fire',   card: 'pierce',   name: 'Cometa',          recipe: 'Fuego + Lanza de éter',    color: '#ff8a3d', desc: 'Al atravesar a un enemigo, estalla en llamas',  p: { r: 40, k: 0.5 } },
-    { id: 'halo',     bit: 1, el: 'fire',   card: 'orbs',     name: 'Halo solar',      recipe: 'Fuego + Orbes guardianes', color: '#ffb347', desc: 'Tus orbes queman y lanzan anillos de fuego',     p: { r: 70, k: 0.6, every: 2 } },
-    { id: 'glaciar',  bit: 2, el: 'ice',    card: 'wall',     name: 'Glaciar',         recipe: 'Hielo + Rebote',           color: '#e6fbff', desc: 'Al rebotar, el hechizo se parte en dos',         p: { k: 0.6, ang: 25 } },
-    { id: 'granizo',  bit: 3, el: 'ice',    card: 'ricochet', name: 'Granizo',         recipe: 'Hielo + Salto arcano',     color: '#bff4ff', desc: 'Cada salto suelta 2 esquirlas de hielo',         p: { n: 2, ang: 35, k: 0.35, life: 0.35 } },
-    { id: 'anillo',   bit: 4, el: 'bolt',   card: 'orbs',     name: 'Anillo voltaico', recipe: 'Rayo + Orbes guardianes',  color: '#ffe45c', desc: 'Arcos eléctricos unen tus orbes',                p: { k: 0.5, every: 0.3, pad: 10, shock: 1.5 } },
-    { id: 'chispazo', bit: 5, el: 'bolt',   card: 'crit',     name: 'Chispazo',        recipe: 'Rayo + Concentración',     color: '#fff7c2', desc: 'Cada crítico lanza una cadena de rayos',         p: { k: 0.5, n: 3, r: 200 } },
-    { id: 'contagio', bit: 6, el: 'poison', card: 'ricochet', name: 'Contagio',        recipe: 'Veneno + Salto arcano',    color: '#8dff6a', desc: 'Al saltar, el veneno pasa al siguiente',         p: {} },
-    { id: 'aguijon',  bit: 7, el: 'poison', card: 'diag',     name: 'Aguijón',         recipe: 'Veneno + Abanico',         color: '#c6ff5a', desc: 'Los disparos en diagonal son agujas venenosas',  p: { spd: 1.3, pierce: 1, poison: 2 } },
+    { id: 'cometa',   bit: 0, el: 'fire',   card: 'pierce',   name: 'Cometa',          recipe: 'Fuego + Lanza de éter',    color: '#ff8a3d', desc: 'Al atravesar a un enemigo, estalla en llamas',  tip: 'estalla al atravesar',  p: { r: 40, k: 0.5 } },
+    { id: 'halo',     bit: 1, el: 'fire',   card: 'orbs',     name: 'Halo solar',      recipe: 'Fuego + Orbes guardianes', color: '#ffb347', desc: 'Tus orbes queman y lanzan anillos de fuego',     tip: 'orbes de fuego',        p: { r: 70, k: 0.6, every: 2 } },
+    { id: 'glaciar',  bit: 2, el: 'ice',    card: 'wall',     name: 'Glaciar',         recipe: 'Hielo + Rebote',           color: '#e6fbff', desc: 'Al rebotar, el hechizo se parte en dos',         tip: 'se parte al rebotar',   p: { k: 0.6, ang: 25 } },
+    { id: 'granizo',  bit: 3, el: 'ice',    card: 'ricochet', name: 'Granizo',         recipe: 'Hielo + Salto arcano',     color: '#bff4ff', desc: 'Cada salto suelta 2 esquirlas de hielo',         tip: 'esquirlas al saltar',   p: { n: 2, ang: 35, k: 0.35, life: 0.35 } },
+    { id: 'anillo',   bit: 4, el: 'bolt',   card: 'orbs',     name: 'Anillo voltaico', recipe: 'Rayo + Orbes guardianes',  color: '#ffe45c', desc: 'Arcos eléctricos unen tus orbes',                tip: 'orbes unidos por rayos', p: { k: 0.5, every: 0.3, pad: 10, shock: 1.5 } },
+    { id: 'chispazo', bit: 5, el: 'bolt',   card: 'crit',     name: 'Chispazo',        recipe: 'Rayo + Concentración',     color: '#fff7c2', desc: 'Cada crítico lanza una cadena de rayos',         tip: 'críticos con rayos',    p: { k: 0.5, n: 3, r: 200 } },
+    { id: 'contagio', bit: 6, el: 'poison', card: 'ricochet', name: 'Contagio',        recipe: 'Veneno + Salto arcano',    color: '#8dff6a', desc: 'Al saltar, el veneno pasa al siguiente',         tip: 'el veneno salta',       p: {} },
+    { id: 'aguijon',  bit: 7, el: 'poison', card: 'diag',     name: 'Aguijón',         recipe: 'Veneno + Abanico',         color: '#c6ff5a', desc: 'Los disparos en diagonal son agujas venenosas',  tip: 'agujas en diagonal',    p: { spd: 1.3, pierce: 1, poison: 2 } },
   ];
   for (const m of MIXES) m.icon = ELI[m.el];
   const MIX_BY = Object.fromEntries(MIXES.map(m => [m.id, m]));

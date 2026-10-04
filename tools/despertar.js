@@ -152,6 +152,7 @@ txt = await ovl();
 ok(/Eclipse/.test(txt), 'el Pacto avisa del camino a Eclipse');
 const hp0 = await ev('__arcano.player.maxHp');
 await ev(`__arcano.pick([...document.querySelectorAll('[data-act="altar"]')].findIndex(c => c.dataset.id === 'pact'))`);
+const hpP = await ev('__arcano.player.maxHp'); // justo tras el pacto (las 2 cartas pueden traer Vitalidad)
 ok((await info()).pactRun, 'pacto firmado (pactRun)');
 ok(await untilPanel(6), 'tras las 2 cartas del pacto llega el panel con Eclipse');
 txt = await ovl();
@@ -164,7 +165,7 @@ await ev('__arcano.step(0.5)'); await shot('11-eclipse-carga');
 await ev('__arcano.step(0.45)'); await shot('12-eclipse-estallido');
 fi = await info();
 ok(fi.form === 'eclipse' && fi.eclipseFx, 'Eclipse con esquirlas de sombra', fi.form);
-ok(fi.maxHp === Math.max(40, Math.round(hp1 * 0.85)) && hp1 === Math.max(40, Math.round(hp0 * 0.8)), 'precio: −20% del pacto y ×0,85 de Eclipse', { hp0, hp1, hp2: fi.maxHp });
+ok(fi.maxHp === Math.max(40, Math.round(hp1 * 0.85)) && hpP === Math.max(40, Math.round(hp0 * 0.8)), 'precio: −20% del pacto y ×0,85 de Eclipse', { hp0, hpP, hp1, hp2: fi.maxHp });
 await ev('__arcano.step(0.6)');
 console.log('   avisos:', JSON.stringify(await ev('__arcano.toasts()')));
 await shot('13-eclipse-banner');
