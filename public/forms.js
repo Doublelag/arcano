@@ -40,7 +40,7 @@
     curtain: { key: 'curtain', name: 'Cortina boreal',   icon: '🌌', desc: 'Cinco columnas de luz polar congelan y borran balas' },
     fog:     { key: 'fog',     name: 'Invierno negro',   icon: '🧊', desc: 'Niebla helada y venenosa; al final, NECROSIS en todos' },
     sulfur:  { key: 'sulfur',  name: 'Lluvia de azufre', icon: '🌧️', desc: 'Seis bolas de azufre caen y dejan charcos' },
-    void:    { key: 'void',    name: 'Sol negro',        icon: '🕳️', desc: 'Un sol negro lo atrae todo; tus disparos +50%' },
+    void:    { key: 'void',    name: 'Sol negro',        icon: '🌘', desc: 'Un sol negro lo atrae todo; tus disparos +50%' },
   };
 
   // ================================================================
@@ -721,6 +721,7 @@
     if (G.lowQ()) { // calidad baja: brillo y círculo
       G.glow(x, y, s.glowR * 0.8, s.glow, 0.85);
       G.circle(x, y, s.coreR, s.lowCol);
+      if (s.shape === 'void') { c.strokeStyle = s.rim || s.edge; c.lineWidth = s.edgeW; c.stroke(); } // Eclipse: sin el aro claro, el disco negro no se ve en los biomas oscuros
       return true;
     }
     const pa = c.globalAlpha, al = s0 ? s0.alpha : 1;

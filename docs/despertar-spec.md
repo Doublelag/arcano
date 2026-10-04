@@ -537,7 +537,7 @@ BOLT_LAYERS: { plasma: [[6,'rgba(255,90,209,.35)'],[2,'#fff0ff']] }
 | `chainLightning` (1499) | Firma `chainLightning(src, dmg, n=2, r=200)` |
 | `applyElements` (1515) | Firma `(e, els, mul=1)`. Quemadura `burnK·s.fire` y `burnT`. `slow = tr.slowT||1.8`. Veneno: `cap = atk·(tr.poisonCap||.8)·s.poison` y paso `atk·(tr.poisonK||.1)·s.poison·mul` |
 | `react` (1539) | `e.reactCd = e.kind==='boss' ? 1 : (tr.reactCd||1)`. Ánima con `roomReactA`. Vapor: `tr.vaporK||3`. Sobrecarga: `overR/overK`. Congelación: `freezeEnemy(e, tr.freezeT||1.6, tr.freezeBossT||.7)`. Corrosión: `corrMul/corrT`. Combustión: `combR/combK`. NECROSIS. Al final, implosión si `tr.implode` y queda ficha. Primer aviso con `pushToast` |
-| `shotHit` (1581) | Orden nuevo:<br>1. `prev`; luego `rx = (tr.firstHit && e.kind!=='boss' && !ar.nofx) ? prev ∪ ar.els : prev`<br>2. daño; Chispazo si es crítico<br>3. retroceso<br>4. bucle de reacciones con `rx` (si `!ar.nofx`)<br>5. `applyElements`<br>6. si `!ar.nofx`: Glacial (`prev.ice`), Arco de plasma (`e.burn>0`, ficha `arc`) y cadena (`(tr.chainP||.16)·sk.bolt`, `chainK/N/R`)<br>7. rama `rico` (Granizo, Contagio) y rama `pierce` (Cometa) |
+| `shotHit` (1581) | Orden nuevo:<br>1. `prev`; luego `rx = (tr.firstHit && e.kind!=='boss' && !ar.nofx) ? prev ∪ ar.els : prev`<br>2. daño; Chispazo si es crítico<br>3. retroceso<br>4. bucle de reacciones con `rx` (si `!ar.nofx`)<br>5. `applyElements`<br>6. si `!ar.nofx`: Glacial (`prev.ice`), Arco de plasma (`prev.fire`: ya ardía antes del impacto, ficha `arc`) y cadena (`(tr.chainP||.16)·sk.bolt`, `chainK/N/R`)<br>7. rama `rico` (Granizo, Contagio) y rama `pierce` (Cometa) |
 | `updateShots` (1620) | Glaciar en el rebote: se apila en `newShots` y se concatena después del bucle (nunca `push` dentro del `for…of`) |
 | `updateBullets` (1652) | `const k = fog ? .5 : 1;` en el movimiento |
 | `updateFx` (1742) | Toast: `if (toast && !cine) toast.t -= dt;` y al acabar `toast = toastQ.shift() || null`. Banner: al acabar, `banner = bannerNext; bannerNext = null`. `eclipseFx.t` |
@@ -570,7 +570,9 @@ BOLT_LAYERS: { plasma: [[6,'rgba(255,90,209,.35)'],[2,'#fff0ff']] }
 **Funciones nuevas** (ponerlas tras `gainMana`, ~690, salvo las de dibujo):
 ```js
 function freezeEnemy(e, t, tb, force) { if (e.kind==='boss') { if (e.frzImm>0 && !force) return false; e.frozen=tb; e.frzImm=tb+2; } else e.frozen=Math.max(e.frozen,t); unfade(e); return true; }
+// (revisión) cola de 8; los consejos llevan tip/hz y se dan por vistos al SALIR en pantalla (showToast), no al encolarse
 function pushToast(o) { if (!toast) toast=o; else { toastQ.push(o); if (toastQ.length>3) toastQ.shift(); } }
+// (revisión) sin Ánima en la sala final (room>=TOTAL_ROOMS); el consejo solo si no se llena de golpe, y dropTip('anima') al quedar listo
 function gainAnima(v) { const p=player, F=FX(); if (!F||!p||p.awak>=2||p.animaReady) return;
   p.anima += v*(p.school==='arcane'?F.ANIMA.arcane:1); const need=F.ANIMA.need[p.awak];
   if (!settings.tips.anima && p.anima>=need*.5) { settings.tips.anima=1; saveSettings(); pushToast({text:'DESPERTAR', sub:'El anillo del definitivo se llena con bajas, reacciones y jefes', color:'#fff1c4', t:3, max:3}); }

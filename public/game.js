@@ -286,14 +286,15 @@
     { id: 'chests',      icon: '🗝️', name: 'Cazatesoros',         desc: 'Abre 5 cofres en total',                 reward: 15 },
     { id: 'pact',        icon: '😈', name: 'Trato hecho',         desc: 'Sella un pacto oscuro en un altar',      reward: 10 },
     // Despertar: se cobran una sola vez (100 de esencia en total)
-    { id: 'awaken1',     icon: '🌅', name: 'Despertar',           desc: 'Despierta una forma por primera vez',    reward: 5 },
-    { id: 'awaken2',     icon: '🔆', name: 'Alma doble',          desc: 'Alcanza una forma combinada',            reward: 10 },
-    { id: 'hybrids',     icon: '🧭', name: 'Cuatro caminos',      desc: 'Descubre las 4 formas híbridas',         reward: 15 },
-    { id: 'eclipse',     icon: '🌑', name: 'Equilibrio roto',     desc: 'Despierta la forma prohibida',           reward: 15 },
-    { id: 'forms10',     icon: '📖', name: 'Grimorio de formas',  desc: 'Descubre las 10 formas',                 reward: 25 },
-    { id: 'formWins',    icon: '🎭', name: 'Mil caras',           desc: 'Gana con las 5 formas combinadas',       reward: 20 },
-    { id: 'mixes8',      icon: '🧪', name: 'Mezclador',           desc: 'Descubre las 8 Mezclas',                 reward: 10 },
+    { id: 'awaken1',     icon: '🌅', name: 'Despertar',           desc: 'Despierta una forma por primera vez',    reward: 5, forms: true },
+    { id: 'awaken2',     icon: '🔆', name: 'Alma doble',          desc: 'Alcanza una forma combinada',            reward: 10, forms: true },
+    { id: 'hybrids',     icon: '🧭', name: 'Cuatro caminos',      desc: 'Descubre las 4 formas híbridas',         reward: 15, forms: true },
+    { id: 'eclipse',     icon: '🌑', name: 'Equilibrio roto',     desc: 'Despierta la forma prohibida',           reward: 15, forms: true },
+    { id: 'forms10',     icon: '📖', name: 'Grimorio de formas',  desc: 'Descubre las 10 formas',                 reward: 25, forms: true },
+    { id: 'formWins',    icon: '🎭', name: 'Mil caras',           desc: 'Gana con las 5 formas combinadas',       reward: 20, forms: true },
+    { id: 'mixes8',      icon: '🧪', name: 'Mezclador',           desc: 'Descubre las 8 Mezclas',                 reward: 10, forms: true },
   ];
+  const achList = () => ACHIEVEMENTS.filter(a => !a.forms || FX()); // sin forms.js, los del Despertar ni se cuentan ni se enseñan
 
   const BOSSES = {
     5:  { tier: 1, name: 'Gólem de Piedra',      hp: 480,  r: 40, speed: 55, color: '#8f8270', bullet: '#ffb347', pats: ['ring', 'charge', 'aimed'] },
@@ -491,7 +492,7 @@
   achEl.id = 'achToast';
   wrap.appendChild(achEl);
   const achQueue = [];
-  let achBusy = false;
+  let achBusy = false, achCur = null, achT0 = 0, achTimer = 0;
   function unlock(id) {
     if (meta.ach[id]) return;
     const a = ACHIEVEMENTS.find(x => x.id === id);
@@ -504,14 +505,29 @@
     achQueue.push(a);
     nextAch();
   }
+  // el despertar es del mago: el logro espera mientras se ofrece el panel (o está a punto), en la transformación y mientras se ve el nombre de la forma
+  const achHold = () => !!player && (state === 'levelup' ? pickSource === 'awaken' : state === 'play' && (!!awakenFx || !!(banner && banner.form) || awakenDue()));
   function nextAch() {
-    if (achBusy || !achQueue.length) return;
+    if (achBusy || !achQueue.length || achHold()) return; // update vuelve a llamar cuando se acaba la retención
     const a = achQueue.shift();
     achBusy = true;
     achEl.innerHTML = `<span class="ic">${a.icon}</span><span class="tx"><b>¡Logro desbloqueado!</b>${a.name}</span><span class="rw">+✨ ${a.reward}</span>`;
+    achEl.classList.toggle('low', state === 'win' || state === 'over'); // pantalla final: abajo, sin tapar el emblema ni la Marca II
     achEl.classList.add('show');
     Sfx.ach();
-    setTimeout(() => { achEl.classList.remove('show'); setTimeout(() => { achBusy = false; nextAch(); }, 350); }, 2600);
+    achCur = a; achT0 = performance.now();
+    achTimer = setTimeout(achOut, 2600);
+  }
+  function achOut() {
+    achEl.classList.remove('show'); achCur = null;
+    achTimer = setTimeout(() => { achBusy = false; nextAch(); }, 350);
+  }
+  // se abre el panel del despertar: el logro que se ve se aparta para no taparlo (si apenas se ha leído, vuelve después)
+  function achYield() {
+    if (!achCur) return;
+    clearTimeout(achTimer);
+    if (performance.now() - achT0 < 1500) achQueue.unshift(achCur);
+    achOut();
   }
 
   // un espectro o jefe congelado a medio desvanecerse vuelve a ser visible y tocable
@@ -807,7 +823,7 @@
   // Proyectil secundario (esquirlas, divisiones): nofx = no reacciona, no encadena, no activa rasgos ni crea más.
   // Se apila en shotQ y entra en shots al acabar updateShots; con 140 en pantalla no se crea.
   const SHOT_CAP = 140;
-  let shotQ = [];
+  let shotQ = [], subHit = false; // subHit: el golpe en curso es de un secundario (su baja no activa los rasgos al morir)
   function spawnSub(x, y, a, dmg, els, o) {
     if (shots.length + shotQ.length >= SHOT_CAP) return null;
     const main = els && els[0] && EL[els[0]] ? els[0] : 'arcane';
@@ -839,24 +855,38 @@
   const linaje = () => { const p = player, el = SCHOOLS[p.school].el; return !!el && p.awak > 0 && !!FX() && (p.core === el || p.second === el); };
   const uAtk = () => player.atk * (linaje() ? 1.2 : 1);
 
-  // avisos en cola: el nuevo no pisa al que se está leyendo (como mucho 3 esperando)
+  // avisos en cola: el nuevo no pisa al que se está leyendo (como mucho 8 esperando; si sobra uno, antes un consejo, que volverá otro día).
+  // Los consejos de una vez (tip = clave de settings.tips, hz = trampa) se dan por vistos al salir en pantalla, no al encolarse
   function pushToast(o) {
-    if (!toast) toast = o;
-    else { toastQ.push(o); if (toastQ.length > 3) toastQ.shift(); }
+    if ((o.tip || o.hz) && [toast, ...toastQ].some(t => t && t.tip === o.tip && t.hz === o.hz)) return; // ya en cola
+    if (!toast) return showToast(o);
+    toastQ.push(o);
+    if (toastQ.length > 8) { const i = toastQ.findIndex(t => t.tip || t.hz); toastQ.splice(i >= 0 ? i : 0, 1); }
+  }
+  function showToast(o) {
+    toast = o;
+    if (o && o.tip) { settings.tips[o.tip] = 1; saveSettings(); }
+    if (o && o.hz) { (settings.seenHz || (settings.seenHz = {}))[o.hz] = true; saveSettings(); }
+  }
+  // un consejo que ya sobra: fuera de la cola y, si se está leyendo, se desvanece (now: se quita ya). Si apenas se ha visto, volverá a salir
+  function dropTip(k, now) {
+    toastQ = toastQ.filter(t => t.tip !== k);
+    if (!toast || toast.tip !== k) return;
+    if (toast.max - toast.t < 1) { delete settings.tips[k]; saveSettings(); }
+    if (now) showToast(toastQ.shift() || null); else toast.t = Math.min(toast.t, 0.25);
   }
 
   // Ánima (anillo del definitivo): bajas, reacciones y daño a jefes. Al llenarse, el despertar queda listo
   function gainAnima(v) {
     const p = player, F = FX();
-    if (!F || !p || p.awak >= 2 || p.animaReady) return;
+    if (!F || !p || p.awak >= 2 || p.animaReady || room >= TOTAL_ROOMS) return; // en la sala final ya no hay despertar
     const A = F.ANIMA, need = A.need[p.awak];
     p.anima += v * (p.school === 'arcane' ? A.arcane : 1);
-    if (!settings.tips.anima && p.anima >= need * 0.5) {
-      settings.tips.anima = 1; saveSettings();
-      pushToast({ text: 'DESPERTAR', sub: 'El anillo del definitivo se llena con bajas, reacciones y jefes', color: '#fff1c4', t: 3.2, max: 3.2 });
-    }
+    if (!settings.tips.anima && p.anima >= need * 0.5 && p.anima < need) // si se llena de golpe, el consejo espera al siguiente
+      pushToast({ text: 'DESPERTAR', sub: 'El anillo del definitivo se llena con bajas, reacciones y jefes', color: '#fff1c4', t: 3.2, max: 3.2, tip: 'anima' });
     if (p.anima >= need) {
       p.anima = need; p.animaReady = true;
+      dropTip('anima'); // el despertar ya está listo: el consejo del anillo sobra
       Sfx.formReady(F.keyOf(p.form, p.core));
       vibrate(30);
       addText(p.x, p.y - 50, '¡DESPERTAR LISTO!', '#fff1c4', 0.8);
@@ -882,9 +912,8 @@
   function onAffinity(silent) {
     const p = player, F = Forms(), [a, b] = p.aff, cl = F.SQUARE.filter(x => !p.aff.includes(x));
     pushToast({ text: `AFINIDAD · ${EL[a].name.toUpperCase()} + ${EL[b].name.toUpperCase()}`, sub: (silent === 'gear' ? 'Por tu equipo · ' : '') + `${EL[cl[0]].name} y ${EL[cl[1]].name} dejan de salir`, color: EL[b].color, t: 2.8, max: 2.8 });
-    if (!settings.tips.aff) { settings.tips.aff = 1; pushToast({ text: 'SOLO 2 ELEMENTOS POR PARTIDA', sub: 'Los demás dejan de salir hasta el final', color: '#fff1c4', t: 3, max: 3 }); }
-    if (F.isOpp(a, b) && !settings.tips.opp) { settings.tips.opp = 1; pushToast({ text: 'ALGO OSCURO DUERME…', sub: `…entre ${EL[a].name} y ${EL[b].name}`, color: '#c77dff', t: 3, max: 3 }); }
-    saveSettings();
+    if (!settings.tips.aff) pushToast({ text: 'SOLO 2 ELEMENTOS POR PARTIDA', sub: 'Los demás dejan de salir hasta el final', color: '#fff1c4', t: 3, max: 3, tip: 'aff' });
+    if (F.isOpp(a, b) && !settings.tips.opp) pushToast({ text: 'ALGO OSCURO DUERME…', sub: `…entre ${EL[a].name} y ${EL[b].name}`, color: '#c77dff', t: 3, max: 3, tip: 'opp' });
     if (silent) return;
     rings.push({ x: p.x, y: p.y - 4, r0: 10, r1: 90, t: 0.45, max: 0.45, color: EL[a].color, w: 4 }); // anillo doble con los 2 colores
     rings.push({ x: p.x, y: p.y - 4, r0: 10, r1: 90, t: 0.55, max: 0.55, color: EL[b].color, w: 4 });
@@ -892,13 +921,17 @@
     Sfx.fuse();
   }
 
-  // ¿se ofrece ya el despertar? Sala limpia, sin menús ni cámara lenta, Ánima llena y alguna opción abierta (0,8 s de espera)
-  function canOfferAwaken(dt) {
+  // ¿toca ofrecer el despertar? Sala limpia, sin menús ni cámara lenta, Ánima llena y alguna opción abierta
+  function awakenDue() {
     const p = player, F = FX();
-    if (!F || !p.animaReady || p.awak >= 2) { awakenWait = 0; return false; }
+    if (!F || !p || !p.animaReady || p.awak >= 2) return false;
     p.awkLock = !F.options({ stage: p.awak + 1, aff: p.aff, core: p.core, pact: pactRun }).some(o => !o.locked); // opuestos sin pacto
-    if (p.awkLock || awakenFx || state !== 'play' || winTimer >= 0 || cine || slowT > 0 || !cleared || p.snoozeRoom === room) { awakenWait = 0; return false; }
-    return (awakenWait += dt) > F.ANIMA.wait;
+    return !(p.awkLock || awakenFx || state !== 'play' || winTimer >= 0 || cine || slowT > 0 || !cleared || p.snoozeRoom === room);
+  }
+  // se ofrece tras 0,8 s de calma (los logros esperan: achHold)
+  function canOfferAwaken(dt) {
+    if (!awakenDue()) { awakenWait = 0; return false; }
+    return (awakenWait += dt) > FX().ANIMA.wait;
   }
   // elegir carta del panel: empieza la transformación (state sigue en 'play', el mundo va a cámara lenta)
   function startAwaken(el) {
@@ -907,6 +940,7 @@
     if (!F || awakenFx || !F.options({ stage: p.awak + 1, aff: p.aff, core: p.core, pact: pactRun }).some(o => o.el === el && !o.locked)) return;
     awakenFx = { t: 0, el, st: p.awak + 1, boom: false, first: false };
     banner = null; bannerNext = null; // la escena es del mago: fuera el rótulo de la sala
+    dropTip('anima', true); achYield(); // y el consejo del anillo, que ya se ha cumplido, y el logro que se esté viendo
     awakenWait = 0; musicHoldT = 1.4;
     try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(0); } catch (_) { /* sin música */ }
     Sfx.awakenCharge();
@@ -918,6 +952,7 @@
     hideOverlay(); state = 'play'; last = performance.now(); resetJoy();
     player.snoozeRoom = room; awakenWait = 0;
     Sfx.click();
+    nextAch(); // los logros retenidos por el panel ya pueden salir
   }
   // 1,4 s reales: carga con el mundo a ×0,15, estallido a los 0,9 s y vuelta a la normalidad
   function updateAwaken(dt) {
@@ -968,8 +1003,8 @@
   function announceForm(f) {
     const F = Forms(), D = F.FORMS[player.form], crown = grimMark2(player.form);
     // con la Marca II de la forma: nombre en dorado con su corona encima
-    const main = { text: D.short, sub: D.line, color: crown ? '#ffcf4a' : D.color, crown: crown ? D.color : null, t: 2.6, max: 2.6 };
-    if (player.form === 'eclipse' && f.first) { banner = { text: 'LA FORMA PROHIBIDA', sub: '', color: '#c77dff', t: 1.2, max: 1.2 }; bannerNext = main; }
+    const main = { text: D.short, sub: D.line, color: crown ? '#ffcf4a' : D.color, crown: crown ? D.color : null, t: 2.6, max: 2.6, form: true }; // form: los logros esperan
+    if (player.form === 'eclipse' && f.first) { banner = { text: 'LA FORMA PROHIBIDA', sub: '', color: '#c77dff', t: 1.2, max: 1.2, form: true }; bannerNext = main; }
     else banner = main;
     if (f.st === 2 && flags.phase2 && D.ult) pushToast({ text: `NUEVO DEFINITIVO: ${D.ult.name.toUpperCase()}`, sub: D.ult.desc, color: D.color, t: 2.8, max: 2.8 }); // lo que cambia al jugar, primero
     if (f.first) pushToast({ text: '¡NUEVA FORMA!', sub: `Grimorio ${F.count(meta.grim.f)}/10`, color: D.color, t: 2.6, max: 2.6 });
@@ -1021,7 +1056,7 @@
     rings.push({ x: p.x, y: p.y - 4, r0: 12, r1: 70, t: 0.4, max: 0.4, color: m.color, w: 4 });
     sparks(p.x, p.y - 4, m.color, 10);
     pushToast({ text: 'MEZCLA: ' + m.name.toUpperCase(), sub: `${m.recipe} · ${m.tip}`, color: m.color, t: 2.8, max: 2.8 });
-    if (!settings.tips.mix) { settings.tips.mix = 1; saveSettings(); pushToast({ text: 'MEZCLAS SECRETAS', sub: 'Una runa y una carta concretas se combinan solas', color: '#8dffb0', t: 3, max: 3 }); }
+    if (!settings.tips.mix) pushToast({ text: 'MEZCLAS SECRETAS', sub: 'Una runa y una carta concretas se combinan solas', color: '#8dffb0', t: 3, max: 3, tip: 'mix' });
     Sfx.mix();
     if (fresh) {
       g.m |= b;
@@ -1117,7 +1152,7 @@
   // al morir: estallido de Ígnea (ardiendo), charco de Tóxica/Azufre y esquirlas de Aurora (congelado)
   function formDeath(e) {
     const tr = player.tr, atk = player.atk;
-    if (!FX() || !tr) return;
+    if (!FX() || !tr || subHit) return; // la baja de un secundario: ni estallido, ni charco, ni más esquirlas
     const d = tr.deathBlast;
     if (d && e.burn > 0 && fxDepth === 0 && takeTok('blast')) { // las bajas de un estallido no estallan
       fxDepth++;
@@ -1420,7 +1455,9 @@
       for (const e of enemies) {
         if (e.dead || e.spawnT > 0 || e.x < c.x || e.x >= c.x + c.w || c.hit.has(e)) continue;
         c.hit.add(e);
-        damageEnemy(e, uAtk() * 7, false, '#6affc8'); // 4,5× quedaba muy por debajo de la Ventisca (5× + 4× al romperse) que sustituye
+        // 4,5× quedaba muy por debajo de la Ventisca (5× + 4× al romperse) que sustituye. El jefe solo cabe en una columna: 18× (21,6× con Linaje)
+        // lo deja cerca de Tormenta (25,6×) y Sol cautivo (26,6×), algo por debajo por ser el definitivo defensivo
+        damageEnemy(e, uAtk() * (e.kind === 'boss' ? 18 : 7), false, '#6affc8');
         if (!e.dead) freezeEnemy(e, 2, 0.8, true);
       }
       for (const b of bullets) if (b.x >= c.x && b.x < c.x + c.w) { b.dead = true; sparks(b.x, b.y, '#bff4ff', 2); }
@@ -2206,11 +2243,12 @@
       roomReactA += v;
       gainAnima(v);
     }
+    // el estado que consume la reacción se borra DESPUÉS del daño: si la reacción mata, los rasgos al morir (Pira, charcos) aún lo ven
     if (r.id === 'vapor') {
-      e.burn = 0; e.burnDps = 0; e.slow = 0;
       for (let i = 0; i < 16; i++) parts.push({ x: e.x + rand(-12, 12), y: e.y, vx: rand(-40, 40), vy: rand(-140, -60), life: rand(0.4, 0.8), max: 0.8, color: '#e8f7ff', size: rand(3, 6) });
       rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 40, t: 0.3, max: 0.3, color: r.color, w: 4 });
       damageEnemy(e, atk * (tr.vaporK || 3), true, r.color);
+      e.burn = 0; e.burnDps = 0; e.slow = 0;
     } else if (r.id === 'overload') {
       e.shock = 0;
       explode(e.x, e.y, tr.overR || 95, atk * (tr.overK || 2.2), r.color);
@@ -2226,8 +2264,8 @@
       rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 30, t: 0.35, max: 0.35, color: r.color, w: 3 });
       for (let i = 0; i < 10; i++) parts.push({ x: e.x + rand(-e.r, e.r), y: e.y + rand(-e.r, e.r), vx: rand(-30, 30), vy: rand(20, 70), life: rand(0.4, 0.7), max: 0.7, color: r.color, size: rand(2, 3.5) });
     } else if (r.id === 'combust') {
-      e.burn = 0; e.burnDps = 0;
       explode(e.x, e.y, tr.combR || 85, atk * (tr.combK || 1.5), r.color, atk * 0.15 * Math.max(1, player.sk.poison || 1));
+      e.burn = 0; e.burnDps = 0;
     } else if (r.id === 'necro') {
       necrosis(e, atk);
       Sfx.tone(1100, 0.25, 'sine', 0.06, 0.5);
@@ -2238,7 +2276,6 @@
   // También la lanza Invierno negro sobre todos al acabar (con los valores de Mortaja)
   function necrosis(e, atk) {
     const tr = player.tr, pd = e.poisonDps, half = pd * 0.5, spread = tr.necroSpread || 70;
-    e.poisonDps = 0;
     rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 40, t: 0.3, max: 0.3, color: '#5fffd0', w: 4 });
     for (let i = 0; i < (lowQ() ? 4 : 10); i++) {
       const a = rand(0, TAU), v = rand(60, 180);
@@ -2249,6 +2286,7 @@
       if (Math.hypot(o.x - e.x, o.y - e.y) < spread + o.r) o.poisonDps = Math.max(o.poisonDps, half);
     }
     damageEnemy(e, clamp(pd * (tr.necroK || 3), 1.5 * atk, (tr.necroCap || 4) * atk), true, '#5fffd0');
+    e.poisonDps = 0; // después del daño: si muere, el charco de Ponzoña aún lo ve envenenado
   }
 
   // ================================================================
@@ -2265,7 +2303,7 @@
     // Eclipse (Desequilibrio): contra no jefes, los elementos del propio disparo cuentan como estado previo
     const rx = tr.firstHit && fx && e.kind !== 'boss'
       ? { fire: had.fire || els.includes('fire'), ice: had.ice || els.includes('ice'), bolt: had.bolt || els.includes('bolt'), poison: had.poison || els.includes('poison') } : had;
-    damageEnemy(e, dmg, crit);
+    subHit = !fx; damageEnemy(e, dmg, crit); subHit = false;
     // Chispazo (Mezcla): cada crítico lanza una cadena de rayos
     if (crit && fx && mixOn('chispazo') && takeTok('spark')) { const P = MIXP.chispazo.p; chainLightning(e, dmg * P.k * mixOn('chispazo'), P.n, P.r, BOLT_SKY); }
     if (!e.dead && !e.heavy) { // retroceso al recibir el impacto
@@ -2288,7 +2326,7 @@
         if (Sfx.gate('frz', 120)) Sfx.tone(1400, 0.15, 'sine', 0.04, 0.6);
       }
       // Plasma: arco al enemigo más cercano si este arde
-      if (tr.plasmaArc && e.burn > 0 && Math.random() < tr.plasmaArc.p) plasmaArc(e, ar, tr.plasmaArc);
+      if (tr.plasmaArc && had.fire && Math.random() < tr.plasmaArc.p) plasmaArc(e, ar, tr.plasmaArc); // ya ardía antes del impacto
     }
     if (fx && els.includes('bolt') && Math.random() < (tr.chainP || 0.16) * (player.sk.bolt || 1)) chainLightning(e, ar.dmg * (tr.chainK || 0.4), tr.chainN || 2, tr.chainR || 200);
 
@@ -2481,8 +2519,11 @@
     for (const r of rings) r.t -= dt;
     rings = rings.filter(r => r.t > 0);
     if (banner) { banner.t -= dt; if (banner.t <= 0) { banner = bannerNext; bannerNext = null; } }
-    if (toast && !cine) { toast.t -= dt; if (toast.t <= 0) toast = toastQ.shift() || null; } // la cola espera a la entrada del jefe
-    else if (!toast && toastQ.length) toast = toastQ.shift();
+    if (!cine && !awakenFx) { // la cola espera a la entrada del jefe y a la transformación; con cola, cada aviso dura menos
+      if (toast) { toast.t -= dt * (toastQ.length > 2 ? 1.5 : 1); if (toast.t <= 0) showToast(toastQ.shift() || null); }
+      else if (toastQ.length) showToast(toastQ.shift());
+    }
+    if (!achBusy && achQueue.length) nextAch(); // los logros retenidos durante el despertar
     if (screenFlash && !screenFlash.real) { screenFlash.t -= dt; if (screenFlash.t <= 0) screenFlash = null; }
     if (eclipseFx) { eclipseFx.t -= dt; if (eclipseFx.t <= 0) eclipseFx = null; }
     if (cine) { cine.t -= dt; if (cine.t <= 0) { cine = null; hazardHints(); } }
@@ -2543,9 +2584,8 @@
   function hazardHints() {
     const seen = settings.seenHz || (settings.seenHz = {});
     for (const t of [1, 2, 3, 4]) {
-      if (seen[t] || !hz.includes(t)) continue;
-      seen[t] = true; saveSettings();
-      pushToast({ text: HZ_INFO[t].name, sub: HZ_INFO[t].tip, color: HZ_INFO[t].color, t: 3, max: 3 });
+      if (seen[t] || !hz.includes(t) || [toast, ...toastQ].some(x => x && x.hz === t)) continue; // visto o ya en cola
+      pushToast({ text: HZ_INFO[t].name, sub: HZ_INFO[t].tip, color: HZ_INFO[t].color, t: 3, max: 3, hz: t }); // se da por visto al salir
       return;
     }
   }
@@ -2645,6 +2685,7 @@
     shots = []; shotQ = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null; chest = null; cine = null;
     pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; curtains = []; fog = null;
+    bannerNext = null; eclipseFx = null; // el rótulo pendiente y las esquirlas del Eclipse no pasan a la sala nueva
     hz.fill(0);
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0, vx: 0, vy: 0 });
     if (perkLv('roomShield')) player.shield = Math.max(player.shield, 1);
@@ -2771,14 +2812,15 @@
     if (!player) return;
     const p = player, F = FX(), on = !!F && p.awak < 2;
     const a = on ? Math.round(clamp(p.anima / F.ANIMA.need[p.awak], 0, 1) * 100) : 0;
-    const cls = (on ? 'a' : '') + (on && p.animaReady ? (p.awkLock ? 'l' : 'f') : '') + p.awak;
+    const rdy = on && p.animaReady && room < TOTAL_ROOMS; // en la sala final ya no se ofrece: el anillo no gira
+    const cls = (on ? 'a' : '') + (rdy ? (p.awkLock ? 'l' : 'f') : '') + p.awak;
     if (!force && a === animaShown && cls === animaCls) return;
     animaShown = a; animaCls = cls;
     btnUlt.style.setProperty('--a', a);
     btnUlt.style.setProperty('--ac', on && p.awak ? F.FORMS[p.form].color : '#fff1c4');
     btnUlt.classList.toggle('anima', on);
-    btnUlt.classList.toggle('animafull', on && p.animaReady && !p.awkLock);
-    btnUlt.classList.toggle('animalock', on && p.animaReady && p.awkLock);
+    btnUlt.classList.toggle('animafull', rdy && !p.awkLock);
+    btnUlt.classList.toggle('animalock', rdy && p.awkLock);
   }
 
   function die() {
@@ -4000,8 +4042,10 @@
   let toastY = 140;
   function drawToast() {
     toastY += ((achBusy && state === 'play' ? 186 : 140) - toastY) * 0.25;
-    if (!toast || cine) return;
-    const a = clamp(Math.min(toast.t, toast.max - toast.t) / 0.25, 0, 1), y = toastY;
+    if (!toast || cine || awakenFx) return; // la transformación es del mago
+    // sala limpia con el mago arriba (junto a la puerta, bajo la franja de avisos): el aviso sale bajo el rótulo. Se decide una vez por aviso
+    if (toast.low === undefined) toast.low = !!player && cleared && player.y < 330;
+    const a = clamp(Math.min(toast.t, toast.max - toast.t) / 0.25, 0, 1), y = toast.low ? 540 : toastY;
     if (!toast.fs) { toast.fs = fitSize(toast.text, 24, 410); toast.ss = fitSize(toast.sub || '', 15, 416); }
     ctx.globalAlpha = a;
     ctx.fillStyle = 'rgba(12,8,22,.82)'; rrect(W / 2 - 220, y, 440, 66, 18); ctx.fill();
@@ -4145,8 +4189,10 @@
       }
     }
     // despertar listo pero bloqueado: opuestos sin pacto
-    else if (player.animaReady && player.awkLock && cleared && !awakenFx && FX()) hint('Opuestos: sella un Pacto oscuro en un altar para despertar', '#c77dff');
+    else if (player.animaReady && player.awkLock && cleared && !awakenFx && FX() && altarLeft()) hint('Opuestos: sella un Pacto oscuro en un altar para despertar', '#c77dff');
   }
+  // ¿queda algún altar donde firmar el Pacto? El de esta sala sin usar o uno más adelante
+  function altarLeft() { return (!!altar && !altar.used) || [...ALTAR_ROOMS].some(r => r > room); }
 
   function hint(text, color) {
     const fs = fitSize(text, 17, W - 80); // los textos largos encogen en vez de salirse de la píldora
@@ -4358,15 +4404,16 @@
     chest = null; cine = null; hz.fill(0);
     awakenFx = null; eclipseFx = null; pools = []; amb = []; ash = []; toastQ = []; bannerNext = null; flashNext = null; curtains = []; fog = null;
     cleared = true; doorAnim = 1; fade = 0; shake = 0;
+    nextAch(); // si se sale desde el panel del despertar, los logros retenidos salen aquí
     grid = genRocks(false);
     menuBiome = null; roomBgDirty = true;
     hud(false);
     music('menu');
     try { if (window.ArcanoMusic) window.ArcanoMusic.setIntensity(0); } catch (_) { /* sin música */ }
     const b = store.get('best', null);
-    const done = ACHIEVEMENTS.filter(a => meta.ach[a.id]).length;
+    const AL = achList(), done = AL.filter(a => meta.ach[a.id]).length;
     const F = FX(), tt = grimTitle();
-    const logros = `<button class="btn ghost" data-act="stats">🏆 Logros <span class="cnt">${done}/${ACHIEVEMENTS.length}</span></button>`;
+    const logros = `<button class="btn ghost" data-act="stats">🏆 Logros <span class="cnt">${done}/${AL.length}</span></button>`;
     const ajustes = '<button class="btn ghost" data-act="settings">⚙️ Ajustes</button>';
     // con forms.js: Grimorio | Logros y Ajustes en su propia fila; sin él, el menú de siempre
     const rows = F ? `<div class="btn-row"><button class="btn ghost" data-act="grimoire">📖 Grimorio <span class="cnt">${F.count(meta.grim.f)}/10</span></button>${logros}</div>
@@ -4621,14 +4668,14 @@
   function showStats() {
     state = 'stats';
     const S = meta.stats;
-    const done = ACHIEVEMENTS.filter(a => meta.ach[a.id]).length;
+    const AL = achList(), done = AL.filter(a => meta.ach[a.id]).length;
     const bests = Object.entries(SCHOOLS).map(([id, s]) => {
       const b = S.best[id], w = S.winsBy[id] || 0;
       return `<div class="sb ${schoolOpen(id) ? '' : 'off'}" style="--c:${EL[id].color}">
           <span>${schoolOpen(id) ? s.icon : '🔒'}</span><b>${b ? (b > TOTAL_ROOMS ? '🏆' : 'Sala ' + b) : '—'}</b>
           <i>${w ? w + (w > 1 ? ' victorias' : ' victoria') : s.name}</i></div>`;
     }).join('');
-    const achs = ACHIEVEMENTS.map(a => {
+    const achs = AL.map(a => {
       const got = meta.ach[a.id];
       return `<div class="shop-item ach ${got ? 'got' : ''}"><span class="ic">${got ? a.icon : '🔒'}</span>
           <span class="tx"><b>${a.name}</b><i>${a.desc}</i></span><span class="price">${got ? '✓' : '✨ ' + a.reward}</span></div>`;
@@ -4636,7 +4683,7 @@
     showOverlay(`
       <div class="panel shop">
         <div class="title gold">LOGROS</div>
-        <div class="sub">${done} de ${ACHIEVEMENTS.length} desbloqueados</div>
+        <div class="sub">${done} de ${AL.length} desbloqueados</div>
         <div class="stats">
           <div><span>Partidas</span><b>${meta.runs}</b></div>
           <div><span>Victorias</span><b>${S.wins}</b></div>
@@ -4767,7 +4814,7 @@
     const F = FX(), k = meta.grim.k;
     if (!F) return '';
     return `<div><span>Formas</span><b>${F.count(meta.grim.f)}/10</b></div>
-          <div><span>Despertar medio (sala)</span><b>${grimAvg(k[0], k[1])} / ${grimAvg(k[2], k[3])}</b></div>`;
+          <div><span>Sala media al despertar</span><b>${grimAvg(k[0], k[1])}${k[3] ? ' y ' + grimAvg(k[2], k[3]) : ''}</b></div>`;
   }
   // ritmo bajo el rombo del Grimorio (cuando ya has despertado alguna vez)
   function grimRhythm() {
@@ -4779,7 +4826,7 @@
     const p = player, F = FX();
     if (!F || !p) return '';
     const D = F.FORMS[p.form], aff = p.aff.map(el => EL[el].name).join(' + ');
-    const prog = p.awak >= 2 ? '' : p.animaReady ? (p.awkLock ? 'Despertar: falta un Pacto oscuro' : 'Despertar listo')
+    const prog = p.awak >= 2 ? '' : p.animaReady ? (p.awkLock ? (altarLeft() ? 'Despertar: falta un Pacto oscuro' : 'Opuestos: sin Pacto no hay 2º despertar') : 'Despertar listo')
       : `Despertar ${Math.floor(clamp(p.anima / F.ANIMA.need[p.awak], 0, 1) * 100)}%`;
     const parts = p.awak ? [`Forma: <b>${D.short}</b>`, p.awak === 2 ? F.pairText(p.core, p.second) : aff.includes('+') ? 'Afinidad: ' + aff : EL[p.core].name]
       : ['Aprendiz', aff ? 'Afinidad: ' + aff : ''];
@@ -4904,6 +4951,7 @@
     state = 'levelup';
     resetJoy();
     awakenWait = 0;
+    achYield(); // el logro del jefe no tapa el título ni el rombo
     lockUntil = performance.now() + 600; // que no se elija sin querer: no hay vuelta atrás
     let n = 0;
     const cards = opts.map((o, i) => {
@@ -4970,7 +5018,7 @@
           </button>`}
           ${player.maxHp >= 80 ? `<button class="card pact" data-act="altar" data-id="pact" style="animation-delay:210ms">
             <div class="ic">😈</div>
-            <div class="tx"><div class="nm">Pacto oscuro</div><div class="ds">Pierdes el 20% de la vida máxima a cambio de 2 habilidades ahora${FX() && player.aff.length === 2 && Forms().isOpp(player.aff[0], player.aff[1]) ? ' · Abre el camino a Eclipse si tus elementos son opuestos' : ''}</div></div><kbd>4</kbd>
+            <div class="tx"><div class="nm">Pacto oscuro</div><div class="ds">Pierdes el 20% de la vida máxima a cambio de 2 habilidades ahora${FX() && !pactRun && player.awak < 2 && player.aff.length === 2 && Forms().isOpp(player.aff[0], player.aff[1]) ? ' · Abre el camino a Eclipse si tus elementos son opuestos' : ''}</div></div><kbd>4</kbd>
           </button>` : ''}
         </div>
       </div>`);
@@ -5111,6 +5159,7 @@
 
   function showEnd(win, quit = false) {
     state = win ? 'win' : 'over';
+    achEl.classList.add('low'); // el logro que ya se ve (el del jefe) también baja: arriba va el emblema
     hud(false);
     resetJoy();
     if (win) Sfx.win();

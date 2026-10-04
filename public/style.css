@@ -555,6 +555,8 @@ a.btn { text-decoration: none; text-align: center; }
   transition: transform .35s cubic-bezier(.2, 1.3, .4, 1), opacity .25s;
 }
 #achToast.show { transform: translate(-50%, 0); opacity: 1; }
+#achToast.low { top: auto; bottom: calc(var(--u) * 24px); transform: translate(-50%, calc(var(--u) * 160px)); } /* pantalla final: abajo */
+#achToast.low.show { transform: translate(-50%, 0); }
 #achToast .ic { font-size: calc(var(--u) * 32px); }
 #achToast .tx { flex: 1; display: grid; font-size: calc(var(--u) * 18px); font-weight: 800; }
 #achToast .tx b { color: #ffcf4a; font-size: calc(var(--u) * 13px); letter-spacing: .08em; text-transform: uppercase; }
@@ -819,7 +821,8 @@ a.btn { text-decoration: none; text-align: center; }
   flex: 1; padding: calc(var(--u) * 9px) calc(var(--u) * 4px); font: inherit; font-weight: 800; font-size: max(11px, calc(var(--u) * 16px)); color: #fff;
   background: rgba(255, 255, 255, .07); border: calc(var(--u) * 2px) solid #4d3f7a; border-radius: calc(var(--u) * 12px); cursor: pointer;
 }
-.grim-tabs .tab i { font-style: normal; opacity: .6; font-size: max(10px, calc(var(--u) * 13px)); }
+.grim-tabs .tab i { display: block; font-style: normal; opacity: .6; font-size: max(10px, calc(var(--u) * 13px)); } /* contador siempre en su línea: las 3 pestañas iguales */
+.panel.shop.grim { height: 96%; } /* alto fijo: las pestañas no saltan al cambiar a una lista corta */
 .grim-tabs .tab.on { border-color: #ffcf4a; background: rgba(255, 207, 74, .14); color: #ffcf4a; }
 .rombo { position: relative; width: calc(var(--u) * 110px); height: calc(var(--u) * 110px); margin: calc(var(--u) * 26px) auto calc(var(--u) * 24px); }
 .rombo svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }

@@ -116,7 +116,7 @@ t = await txt();
 ok(/Despiertas de media en la sala 5,5 y en la 13,5/.test(t), 'Grimorio: "Despiertas de media en la sala 5,5 y en la 13,5"', (t.match(/Despiertas[^\n]*/) || [''])[0]);
 await shot('04-grimorio-ritmo');
 await click('[data-act="back"]'); await wait(); await click('[data-act="stats"]'); await wait();
-ok(/Despertar medio \(sala\)\s*5,5 \/ 13,5/.test(await txt()), 'Logros: "Despertar medio (sala) 5,5 / 13,5"');
+ok(/Sala media al despertar\s*5,5 y 13,5/.test(await txt()), 'Logros: "Sala media al despertar 5,5 y 13,5"');
 await click('[data-act="back"]'); await wait();
 
 // ---------- 6. Mini-rombo del panel del despertar ----------

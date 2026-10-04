@@ -141,7 +141,7 @@ await shot('12-menu-titulo');
 await click('[data-act="stats"]'); await wait();
 t = await txt();
 ok(/Formas\s*8\/10/.test(t), 'estadísticas: Formas 8/10');
-ok(/Despertar medio \(sala\)\s*1 \/ 1/.test(t), 'estadísticas: Despertar medio', (t.match(/Despertar medio[^\n]*\n[^\n]*/) || [''])[0]);
+ok(/Sala media al despertar\s*1 y 1/.test(t), 'estadísticas: Sala media al despertar', (t.match(/Sala media al despertar[^\n]*\n[^\n]*/) || [''])[0]);
 await shot('13-estadisticas');
 await click('[data-act="back"]'); await wait();
 
