@@ -492,7 +492,7 @@
   achEl.id = 'achToast';
   wrap.appendChild(achEl);
   const achQueue = [];
-  let achBusy = false, achCur = null, achT0 = 0, achTimer = 0;
+  let achBusy = false, achCur = null, achT0 = 0, achTimer = 0, achAgain = false; // achAgain: el siguiente es uno que se cortó (vuelve sin sonido)
   function unlock(id) {
     if (meta.ach[id]) return;
     const a = ACHIEVEMENTS.find(x => x.id === id);
@@ -514,7 +514,7 @@
     achEl.innerHTML = `<span class="ic">${a.icon}</span><span class="tx"><b>¡Logro desbloqueado!</b>${a.name}</span><span class="rw">+✨ ${a.reward}</span>`;
     achEl.classList.toggle('low', state === 'win' || state === 'over'); // pantalla final: abajo, sin tapar el emblema ni la Marca II
     achEl.classList.add('show');
-    Sfx.ach();
+    if (achAgain) achAgain = false; else Sfx.ach(); // el que vuelve ya sonó
     achCur = a; achT0 = performance.now();
     achTimer = setTimeout(achOut, 2600);
   }
@@ -526,7 +526,7 @@
   function achYield() {
     if (!achCur) return;
     clearTimeout(achTimer);
-    if (performance.now() - achT0 < 1500) achQueue.unshift(achCur);
+    if (performance.now() - achT0 < 1500) { achQueue.unshift(achCur); achAgain = true; }
     achOut();
   }
 
@@ -2519,8 +2519,8 @@
     for (const r of rings) r.t -= dt;
     rings = rings.filter(r => r.t > 0);
     if (banner) { banner.t -= dt; if (banner.t <= 0) { banner = bannerNext; bannerNext = null; } }
-    if (!cine && !awakenFx) { // la cola espera a la entrada del jefe y a la transformación; con cola, cada aviso dura menos
-      if (toast) { toast.t -= dt * (toastQ.length > 2 ? 1.5 : 1); if (toast.t <= 0) showToast(toastQ.shift() || null); }
+    if (!cine && !awakenFx) { // la cola espera a la entrada del jefe y a la transformación; con cola, cada aviso dura menos (nunca menos de 2 s)
+      if (toast) { toast.t -= dt * (toastQ.length > 2 ? Math.min(1.5, toast.max / 2) : 1); if (toast.t <= 0) showToast(toastQ.shift() || null); }
       else if (toastQ.length) showToast(toastQ.shift());
     }
     if (!achBusy && achQueue.length) nextAch(); // los logros retenidos durante el despertar
@@ -2686,6 +2686,7 @@
     rings = []; meteors = []; storm = null; sing = null; altar = null; chest = null; cine = null;
     pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; curtains = []; fog = null;
     bannerNext = null; eclipseFx = null; // el rótulo pendiente y las esquirlas del Eclipse no pasan a la sala nueva
+    if (toast) delete toast.low; // el aviso que iba bajo el rótulo vuelve arriba: en la sala nueva hay combate en medio
     hz.fill(0);
     Object.assign(player, { x: AX + AW / 2, y: AY + AH - 50, face: -Math.PI / 2, cd: 0.35, still: 0, vx: 0, vy: 0 });
     if (perkLv('roomShield')) player.shield = Math.max(player.shield, 1);
@@ -2933,7 +2934,7 @@
   let last = performance.now();
   function frame(now) {
     const raw = (now - last) / 1000;
-    const dt = Math.min(raw, 1 / 30);
+    const dt = clamp(raw, 0, 1 / 30); // nunca negativo: tras reponer last en un toque (carta del despertar), el reloj del frame puede ir por detrás
     last = now;
     clock += dt;
     fpsAcc += raw; fpsN++;
@@ -5160,6 +5161,7 @@
   function showEnd(win, quit = false) {
     state = win ? 'win' : 'over';
     achEl.classList.add('low'); // el logro que ya se ve (el del jefe) también baja: arriba va el emblema
+    nextAch(); // uno retenido por un despertar a punto (se abandona o se cae antes del panel) sale aquí, no en la partida siguiente
     hud(false);
     resetJoy();
     if (win) Sfx.win();
@@ -5387,7 +5389,7 @@
       levelup() { pendingLevels = Math.max(1, pendingLevels); openLevelUp('level'); return state; },
       toasts() { return [toast, ...toastQ].filter(Boolean).map(t => t.text + ' | ' + t.sub).concat(banner ? ['BANNER ' + banner.text] : [], bannerNext ? ['NEXT ' + bannerNext.text] : []); },
       // rótulo, posición del aviso (baja si hay logro en pantalla) y Marca II de la forma actual
-      ui() { return { banner: banner && { text: banner.text, color: banner.color, crown: banner.crown || null }, toastY: Math.round(toastY), achBusy, crown: !!(player && FX() && grimMark2(player.form)) }; },
+      ui() { return { banner: banner && { text: banner.text, color: banner.color, crown: banner.crown || null }, toastY: Math.round(toastY), toastLow: toast ? toast.low : null, achBusy, achQ: achQueue.length, achAgain, crown: !!(player && FX() && grimMark2(player.form)) }; },
       ambient() { return { amb: amb.length, ash: ash.length, eclipseFx: !!eclipseFx }; }, // partículas de ambiente de la forma
       achPop(id = 'firstWin') { const a = ACHIEVEMENTS.find(x => x.id === id); if (a) { achQueue.push(a); nextAch(); } return achBusy; }, // enseña el aviso de un logro (sin darlo)
       formStats() { return Forms() ? Object.assign(Forms().stats(), { glowGame: glowCache.size }) : null; },
