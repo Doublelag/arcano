@@ -11,6 +11,7 @@ const PRECACHE = [
   'biomes.js',
   'equipment.js',
   'forms.js',
+  'chapters.js',
   'manifest.webmanifest',
   'icons/icon-32.png',
   'icons/icon-192.png',

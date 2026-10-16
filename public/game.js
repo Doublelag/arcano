@@ -7,7 +7,6 @@
   const AX = 30, AY = 128, AW = 480, AH = 800;  // arena jugable
   const CELL = 40, COLS = 12, ROWS = 20;        // rejilla de obstáculos
   const DOOR_X0 = AX + AW / 2 - 50, DOOR_X1 = AX + AW / 2 + 50;
-  const TOTAL_ROOMS = 20;
   const TAU = Math.PI * 2;
   const SHOT_SPEED = 760;
   const JOY_R = 70;
@@ -213,8 +212,6 @@
     pradera: { slime: '#59b4ff', bigslime: '#3f86e8', archer: '#b8642e' },
     cristal: { spirit: '#e3c8ff' },
   };
-  // sala a partir de la que aparece cada enemigo
-  const ENEMY_UNLOCK = { slime: 1, bat: 1, archer: 2, charger: 3, mage: 4, bigslime: 6, bomber: 6, totem: 7, spirit: 11 };
 
   // Elementos, escuelas de magia y reacciones
   const EL = {
@@ -251,7 +248,6 @@
     { id: 'paso',   icon: '👟', name: 'Paso ligero',      desc: '+4% de velocidad',                  max: 3, cost: [50, 110, 180] },
     { id: 'fenix',  icon: '🕊️', name: 'Pluma de fénix',   desc: 'Revives una vez por partida con 50% de vida', max: 1, cost: [500] },
   ];
-  const ALTAR_ROOMS = new Set([4, 9, 14, 19]); // salas de descanso justo antes de cada jefe
 
   // Trampas del suelo: solo dañan al jugador
   const HZ = { SPIKES: 1, POISON: 2, ICE: 3, LAVA: 4 };
@@ -262,7 +258,6 @@
     4: { name: '¡LAVA!', tip: 'Quema mientras la pisas', color: '#ff8a3d' },
   };
   const BIOME_HAZARD = { pradera: 0, cripta: HZ.POISON, cristal: HZ.ICE, volcan: HZ.LAVA };
-  const BOSS_TITLES = { 5: 'Guardián de la pradera', 10: 'Monarca de la cripta', 15: 'Tirano de la gruta helada', 20: 'Corazón del volcán' };
 
   // Logros: dan esencia al desbloquearse
   const ACHIEVEMENTS = [
@@ -296,12 +291,59 @@
   ];
   const achList = () => ACHIEVEMENTS.filter(a => !a.forms || FX()); // sin forms.js, los del Despertar ni se cuentan ni se enseñan
 
-  const BOSSES = {
-    5:  { tier: 1, name: 'Gólem de Piedra',      hp: 480,  r: 40, speed: 55, color: '#8f8270', bullet: '#ffb347', pats: ['ring', 'charge', 'aimed'] },
-    10: { tier: 2, name: 'Rey Slime',            hp: 1150, r: 42, speed: 65, color: '#57c75e', bullet: '#b6ff6b', pats: ['summon', 'ring', 'charge', 'aimed'] },
-    15: { tier: 3, name: 'Brujo Sombrío',        hp: 2600, r: 34, speed: 45, color: '#6d4bd8', bullet: '#c58bff', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'] },
-    20: { tier: 4, name: 'Señor de la Mazmorra', hp: 4700, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff6a3d', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'] },
-  };
+  // ================================================================
+  //  Capítulos (chapters.js): datos y fórmulas puras (sin Math.random). CH = capítulo de la partida (resuelto),
+  //  HEROIC = Modo Héroe. Sin chapters.js, CH_FALLBACK: el Capítulo 1 de siempre embebido y las mismas fórmulas.
+  // ================================================================
+  const Chapters = () => window.ArcanoChapters;
+  const CH_FALLBACK = (() => {
+    const BOSSES = { // las salas de jefe de siempre (modelo, logro y arena van con el modelo)
+      5:  { model: 'golem', ach: 'boss1', arena: 'golem', tier: 1, title: 'Guardián de la pradera', name: 'Gólem de Piedra', hp: 480, r: 40, speed: 55, color: '#8f8270', bullet: '#ffb347', pats: ['ring', 'charge', 'aimed'] },
+      10: { model: 'rey', ach: 'boss2', arena: 'rey', tier: 2, title: 'Monarca de la cripta', name: 'Rey Slime', hp: 1150, r: 42, speed: 65, color: '#57c75e', bullet: '#b6ff6b', pats: ['summon', 'ring', 'charge', 'aimed'] },
+      15: { model: 'brujo', ach: 'boss3', arena: 'brujo', tier: 3, title: 'Tirano de la gruta helada', name: 'Brujo Sombrío', hp: 2600, r: 34, speed: 45, color: '#6d4bd8', bullet: '#c58bff', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'] },
+      20: { model: 'senor', ach: 'boss4', arena: 'senor', tier: 4, title: 'Corazón del volcán', name: 'Señor de la Mazmorra', hp: 4700, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff6a3d', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], final: true },
+    };
+    const ch = {
+      id: 1, name: 'La Mazmorra', short: 'Mazmorra', len: 20, hero: false, k: 0, altars: [4, 9, 14, 19], tint: null, enemyTint: null,
+      ENEMY_UNLOCK: { slime: 1, bat: 1, archer: 2, charger: 3, mage: 4, bigslime: 6, bomber: 6, totem: 7, spirit: 11 }, // sala a partir de la que aparece cada enemigo
+      nets: { a: 1, b: 2, c: 3 }, markRoom: 6, stars: [7, 14], speedrun: 270,
+    };
+    const HEAL = { boss: 0.25, bossHearts: 2, heart: 0.06, eliteHeart: 0.3, heartVal: 0.15, chest: 0.15, altar: 0.6 };
+    const api = {
+      lastRoom: c => c.len,
+      bossAt: (c, r) => (BOSSES[r] ? Object.assign({}, BOSSES[r], { pats: BOSSES[r].pats.slice(), ord: r / 5, final: !!BOSSES[r].final }) : null),
+      bossRooms: () => [5, 10, 15, 20],
+      altarAt: (c, r) => c.altars.includes(r),
+      zoneAt: (c, r) => Math.min(3, Math.ceil(r / 5) - 1),
+      biomeAt: (c, r) => (r <= 5 ? 'pradera' : r <= 10 ? 'cripta' : r <= 15 ? 'cristal' : 'volcan'),
+      zoneStart: (c, r) => r % 5 === 1,
+      hpMul: (c, h, r) => 1 + 0.2 * (r - 1) + 0.006 * (r - 1) * (r - 1),
+      dmgMul: (c, h, r) => 1 + 0.07 * (r - 1),
+      enemyLv: (c, h, r) => r,
+      budget: (c, h, r) => ({ budget: 3.5 + r * 0.55, maxN: 11, caps: { totem: 2, spirit: 3, bomber: 3, bigslime: 2 }, pool: Object.keys(c.ENEMY_UNLOCK).filter(k => r >= c.ENEMY_UNLOCK[k]) }),
+      firstAttack: () => [0.6, 1.6],
+      spawnDist: () => 300,
+      eliteParams: (c, h, r) => ({ p: r < 6 ? 0 : 0.1 + r * 0.006, max: 2, affixes: [], dual: 0 }),
+      hazard: () => ({ from: 3, chance: 0.6, n: [2, 3], special: 0.55, arenaK: 1 }),
+      chest: () => ({ from: 2, p: 0.2, max: 3 }),
+      heal: () => Object.assign({}, HEAL),
+      lootDepth: (c, h, r, add = 0) => Math.min(20, r + add),
+      nets: c => Object.assign({}, c.nets),
+      markRoom: c => c.markRoom,
+    };
+    return { ch, api };
+  })();
+  const CHA = () => Chapters() || CH_FALLBACK.api;
+  // capítulo resuelto (id, Héroe); si no existe, el Capítulo 1
+  const resolveCH = (id, hero) => (Chapters() && (Chapters().get(id, hero) || Chapters().get(1, false))) || CH_FALLBACK.ch;
+  let chSel = { id: 1, hero: false }; // capítulo elegido para la próxima partida (hasta la fase 2, solo desde ?debug)
+  let CH = resolveCH(1, false), HEROIC = false;
+  const lastRoom = () => CH.len;
+  const bossAt = r => CHA().bossAt(CH, r);
+  const altarAt = r => CHA().altarAt(CH, r);
+  const biomeAt = r => CHA().biomeAt(CH, Math.max(1, r));
+  const healCfg = () => CHA().heal(CH, HEROIC);
+
 
   const SKILLS = [
     { id: 'front',    icon: '🔮', name: 'Proyectil extra',  max: 3, w: 1.1, desc: '+1 proyectil hacia delante (−12% daño cada uno)' },
@@ -397,7 +439,7 @@
   const seenMixes = new Set();   // Mezclas ya anunciadas en esta partida
   let runGrim0 = null; // páginas del Grimorio al empezar la partida (para "Nueva página" en el final)
 
-  const dmgMul = () => 1 + 0.07 * (room - 1);
+  const dmgMul = () => CHA().dmgMul(CH, HEROIC, room);
   const xpNeed = lvl => 6 + (lvl - 1) * 5;
 
   // progreso permanente: esencia, mejoras compradas y escuelas desbloqueadas
@@ -545,7 +587,7 @@
     clear: () => '¡Eso es! Muévete para esquivar y para para atacar',
     door: () => 'Sala limpia: cruza la puerta de arriba',
   };
-  function tutStart() { tut = settings.tutorial ? null : { step: 'move', t: 0 }; }
+  function tutStart() { tut = settings.tutorial || CH.id !== 1 || HEROIC ? null : { step: 'move', t: 0 }; } // solo en el C1 Normal
   function tutDone() { tut = null; settings.tutorial = true; saveSettings(); }
   function tutNext() { if (!settings.ultTip) { settings.ultTip = true; saveSettings(); } }
 
@@ -879,7 +921,7 @@
   // Ánima (anillo del definitivo): bajas, reacciones y daño a jefes. Al llenarse, el despertar queda listo
   function gainAnima(v) {
     const p = player, F = FX();
-    if (!F || !p || p.awak >= 2 || p.animaReady || room >= TOTAL_ROOMS) return; // en la sala final ya no hay despertar
+    if (!F || !p || p.awak >= 2 || p.animaReady || room >= lastRoom()) return; // en la sala final ya no hay despertar
     const A = F.ANIMA, need = A.need[p.awak];
     p.anima += v * (p.school === 'arcane' ? A.arcane : 1);
     if (!settings.tips.anima && p.anima >= need * 0.5 && p.anima < need) // si se llena de golpe, el consejo espera al siguiente
@@ -1013,9 +1055,10 @@
   // Grimorio: forma descubierta (f), despertada pronto (e), veces (n), ritmo (k) y logros
   function discoverForm(id, st) {
     const F = Forms(), g = meta.grim, b = F.bit(id), i = F.FORMS[id].bit, first = !(g.f & b);
-    const mark = st === 1 && room <= 6 && !(g.e & b); // Marca II nueva: forma pura despertada antes de la sala 7
+    const early = st === 1 && room <= CHA().markRoom(CH); // Marca II: forma pura despertada antes de la sala 7 (C1)
+    const mark = early && !(g.e & b); // Marca II nueva
     g.f |= b;
-    if (st === 1 && room <= 6) g.e |= b;
+    if (early) g.e |= b;
     g.n = g.n.slice(0, i) + Math.min(9, +g.n[i] + 1) + g.n.slice(i + 1);
     g.k[(st - 1) * 2] += room; g.k[(st - 1) * 2 + 1]++;
     if (awakenFx) { awakenFx.first = first; awakenFx.mark = mark; }
@@ -1644,7 +1687,7 @@
       if (tut && tut.step === 'move' && (tut.t += dt) > 0.6) tut.step = 'shoot';
     } else p.still += dt;
     collideRocks(p);
-    clampArena(p, cleared && room < TOTAL_ROOMS);
+    clampArena(p, cleared && room < lastRoom());
     // en el hielo solo se pierde la velocidad que choca contra la roca, no la que la roza
     if (ground === HZ.ICE && dt > 0) { p.vx = (p.x - ox) / dt; p.vy = (p.y - oy) / dt; }
     if (p.trapCd > 0) p.trapCd -= dt;
@@ -1697,13 +1740,14 @@
   //  Enemigos
   // ================================================================
   function makeEnemy(kind, x, y, delay = 0) {
-    const d = ENEMIES[kind], hm = 1 + 0.2 * (room - 1) + 0.006 * (room - 1) * (room - 1);
-    const tint = window.ArcanoBiomes ? BIOME_TINT[window.ArcanoBiomes.forRoom(Math.max(1, room))] : null;
+    const d = ENEMIES[kind], hm = CHA().hpMul(CH, HEROIC, room), fa = CHA().firstAttack(CH, HEROIC, room);
+    const tint = window.ArcanoBiomes ? BIOME_TINT[biomeAt(room)] : null;
     return {
       kind, x, y, r: d.r, hp: d.hp * hm, maxHp: d.hp * hm, speed: d.speed * rand(0.92, 1.08),
-      dmg: d.dmg * dmgMul(), xp: d.xp, ground: d.ground, color: (tint && tint[kind]) || d.color,
+      dmg: d.dmg * dmgMul(), xp: d.xp, ground: d.ground, color: (CH.enemyTint && CH.enemyTint[kind]) || (tint && tint[kind]) || d.color,
+      lv: CHA().enemyLv(CH, HEROIC, room), // nivel: lo que leen sus ataques (en el C1 Normal, la sala)
       spawnT: 0.75 + delay, spawnMax: 0.75 + delay, t: 0, seed: rand(0, TAU), flash: 0,
-      state: kind === 'archer' ? 'move' : 'idle', timer: rand(0.6, 1.6), aim: 0, tx: x, ty: y,
+      state: kind === 'archer' ? 'move' : 'idle', timer: rand(fa[0], fa[1]), aim: 0, tx: x, ty: y,
       vx: 0, vy: 0, knock: 0, burn: 0, burnDps: 0, poisonDps: 0, dotT: 0.5, slow: 0, orbCd: 0, dead: false,
       shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0, frzImm: 0, corrMul: 0,
       heavy: kind === 'totem', alpha: kind === 'spirit' ? 1 : undefined, spin: rand(0, TAU),
@@ -1723,7 +1767,7 @@
 
   function makeBoss(B) {
     return {
-      kind: 'boss', tier: B.tier, name: B.name, x: AX + AW / 2, y: AY + 190, r: B.r,
+      kind: 'boss', tier: B.tier, model: B.model, ach: B.ach, arena: B.arena, ord: B.ord, final: !!B.final, name: B.name, x: AX + AW / 2, y: AY + 190, r: B.r,
       hp: B.hp, maxHp: B.hp, speed: B.speed, dmg: 14 * dmgMul(), xp: 25 + B.tier * 10, ground: true,
       color: B.color, bcolor: B.bullet, pats: B.pats, pi: 0, state: 'idle', timer: 1.4, sub: 0,
       aim: 0, spin: 0, acc: 0, alpha: 1, ringN: 12 + B.tier * 3, enraged: false,
@@ -1734,11 +1778,10 @@
   }
 
   function roomEnemies(n) {
-    const pool = Object.keys(ENEMY_UNLOCK).filter(k => n >= ENEMY_UNLOCK[k]);
-    const cap = { totem: 2, spirit: 3, bomber: 3, bigslime: 2 }; // máximo por sala
-    let budget = 3.5 + n * 0.55;
+    const P = CHA().budget(CH, HEROIC, n), pool = P.pool, cap = P.caps; // cap: máximo por sala
+    let budget = P.budget;
     const list = [];
-    for (let guard = 0; guard < 200 && budget > 0.9 && list.length < 11; guard++) {
+    for (let guard = 0; guard < 200 && budget > 0.9 && list.length < P.maxN; guard++) {
       const k = pick(pool), c = ENEMIES[k].cost;
       if (c > budget + 0.3) continue;
       if (cap[k] && list.filter(x => x === k).length >= cap[k]) continue;
@@ -1836,9 +1879,9 @@
         } else if (e.timer > 0) {
           if (e.timer > 0.15) e.aim = angTo(e, player);
         } else {
-          const sp = 290 + room * 4;
+          const sp = 290 + e.lv * 4;
           fireBullet(e.x, e.y, e.aim, sp, e.dmg, '#ffcf4a', 6);
-          if (room >= 9) { fireBullet(e.x, e.y, e.aim - 0.22, sp, e.dmg, '#ffcf4a', 6); fireBullet(e.x, e.y, e.aim + 0.22, sp, e.dmg, '#ffcf4a', 6); }
+          if (e.lv >= 9) { fireBullet(e.x, e.y, e.aim - 0.22, sp, e.dmg, '#ffcf4a', 6); fireBullet(e.x, e.y, e.aim + 0.22, sp, e.dmg, '#ffcf4a', 6); }
           Sfx.eshot();
           const t = freeCellNear(e.x, e.y, 150);
           Object.assign(e, { state: 'move', timer: rand(1.1, 1.9), tx: t.x, ty: t.y });
@@ -1870,8 +1913,8 @@
           wanderOrSeek(e, ds);
           if (e.timer <= 0) { e.state = 'cast'; e.timer = 0.75; }
         } else if (e.timer <= 0) {
-          const n = 8 + Math.floor(room / 5) * 2, off = rand(0, TAU);
-          for (let i = 0; i < n; i++) fireBullet(e.x, e.y, off + i * TAU / n, 165 + room * 3, e.dmg, '#ff6f9c');
+          const n = 8 + Math.floor(e.lv / 5) * 2, off = rand(0, TAU);
+          for (let i = 0; i < n; i++) fireBullet(e.x, e.y, off + i * TAU / n, 165 + e.lv * 3, e.dmg, '#ff6f9c');
           Sfx.eshot();
           const t = freeCellNear(e.x, e.y, 120);
           Object.assign(e, { state: 'idle', timer: rand(2.4, 3.4), tx: t.x, ty: t.y });
@@ -1894,10 +1937,10 @@
       case 'totem': { // torreta fija: cruz de balas que va girando
         e.timer -= ds;
         if (e.timer <= 0) {
-          const n = room >= 15 ? 6 : 4;
-          for (let i = 0; i < n; i++) fireBullet(e.x, e.y, e.spin + i * TAU / n, 150 + room * 3, e.dmg, '#c9a8ff', 6);
+          const n = e.lv >= 15 ? 6 : 4;
+          for (let i = 0; i < n; i++) fireBullet(e.x, e.y, e.spin + i * TAU / n, 150 + e.lv * 3, e.dmg, '#c9a8ff', 6);
           e.spin += 0.38;
-          e.timer = room >= 14 ? 0.95 : 1.3;
+          e.timer = e.lv >= 14 ? 0.95 : 1.3;
           Sfx.eshot();
         }
         break;
@@ -1922,7 +1965,7 @@
           e.alpha = 1 - clamp(e.timer / 0.35, 0, 1);
           if (e.timer <= 0) {
             e.alpha = 1;
-            const a = angTo(e, player), n = room >= 15 ? 5 : 3;
+            const a = angTo(e, player), n = e.lv >= 15 ? 5 : 3;
             for (let i = 0; i < n; i++) fireBullet(e.x, e.y, a + (i - (n - 1) / 2) * 0.2, 210, e.dmg, '#bfe9ff', 6);
             Sfx.eshot();
             e.state = 'idle'; e.timer = rand(1.8, 2.6);
@@ -2122,7 +2165,7 @@
       xp -= v;
       drops.push({ type: 'gem', v, x: e.x, y: e.y, vx: rand(-150, 150), vy: rand(-150, 150), t: 0 });
     }
-    const hearts = isBoss ? 2 : Math.random() < (e.elite ? 0.3 : 0.06) ? 1 : 0;
+    const HL = healCfg(), hearts = isBoss ? HL.bossHearts : Math.random() < (e.elite ? HL.eliteHeart : HL.heart) ? 1 : 0;
     for (let i = 0; i < hearts; i++) drops.push({ type: 'heart', x: e.x, y: e.y, vx: rand(-120, 120), vy: rand(-120, 120), t: 0 });
     if (player.sk.blood) heal(player.maxHp * 0.02 * player.sk.blood);
     if (perkLv('lifeOnKill')) heal(player.maxHp * 0.01 * perkLv('lifeOnKill'));
@@ -2133,16 +2176,17 @@
       bossesKilled++;
       meta.stats.bosses++;
       slowT = 1.1;
-      unlock('boss' + e.tier);
+      unlock(e.ach || 'boss' + e.tier);
       if (!roomHit) unlock('untouchable');
       boss = null;
       for (const o of enemies) if (!o.dead && o !== e) { o.wiped = true; killEnemy(o); }
-      // redes de seguridad del despertar: (a) quien nunca ha despertado, tras el Gólem; (b) 1º tras el Rey Slime; (c) 2º tras el Brujo
+      // redes de seguridad del despertar, por ordinal del jefe en el capítulo (C1: (a) quien nunca ha despertado, tras
+      // el Gólem; (b) 1º tras el Rey Slime; (c) 2º tras el Brujo)
       if (F) {
-        const aw = player.awak;
-        if (e.tier === 1 && aw === 0 && !(meta.grim.f & ~1)) fillAnima('a');
-        else if (e.tier === 2 && aw === 0) fillAnima('b');
-        else if (e.tier === 3 && aw === 1) fillAnima('c');
+        const aw = player.awak, N = CHA().nets(CH);
+        if (e.ord === N.a && aw === 0 && !(meta.grim.f & ~1)) fillAnima('a');
+        else if (e.ord === N.b && aw === 0) fillAnima('b');
+        else if (e.ord === N.c && aw === 1) fillAnima('c');
       }
       return;
     }
@@ -2436,7 +2480,7 @@
       sparks(player.x, player.y - 6, col, 3);
       if (state === 'play') flyers.push({ x0: player.x, y0: player.y - 10, t: 0, dur: rand(0.32, 0.45), col, side: rand(-1, 1) });
       hudFx.hold = 0.3; // la barra espera a que lleguen las chispas
-    } else heal(player.maxHp * 0.15);
+    } else heal(player.maxHp * healCfg().heartVal);
   }
 
   function updateDrops(dt) {
@@ -2562,19 +2606,20 @@
       }
     };
     if (bossDef) { // arena temática de cada jefe
-      if (bossDef.tier === 1) for (const [c, r] of [[3, 9], [8, 9], [5, 4], [6, 13]]) cluster(HZ.SPIKES, 2, c, r);
-      else if (bossDef.tier === 2) for (const [c, r] of [[2, 3], [9, 3], [1, 15], [10, 15], [5, 9]]) cluster(HZ.POISON, 4, c, r);
-      else if (bossDef.tier === 3) { cluster(HZ.ICE, 16, 5, 9); cluster(HZ.ICE, 8, 2, 4); cluster(HZ.ICE, 8, 9, 4); }
+      if (bossDef.arena === 'golem') for (const [c, r] of [[3, 9], [8, 9], [5, 4], [6, 13]]) cluster(HZ.SPIKES, 2, c, r);
+      else if (bossDef.arena === 'rey') for (const [c, r] of [[2, 3], [9, 3], [1, 15], [10, 15], [5, 9]]) cluster(HZ.POISON, 4, c, r);
+      else if (bossDef.arena === 'brujo') { cluster(HZ.ICE, 16, 5, 9); cluster(HZ.ICE, 8, 2, 4); cluster(HZ.ICE, 8, 9, 4); }
       else {
         for (let r = 6; r <= 13; r++) for (const c of [0, 1, 10, 11]) { const i = r * COLS + c; if (!grid[i]) hz[i] = HZ.LAVA; }
         cluster(HZ.SPIKES, 3, 5, 4); cluster(HZ.SPIKES, 3, 6, 12);
       }
       return;
     }
-    if (room < 3 || ALTAR_ROOMS.has(room) || Math.random() > 0.6) return;
-    const n = randi(2, 3);
+    const Z = CHA().hazard(CH, HEROIC, room);
+    if (room < Z.from || altarAt(room) || Math.random() > Z.chance) return;
+    const n = randi(Z.n[0], Z.n[1]);
     for (let k = 0; k < n; k++) {
-      const type = special && Math.random() < 0.55 ? special : HZ.SPIKES;
+      const type = special && Math.random() < Z.special ? special : HZ.SPIKES;
       const size = type === HZ.ICE ? randi(6, 10) : type === HZ.SPIKES ? randi(2, 4) : randi(3, 6);
       cluster(type, size, randi(1, COLS - 2), randi(3, 13));
     }
@@ -2604,10 +2649,10 @@
     burst(chest.x, chest.y - 10, '#ffd25a', 34, 260);
     rings.push({ x: chest.x, y: chest.y, r0: 10, r1: 90, t: 0.5, max: 0.5, color: '#ffd25a', w: 5 });
     for (let i = 0; i < 5; i++) drops.push({ type: 'gem', v: 5, x: chest.x, y: chest.y - 8, vx: rand(-170, 170), vy: rand(-200, -40), t: 0 });
-    heal(player.maxHp * 0.15);
+    heal(player.maxHp * healCfg().chest);
     runBonusEss += 5;
     if (Gear()) { // un objeto de equipo, algo mejor que el de la sala
-      const it = addGear(Gear().rollDrop(Math.min(20, room + 3), Math.random));
+      const it = addGear(Gear().rollDrop(CHA().lootDepth(CH, HEROIC, room, 3), Math.random));
       if (it) {
         runLoot.push(it); saveMeta();
         const d = Gear().describe(it);
@@ -2625,13 +2670,13 @@
   // ================================================================
   function spawnRoom() {
     enemies = [];
-    const B = BOSSES[room];
+    const B = bossAt(room);
     placeHazards(B);
     if (B) {
       boss = makeBoss(B);
       boss.spawnT = boss.spawnMax = 2.4; // aparece durante la entrada cinematográfica
       enemies.push(boss);
-      cine = { t: 2.7, max: 2.7, name: B.name, title: BOSS_TITLES[room] || '', color: B.bullet };
+      cine = { t: 2.7, max: 2.7, name: B.name, title: B.title || '', color: B.bullet };
       banner = null;
       shake = Math.max(shake, 6);
       Sfx.boss();
@@ -2639,7 +2684,7 @@
       return; // los avisos de trampas salen al acabar la entrada
     }
     boss = null;
-    if (ALTAR_ROOMS.has(room)) { // sala tranquila antes del jefe
+    if (altarAt(room)) { // sala tranquila antes del jefe
       altar = { x: AX + AW / 2, y: AY + 340, used: false };
       banner = { text: 'ALTAR', sub: 'Tócalo para recibir una bendición', color: '#ffd27a', t: 1.8, max: 1.8 };
       music('menu');
@@ -2647,29 +2692,30 @@
     }
     if (state !== 'school') music('dungeon');
     const reach = bfs(grid, SPAWN_C, SPAWN_R, new Int16Array(COLS * ROWS));
-    const cells = [];
+    const cells = [], sd = CHA().spawnDist(CH, room);
     for (let i = 0; i < COLS * ROWS; i++) {
       if (grid[i] || reach[i] < 0) continue;
       const c = i % COLS, r = (i / COLS) | 0;
       const x = AX + c * CELL + CELL / 2, y = AY + r * CELL + CELL / 2;
-      if (r < 15 && Math.hypot(x - player.x, y - player.y) > 300) cells.push({ x, y });
+      if (r < 15 && Math.hypot(x - player.x, y - player.y) > sd) cells.push({ x, y });
     }
     shuffle(cells);
     let elites = 0;
-    if (room >= 2 && chestsThisRun < 3 && Math.random() < 0.2) placeChest(cells.slice().reverse());
+    const CC = CHA().chest(CH), EP = CHA().eliteParams(CH, HEROIC, room);
+    if (room >= CC.from && chestsThisRun < CC.max && Math.random() < CC.p) placeChest(cells.slice().reverse());
     roomEnemies(room).forEach((k, i) => {
       const p = cells[i % Math.max(1, cells.length)] || { x: AX + AW / 2, y: AY + 150 };
-      const e = makeEnemy(k, k === 'totem' ? p.x : p.x + rand(-5, 5), k === 'totem' ? p.y : p.y + rand(-5, 5), i * 0.05);
-      if (room >= 6 && elites < 2 && Math.random() < 0.1 + room * 0.006) { makeElite(e); elites++; }
+      const e = makeEnemy(k, k === 'totem' ? p.x : p.x + rand(-5, 5), k === 'totem' ? p.y : p.y + rand(-5, 5), i * (CH.spawnStep || 0.05));
+      if (EP.p > 0 && elites < EP.max && Math.random() < EP.p) { makeElite(e); elites++; } // p = 0 antes de su sala: sin gastar azar
       enemies.push(e);
     });
-    banner = { text: 'SALA ' + room, sub: room === TOTAL_ROOMS - 1 ? 'Se oye algo enorme al otro lado…' : '', color: '#ffffff', t: 1.4, max: 1.4 };
+    banner = { text: 'SALA ' + room, sub: room === lastRoom() - 1 ? 'Se oye algo enorme al otro lado…' : '', color: '#ffffff', t: 1.4, max: 1.4 };
     if (chest) banner.sub = 'Hay un cofre: limpia la sala para abrirlo';
     hazardHints();
-    if (room % 5 === 1 && Biomes()) { // nuevo capítulo = nuevo bioma
+    if (CHA().zoneStart(CH, room) && Biomes()) { // nueva zona = nuevo bioma
       try {
         const info = Biomes().info(biomeId());
-        banner = { text: 'CAPÍTULO ' + Math.ceil(room / 5), sub: info.name + (chest ? ' · hay un cofre' : ''), color: info.accent || '#ffd27a', t: 2.2, max: 2.2 };
+        banner = { text: 'CAPÍTULO ' + (CHA().zoneAt(CH, room) + 1), sub: info.name + (chest ? ' · hay un cofre' : ''), color: info.accent || '#ffd27a', t: 2.2, max: 2.2 };
       } catch (_) { /* sin biomas */ }
     }
   }
@@ -2680,7 +2726,7 @@
     if (room >= 10) unlock('room10');
     if (tut && room >= 2) tutDone();
     roomHit = false;
-    grid = genRocks(!!BOSSES[room] || ALTAR_ROOMS.has(room));
+    grid = genRocks(!!bossAt(room) || altarAt(room));
     roomBgDirty = true;
     shots = []; shotQ = []; bullets = []; drops = []; bolts = []; volleys = []; parts = []; texts = [];
     rings = []; meteors = []; storm = null; sing = null; altar = null; chest = null; cine = null;
@@ -2698,15 +2744,17 @@
     cleared = true;
     for (const b of bullets) sparks(b.x, b.y, b.color, 2);
     bullets = [];
-    if (BOSSES[room]) heal(player.maxHp * 0.25);
+    const isBossRoom = !!bossAt(room);
+    if (isBossRoom) heal(player.maxHp * healCfg().boss);
     if (perkLv('roomShield') >= 2) heal(player.maxHp * 0.1);
-    if (!roomHit && FX() && (BOSSES[room] || !ALTAR_ROOMS.has(room))) gainAnima(Forms().ANIMA.clean); // sala limpia sin recibir daño
-    if (room >= TOTAL_ROOMS) { winTimer = 2.2; pendingLevels = 0; }
+    if (!roomHit && FX() && (isBossRoom || !altarAt(room))) gainAnima(Forms().ANIMA.clean); // sala limpia sin recibir daño
+    if (room >= lastRoom()) { winTimer = 2.2; pendingLevels = 0; }
     else Sfx.door();
     if (tut && room === 1) tut.step = 'door';
   }
 
   function newRun() {
+    CH = resolveCH(chSel.id, chSel.hero); HEROIC = !!CH.hero; // capítulo y modo de la partida (fase 2: settings.chapter)
     player = newPlayer();
     recalc();
     room = 0; kills = 0; runTime = 0; winTimer = -1; bossesKilled = 0; runEssence = 0;
@@ -2813,7 +2861,7 @@
     if (!player) return;
     const p = player, F = FX(), on = !!F && p.awak < 2;
     const a = on ? Math.round(clamp(p.anima / F.ANIMA.need[p.awak], 0, 1) * 100) : 0;
-    const rdy = on && p.animaReady && room < TOTAL_ROOMS; // en la sala final ya no se ofrece: el anillo no gira
+    const rdy = on && p.animaReady && room < lastRoom(); // en la sala final ya no se ofrece: el anillo no gira
     const cls = (on ? 'a' : '') + (rdy ? (p.awkLock ? 'l' : 'f') : '') + p.awak;
     if (!force && a === animaShown && cls === animaCls) return;
     animaShown = a; animaCls = cls;
@@ -2868,7 +2916,7 @@
       if (chest.opened) chest.openT += dt;
       else if (cleared && state === 'play' && !awakenFx && dist(player, chest) < player.r + 22) openChest();
     }
-    if (state === 'play' && cleared && !awakenFx && room < TOTAL_ROOMS && player.y < AY - 24) {
+    if (state === 'play' && cleared && !awakenFx && room < lastRoom() && player.y < AY - 24) {
       state = 'transition'; transPhase = 'out'; transT = 0; resetJoy();
     }
     if (winTimer > 0 && state === 'play') {
@@ -3113,7 +3161,7 @@
   function biomeId() {
     if (!Biomes()) return null;
     if (!player) return menuBiome || (menuBiome = pick(Biomes().list));
-    return Biomes().forRoom(Math.max(1, room));
+    return biomeAt(room);
   }
   function buildRoomBg() {
     if (roomBg) roomBg.width = roomBg.height = 0; // libera el lienzo anterior (Safari tiene poca memoria para canvas)
@@ -3229,7 +3277,7 @@
     ctx.restore();
     ctx.strokeStyle = '#9c86d6'; ctx.lineWidth = 3;
     ctx.strokeRect(x - 1.5, y + 1.5, w + 3, h);
-    if (cleared && doorAnim >= 1 && room < TOTAL_ROOMS && player) {
+    if (cleared && doorAnim >= 1 && room < lastRoom() && player) {
       const bob = Math.sin(clock * 6) * 4;
       for (let i = 0; i < 2; i++) txt('▲', x + w / 2, AY + 26 + i * 16 + bob, 20 - i * 4, `rgba(255,210,122,${0.9 - i * 0.35})`, 'center', false);
     }
@@ -3881,7 +3929,7 @@
       ctx.strokeStyle = `rgba(255,60,60,${0.35 + 0.25 * Math.sin(clock * 10)})`; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(x, y, r + 8, 0, TAU); ctx.stroke();
     }
-    if (b.tier === 1) { // gólem
+    if (b.model === 'golem') { // gólem
       const jx = b.state === 'wind' ? rand(-2, 2) : 0;
       ctx.fillStyle = '#4e463b'; rrect(x - r - 2 + jx, y - r - 2, r * 2 + 4, r * 2 + 4, 16); ctx.fill();
       const gg = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
@@ -3892,7 +3940,7 @@
       ctx.beginPath(); ctx.moveTo(x - r * 0.6, y - r * 0.8); ctx.lineTo(x - r * 0.2, y - r * 0.2); ctx.lineTo(x - r * 0.5, y + r * 0.4); ctx.stroke();
       for (const s of [-1, 1]) ball(x + s * (r + 10) + jx, y + 8, 13, '#8a7d6a');
       eyes(x + Math.cos(a) * 10 + jx, y + Math.sin(a) * 10, a, 12, 6, '#ffb347', '#7a2a00');
-    } else if (b.tier === 2) { // rey slime
+    } else if (b.model === 'rey') { // rey slime
       drawSlime(x, y, r, b.color, b.t * 3, a);
       ctx.fillStyle = '#ffcf3a';
       const cy = y - r * 0.95;
@@ -3900,7 +3948,7 @@
       ctx.moveTo(x - 18, cy + 8); ctx.lineTo(x - 18, cy - 8); ctx.lineTo(x - 9, cy);
       ctx.lineTo(x, cy - 12); ctx.lineTo(x + 9, cy); ctx.lineTo(x + 18, cy - 8); ctx.lineTo(x + 18, cy + 8);
       ctx.closePath(); ctx.fill();
-    } else if (b.tier === 3) { // brujo
+    } else if (b.model === 'brujo') { // brujo
       for (let i = 0; i < 3; i++) {
         const oa = clock * 2 + i * TAU / 3;
         glow(x + Math.cos(oa) * (r + 16), y + Math.sin(oa) * (r + 16), 14, '#c58bff');
@@ -4163,7 +4211,7 @@
     for (const q of hudParts) { ctx.globalAlpha = clamp(q.life / q.max, 0, 1); circle(q.x, q.y, q.size, q.color); }
     ctx.globalCompositeOperation = op; ctx.globalAlpha = 1;
     // segunda fila: sala en el centro, esencia y bajas a la derecha
-    txt(`SALA ${room} / ${TOTAL_ROOMS}`, W / 2, 75, 17, '#e9e3ff', 'center', true);
+    txt(`SALA ${room} / ${lastRoom()}`, W / 2, 75, 17, '#e9e3ff', 'center', true);
     txt(`✨ ${calcEssence(false)}`, W - 16, 75, 17, '#ffcf4a', 'right', true);
     txt(`☠ ${kills}`, bx + 40, 75, 16, '#cfc6e8', 'left', true);
     if (player.revives > 0) { // pluma de fénix disponible
@@ -4193,7 +4241,7 @@
     else if (player.animaReady && player.awkLock && cleared && !awakenFx && FX() && altarLeft()) hint('Opuestos: sella un Pacto oscuro en un altar para despertar', '#c77dff');
   }
   // ¿queda algún altar donde firmar el Pacto? El de esta sala sin usar o uno más adelante
-  function altarLeft() { return (!!altar && !altar.used) || [...ALTAR_ROOMS].some(r => r > room); }
+  function altarLeft() { return (!!altar && !altar.used) || CH.altars.some(r => r > room); }
 
   function hint(text, color) {
     const fs = fitSize(text, 17, W - 80); // los textos largos encogen en vez de salirse de la píldora
@@ -4423,7 +4471,7 @@
       <div class="panel menu">
         <div class="logo">ARCANO</div>
         ${tt ? `<div class="mtitle" style="--c:${tt.color}">«${tt.text}»</div>` : ''}
-        <div class="tag">Roguelite de magia · ${TOTAL_ROOMS} salas · 4 jefes</div>
+        <div class="tag">Roguelite de magia · ${lastRoom()} salas · 4 jefes</div>
         <button class="btn primary menu-play" data-act="play">JUGAR</button>
         <div class="btn-row">
           <button class="btn ghost" data-act="shop">🏛️ Santuario <span class="ess">✨ ${meta.essence}</span></button>
@@ -4673,7 +4721,7 @@
     const bests = Object.entries(SCHOOLS).map(([id, s]) => {
       const b = S.best[id], w = S.winsBy[id] || 0;
       return `<div class="sb ${schoolOpen(id) ? '' : 'off'}" style="--c:${EL[id].color}">
-          <span>${schoolOpen(id) ? s.icon : '🔒'}</span><b>${b ? (b > TOTAL_ROOMS ? '🏆' : 'Sala ' + b) : '—'}</b>
+          <span>${schoolOpen(id) ? s.icon : '🔒'}</span><b>${b ? (b > CH_FALLBACK.ch.len ? '🏆' : 'Sala ' + b) : '—'}</b>
           <i>${w ? w + (w > 1 ? ' victorias' : ' victoria') : s.name}</i></div>`;
     }).join('');
     const achs = AL.map(a => {
@@ -4765,7 +4813,7 @@
     }
     const n = +g.n[i], m2 = grimMark2(id), worn = g.t === i;
     const ult = D.tier === 0 ? 'el de tu escuela' : D.tier === 1 || flags.phase2 ? `${D.ult.icon} ${D.ult.name}` : 'el de tu núcleo';
-    const goal = D.tier === 1 ? 'Despiértala antes de la sala 7' : D.tier === 0 ? 'Gana sin despertar' : 'Gana con ella';
+    const goal = D.tier === 1 ? `Despiértala antes de la sala ${CHA().markRoom(CH) + 1}` : D.tier === 0 ? 'Gana sin despertar' : 'Gana con ella';
     return `<div class="shop-item grim${m2 ? ' crowned' : ''}" style="--c:${D.color}">
         <span class="ic">${D.icon}</span>
         <span class="tx"><b>${D.name}</b><i class="rc">${formRecipe(D)}</i><i class="line">${D.line}</i>
@@ -5004,7 +5052,7 @@
         <div class="cards">
           <button class="card" data-act="altar" data-id="heal">
             <div class="ic">⛲</div>
-            <div class="tx"><div class="nm">Fuente sagrada</div><div class="ds">Recuperas el 60% de la vida (${Math.ceil(player.hp)}/${player.maxHp})</div></div><kbd>1</kbd>
+            <div class="tx"><div class="nm">Fuente sagrada</div><div class="ds">Recuperas el ${Math.round(healCfg().altar * 100)}% de la vida (${Math.ceil(player.hp)}/${player.maxHp})</div></div><kbd>1</kbd>
           </button>
           <button class="card" data-act="altar" data-id="bless" style="animation-delay:70ms">
             <div class="ic">✨</div>
@@ -5028,7 +5076,7 @@
   function pickAltar(id) {
     hideOverlay();
     state = 'play';
-    if (id === 'heal') heal(player.maxHp * 0.6);
+    if (id === 'heal') heal(player.maxHp * healCfg().altar);
     else if (id === 'bless') bonusPicks.push('bless');
     else if (id === 'shield') player.shield = Math.min(3, (player.shield || 0) + 1);
     else if (id === 'pact') {
@@ -5178,7 +5226,7 @@
     meta.runs++;
     const S = meta.stats;
     S.essenceTotal += runEssence;
-    S.best[player.school] = Math.max(S.best[player.school] || 0, win ? TOTAL_ROOMS + 1 : room);
+    S.best[player.school] = Math.max(S.best[player.school] || 0, win ? lastRoom() + 1 : room);
     let mark = null; // Marca II conseguida con esta victoria (combinadas, Eclipse y Aprendiz)
     if (win) {
       S.wins++;
@@ -5196,7 +5244,7 @@
     } else if (quit) music('menu');
     saveMeta();
     const title = win ? '¡VICTORIA!' : quit ? 'PARTIDA TERMINADA' : 'HAS CAÍDO';
-    const sub = win ? 'Has limpiado la mazmorra entera' : `${quit ? 'abandonaste' : 'caíste'} en la sala ${room} de ${TOTAL_ROOMS}`;
+    const sub = win ? 'Has limpiado la mazmorra entera' : `${quit ? 'abandonaste' : 'caíste'} en la sala ${room} de ${lastRoom()}`;
     showOverlay(`
       <div class="panel">
         <div class="title ${win ? 'gold' : 'red'}">${title}</div>
@@ -5208,7 +5256,7 @@
         <div class="loot-txt">Botín nuevo en tu <b>Equipo</b></div>` : ''}
         ${lostLoot && Gear() ? `<div class="loot-txt warn">🎒 Inventario lleno: ${lostLoot} objeto${lostLoot > 1 ? 's' : ''} perdido${lostLoot > 1 ? 's' : ''}. Fusiona o desecha en Equipo</div>` : ''}
         <div class="stats">
-          <div><span>Sala</span><b>${room}/${TOTAL_ROOMS}</b></div>
+          <div><span>Sala</span><b>${room}/${lastRoom()}</b></div>
           <div><span>Nivel</span><b>${player.lvl}</b></div>
           <div><span>Bajas</span><b>${kills}</b></div>
           <div><span>Tiempo</span><b>${fmtTime(runTime)}</b></div>
@@ -5302,6 +5350,7 @@
     get state() { return state; }, get room() { return room; }, get player() { return player; },
     get enemies() { return enemies; }, get bullets() { return bullets; }, get grid() { return grid; },
     get kills() { return kills; }, get shots() { return shots; },
+    get chapterId() { return CH.id; }, get hero() { return HEROIC; }, get CH() { return CH; }, // chapter(id, hero) cambia de capítulo (?debug)
   };
   if (/[?&]debug\b/.test(location.search)) {
     const rnd0 = Math.random;
@@ -5331,7 +5380,9 @@
       chest() { return chest && { ...chest }; },
       forceChest() { const cells = []; for (let i = 0; i < COLS * ROWS; i++) if (!grid[i]) cells.push({ x: AX + (i % COLS) * CELL + 20, y: AY + ((i / COLS) | 0) * CELL + 20 }); placeChest(cells.filter(p => p.y > AY + 200)); return !!chest; },
       give(id, n = 1) { for (let i = 0; i < n; i++) pickSkill(id); },
-      goto(n) { room = n - 1; nextRoom(); state = 'play'; hideOverlay(); },
+      // capítulo y modo de las partidas siguientes (y de la actual, para goto); devuelve el capítulo resuelto
+      chapter(id = 1, hero = false) { chSel = { id, hero: !!hero }; CH = resolveCH(id, !!hero); HEROIC = !!CH.hero; return CH; },
+      goto(n, ch = CH.id, hero = HEROIC) { if (ch !== CH.id || !!hero !== HEROIC) dbg.chapter(ch, hero); room = n - 1; nextRoom(); state = 'play'; hideOverlay(); },
       toDoor() { player.x = AX + AW / 2; player.y = AY - 30; },
       god(v = true) { player.god = !!v; player.inv = 0; }, // player.god ya ignora golpes y trampas (sin parpadeo)
       // azar con semilla para pruebas repetibles; seed(null) devuelve el Math.random original
@@ -5414,7 +5465,7 @@
     const med = a => { const v = a.filter(Number.isFinite).sort((x, y) => x - y), m = v.length >> 1; return !v.length ? null : v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
     // nada de lo que pase en una partida de bot se queda: ni esencia, ni logros, ni Grimorio, ni equipo, ni ajustes, ni sonido
     function sandbox(fn) {
-      const m0 = JSON.stringify(meta), s0 = JSON.stringify(settings), fr = flags.freeze, nf = flags.noForms, mu = Sfx.muted, gt = Sfx.gate;
+      const m0 = JSON.stringify(meta), s0 = JSON.stringify(settings), fr = flags.freeze, nf = flags.noForms, mu = Sfx.muted, gt = Sfx.gate, cs = chSel;
       // Sfx.gate mira el reloj real y xpFill gasta Math.random si pasa: sin esto la misma semilla da partidas distintas
       quiet = true; flags.freeze = true; Sfx.muted = true; Sfx.gate = () => false;
       try { return fn(); } finally {
@@ -5424,10 +5475,12 @@
         Object.assign(meta, m, { grim: grimValid(m.grim) });
         Object.assign(settings, JSON.parse(s0));
         quiet = false; flags.freeze = fr; flags.noForms = nf; Sfx.muted = mu;
+        dbg.chapter(cs.id, cs.hero);
         Math.random = rnd0;
         showMenu();
       }
     }
+    const botChapter = cfg => { if (cfg && (cfg.ch != null || cfg.hero != null)) dbg.chapter(cfg.ch || 1, !!cfg.hero); };
     // atascado: sin línea de tiro 1 s (un jugador se movería) o 3 s sin bajar la vida de nadie (quemaduras y venenos
     // también la bajan, así que la línea de tiro se mira aparte) → se planta cerca de su objetivo, con línea de tiro
     function unstick(U, DT) {
@@ -5465,6 +5518,7 @@
     function sim(cfg) {
       const C = Object.assign({ school: 'fire', path: [], pact: false, stop: 2, noForms: false, maxT: 900, seed: 1, ult: false, fresh: false }, cfg);
       return sandbox(() => {
+        botChapter(C);
         dbg.seed(C.seed);
         flags.noForms = !!C.noForms;
         settings.tutorial = true;
@@ -5487,7 +5541,7 @@
               if (altar && !altar.used) { player.x = altar.x; player.y = altar.y + 12; }
               else if (chest && !chest.opened) { player.x = chest.x; player.y = chest.y + 12; }
               // con "¡DESPERTAR LISTO!" en pantalla un jugador espera a la oferta (0,8 s tras las subidas de nivel): hasta 3 s
-              else if (clT > (player.animaReady && player.awak < C.stop && !player.awkLock && player.snoozeRoom !== room ? 3 : 1.6) && room < TOTAL_ROOMS) { player.x = AX + AW / 2; player.y = AY - 30; }
+              else if (clT > (player.animaReady && player.awak < C.stop && !player.awkLock && player.snoozeRoom !== room ? 3 : 1.6) && room < lastRoom()) { player.x = AX + AW / 2; player.y = AY - 30; }
             } else if (!cleared) {
               clT = 0;
               unstick(U, DT);
@@ -5513,7 +5567,7 @@
       const forms = {};
       for (const r of runs) forms[r.form] = (forms[r.form] || 0) + 1;
       const ttk = {};
-      for (const b of [5, 10, 15, 20]) { const v = med(runs.map(r => r.ttk[b])); ttk[b] = v == null ? null : r1(v); }
+      for (const b of CHA().bossRooms(CH)) { const v = med(runs.map(r => r.ttk[b])); ttk[b] = v == null ? null : r1(v); }
       const netP = k => r2(runs.filter(r => r.net.includes(k)).length / runs.length);
       return {
         g: c.g, id: `${c.school}/${c.path.join('+') || '-'}${c.pact ? ' pacto' : ''}`, n: runs.length, win: r2(runs.filter(r => r.win).length / runs.length),
@@ -5581,6 +5635,8 @@
     function bench(cfg) {
       const C = Object.assign({ room: 15, school: 'fire', path: [], build: 'mid', secs: 90, seed: 1, noForms: false, pact: false }, cfg);
       return sandbox(() => {
+        botChapter(C);
+        if (!bossAt(C.room)) C.room = lastRoom(); // en otro capítulo, por defecto su jefe final
         dbg.seed(C.seed);
         flags.noForms = !!C.noForms;
         settings.tutorial = true;
@@ -5615,6 +5671,9 @@
     function roomBench(cfg) {
       const C = Object.assign({ rooms: [7, 8, 11, 12, 13, 16, 17, 18], school: 'fire', path: [], build: 'mid', seed: 1, noForms: false, pact: false, maxT: 60 }, cfg);
       return sandbox(() => {
+        botChapter(C);
+        // en otro capítulo, sus salas normales pasado el primer 30 % (en el C1: 7, 8, 11, 12, 13, 16, 17 y 18)
+        if (!(cfg && cfg.rooms) && CH.id !== 1) C.rooms = Array.from({ length: lastRoom() }, (_, i) => i + 1).filter(r => r > lastRoom() * 0.3 && !bossAt(r) && !altarAt(r));
         dbg.seed(C.seed);
         flags.noForms = !!C.noForms;
         settings.tutorial = true;
