@@ -1,0 +1,2342 @@
+[
+ {
+  "cfg": {
+   "room": 5,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.3,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.9,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.9,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.9,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.5,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.8,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.7,
+  "killed": true,
+  "frz": 0,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.5,
+  "killed": true,
+  "frz": 0.14,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.9,
+  "killed": true,
+  "frz": 0.13,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 4.2,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 3.5,
+  "killed": true,
+  "frz": 0.2,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 3.8,
+  "killed": true,
+  "frz": 0.18,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 3.5,
+  "killed": true,
+  "frz": 0.2,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.2,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.7,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.5,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.9,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 2.9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 2.9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 3,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.4,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.1,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 5,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 2.4,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 8.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 10.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.5,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.8,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.9,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 9.8,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 10.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 10.6,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.3,
+  "killed": true,
+  "frz": 0.14,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.1,
+  "killed": true,
+  "frz": 0.07,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 6.7,
+  "killed": true,
+  "frz": 0.07,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 8.5,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 9.5,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 10.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 7.9,
+  "killed": true,
+  "frz": 0.18,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 8.5,
+  "killed": true,
+  "frz": 0.18,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 8.5,
+  "killed": true,
+  "frz": 0.18,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 8.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 8.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 6.1,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.5,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 6.5,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 6.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 6.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.1,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.1,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 10,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 5.1,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 21.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 20.9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 23.3,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.9,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 13,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 14.4,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 21.1,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 21.2,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 20.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.2,
+  "killed": true,
+  "frz": 0.09,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.5,
+  "killed": true,
+  "frz": 0.09,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.9,
+  "killed": true,
+  "frz": 0.09,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 24.5,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 23.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 24,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 17.5,
+  "killed": true,
+  "frz": 0.2,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 17.8,
+  "killed": true,
+  "frz": 0.2,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 18.9,
+  "killed": true,
+  "frz": 0.18,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 20.8,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 17.5,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 21.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.6,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.8,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 17.1,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 17,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 17.1,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.8,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.6,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 15,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 12.6,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 34.8,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 38.9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "fire",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 37.2,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 23.5,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 24.2,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "fire",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 25,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 40.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 35.8,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "ice",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 37.4,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 20.1,
+  "killed": true,
+  "frz": 0.09,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 21,
+  "killed": true,
+  "frz": 0.09,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "ice",
+   "path": [
+    "ice",
+    "poison"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 20.7,
+  "killed": true,
+  "frz": 0.09,
+  "form": "mortaja",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 42,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 38.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "bolt",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 39.3,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 30.8,
+  "killed": true,
+  "frz": 0.18,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 32.5,
+  "killed": true,
+  "frz": 0.19,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "bolt",
+   "path": [
+    "bolt",
+    "ice"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 32.2,
+  "killed": true,
+  "frz": 0.19,
+  "form": "aurora",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 32.9,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 32.7,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "poison",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 32.8,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 24.1,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 23.6,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "poison",
+   "path": [
+    "poison",
+    "fire"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 22.5,
+  "killed": true,
+  "frz": 0,
+  "form": "azufre",
+  "atk": 17.5,
+  "linaje": true
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 29.2,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 30.6,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "arcane",
+   "path": [],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": true,
+   "pact": false
+  },
+  "ttk": 30.1,
+  "killed": true,
+  "frz": 0,
+  "form": "aprendiz",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 1,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 20.2,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 2,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 19.3,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ },
+ {
+  "cfg": {
+   "room": 20,
+   "school": "arcane",
+   "path": [
+    "fire",
+    "bolt"
+   ],
+   "build": "mid",
+   "secs": 90,
+   "seed": 3,
+   "noForms": false,
+   "pact": false
+  },
+  "ttk": 18.8,
+  "killed": true,
+  "frz": 0,
+  "form": "plasma",
+  "atk": 17.5,
+  "linaje": false
+ }
+]

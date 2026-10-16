@@ -1,0 +1,37 @@
+80 partidas (tools/baseline/esq-veterano.jsonl)
+
+perfil formas escuela  n  victorias  sala muerte(media)  t victoria(med/min)  golpes/partida b/c/t/j/x  vida perdida/partida  curas  tp   esencia
+bueno  sí     fire     8   100% (8/8)  —                   3:27 / 2:45          0.3/0/0.9/0.8/0           44                    56     0.9  107.8
+bueno  sí     ice      8   100% (8/8)  —                   3:25 / 3:02          0.1/0/0.5/0/0             12                    40     0.8  109.8
+bueno  sí     bolt     8   100% (8/8)  —                   3:19 / 2:40          0.1/0/0.3/1.1/0           38                    60     0.9  107.3
+bueno  sí     poison   8   100% (8/8)  —                   3:05 / 2:37          0/0/0.4/0.4/0             18                    27     0.4  112.1
+bueno  sí     arcane   8   100% (8/8)  —                   3:16 / 2:40          0.3/0/0.6/0.5/0           33                    39     0.9  107
+bueno  sí     TOTAL    40  100% (40/40) —                   3:16 / 2:37          0.2/0/0.5/0.6/0           29                    45     0.8  108.8
+
+medio  sí     fire     8   100% (8/8)  —                   3:04 / 2:30          0.3/0/0.3/0.9/0           38                    41     0.4  107.4
+medio  sí     ice      8   100% (8/8)  —                   3:26 / 3:05          0.3/0/0.6/0.3/0           22                    34     0.6  108
+medio  sí     bolt     8   100% (8/8)  —                   3:17 / 2:52          0.8/0/0.3/1.6/0           67                    80     0.6  108.9
+medio  sí     poison   8   100% (8/8)  —                   3:16 / 2:54          0.3/0/0.9/1/0             46                    51     0.6  109.8
+medio  sí     arcane   8   100% (8/8)  —                   3:13 / 2:48          0.8/0/0.6/1.6/0           75                    88     0.3  107.9
+medio  sí     TOTAL    40  100% (40/40) —                   3:16 / 2:30          0.5/0/0.5/1.1/0           50                    59     0.5  108.4
+
+[bueno] muertes por sala: ninguna
+[bueno] salas con más vida perdida (media por partida que la juega): s20 16 (9% vida máx, 0.6 golpes) · s16 3 (2% vida máx, 0.2 golpes) · s5 2 (1% vida máx, 0.2 golpes) · s12 2 (1% vida máx, 0.1 golpes) · s13 2 (1% vida máx, 0.1 golpes) · s10 2 (1% vida máx, 0.1 golpes)
+[bueno] vida perdida en jefes: 70% del total; salas normales: 0 golpes/sala de media
+[bueno] tiempo medio por sala (s): 1:11 2:12 3:8 4:5 5:15 6:13 7:12 8:12 9:4 10:13 11:11 12:12 13:11 14:4 15:16 16:11 17:11 18:11 19:4 20:15
+[bueno] golpes de bala (incl. jefe): vista 68% · aún sin ver por reacción 4% · despiste 29%; esquivas por Parpadeo 0/partida; % del combate moviéndose 24%
+[bueno] de dónde vienen los golpes (balas y toques, sin trampas): jefe:choque/teleport 64% · spirit 14% · jefe:anillo 11% · totem 4% · mage 4% · jefe:rafaga 4%
+[bueno] en las victorias, vida mínima media 88% · victorias sin bajar del 50%: 100% · sin recibir golpe en jefes: 48%
+
+[medio] muertes por sala: ninguna
+[medio] salas con más vida perdida (media por partida que la juega): s20 21 (11% vida máx, 0.7 golpes) · s16 6 (3% vida máx, 0.3 golpes) · s15 5 (3% vida máx, 0.2 golpes) · s18 3 (2% vida máx, 0.2 golpes) · s5 3 (2% vida máx, 0.2 golpes) · s10 3 (2% vida máx, 0.1 golpes)
+[medio] vida perdida en jefes: 65% del total; salas normales: 0.1 golpes/sala de media
+[medio] tiempo medio por sala (s): 1:11 2:12 3:8 4:5 5:15 6:13 7:12 8:12 9:5 10:14 11:11 12:12 13:12 14:5 15:16 16:11 17:11 18:10 19:5 20:15
+[medio] golpes de bala (incl. jefe): vista 61% · aún sin ver por reacción 3% · despiste 36%; esquivas por Parpadeo 0/partida; % del combate moviéndose 22%
+[medio] de dónde vienen los golpes (balas y toques, sin trampas): jefe:choque/teleport 41% · spirit 21% · jefe:rafaga 15% · jefe:anillo 11% · archer 5% · jefe:espiral 3% · mage 2% · totem 2%
+[medio] en las victorias, vida mínima media 85% · victorias sin bajar del 50%: 98% · sin recibir golpe en jefes: 55%
+
+OBJETIVO                                   ACTUAL
+perfil medio gana 15-30%                   100%
+perfil bueno gana 50-70%                   100%
+nadie gana en menos de ~5:00               100% de las victorias < 5:00 (mín 2:30, mediana 3:16)

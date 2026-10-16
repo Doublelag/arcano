@@ -1,0 +1,952 @@
+{
+ "rows": [
+  {
+   "g": "base",
+   "id": "fire/-",
+   "n": 8,
+   "win": 1,
+   "time": 194.7,
+   "aw1": null,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 11.9,
+    "10": 13.5,
+    "15": 17.7,
+    "20": 13.9
+   },
+   "forms": {
+    "aprendiz": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 0,
+   "badOffer": 0,
+   "maxAff": 0,
+   "maxShots": 56,
+   "maxParts": 269,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "base",
+   "id": "ice/-",
+   "n": 8,
+   "win": 1,
+   "time": 229.5,
+   "aw1": null,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 12.3,
+    "10": 12.4,
+    "15": 18.9,
+    "20": 14.7
+   },
+   "forms": {
+    "aprendiz": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 0,
+   "badOffer": 0,
+   "maxAff": 0,
+   "maxShots": 35,
+   "maxParts": 256,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "base",
+   "id": "bolt/-",
+   "n": 8,
+   "win": 1,
+   "time": 206.95,
+   "aw1": null,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 13.2,
+    "10": 10.1,
+    "15": 18.3,
+    "20": 18
+   },
+   "forms": {
+    "aprendiz": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 0,
+   "badOffer": 0,
+   "maxAff": 0,
+   "maxShots": 41,
+   "maxParts": 240,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "base",
+   "id": "poison/-",
+   "n": 8,
+   "win": 1,
+   "time": 228.60000000000002,
+   "aw1": null,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 11.9,
+    "10": 18,
+    "15": 17.3,
+    "20": 18.6
+   },
+   "forms": {
+    "aprendiz": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 0,
+   "badOffer": 0,
+   "maxAff": 0,
+   "maxShots": 80,
+   "maxParts": 258,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "base",
+   "id": "arcane/-",
+   "n": 8,
+   "win": 1,
+   "time": 188.45,
+   "aw1": null,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 9.4,
+    "10": 12.4,
+    "15": 15.6,
+    "20": 14.3
+   },
+   "forms": {
+    "aprendiz": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 0,
+   "badOffer": 0,
+   "maxAff": 0,
+   "maxShots": 78,
+   "maxParts": 232,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "pura",
+   "id": "fire/fire",
+   "n": 8,
+   "win": 1,
+   "time": 189.3,
+   "aw1": 7,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 13.9,
+    "10": 9,
+    "15": 12.3,
+    "20": 14.6
+   },
+   "forms": {
+    "ignea": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 1,
+   "maxShots": 70,
+   "maxParts": 305,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "pura",
+   "id": "ice/ice",
+   "n": 8,
+   "win": 1,
+   "time": 217.8,
+   "aw1": 6.5,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0.12,
+   "ttk": {
+    "5": 12.6,
+    "10": 11.8,
+    "15": 21.4,
+    "20": 15.4
+   },
+   "forms": {
+    "glacial": 8
+   },
+   "frz8": 0.12,
+   "frzW": 0.07,
+   "locks": 1,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 47,
+   "maxParts": 278,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "pura",
+   "id": "bolt/bolt",
+   "n": 8,
+   "win": 1,
+   "time": 196.1,
+   "aw1": 6.5,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 10.9,
+    "10": 8.3,
+    "15": 16,
+    "20": 14
+   },
+   "forms": {
+    "voltaica": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 1,
+   "maxShots": 112,
+   "maxParts": 290,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "pura",
+   "id": "poison/poison",
+   "n": 8,
+   "win": 1,
+   "time": 189.95,
+   "aw1": 7,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 9.5,
+    "10": 9.6,
+    "15": 13.7,
+    "20": 16.2
+   },
+   "forms": {
+    "toxica": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 120,
+   "maxParts": 265,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "hibrida",
+   "id": "fire/fire+bolt",
+   "n": 8,
+   "win": 1,
+   "time": 193.7,
+   "aw1": 6,
+   "aw2": 12.5,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 12.9,
+    "10": 9.1,
+    "15": 15.6,
+    "20": 15.1
+   },
+   "forms": {
+    "plasma": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 52,
+   "maxParts": 308,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "hibrida",
+   "id": "bolt/bolt+fire",
+   "n": 8,
+   "win": 1,
+   "time": 173.89999999999998,
+   "aw1": 6,
+   "aw2": 12.5,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 10.9,
+    "10": 7.7,
+    "15": 12.6,
+    "20": 13.6
+   },
+   "forms": {
+    "plasma": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 63,
+   "maxParts": 305,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "hibrida",
+   "id": "bolt/bolt+ice",
+   "n": 8,
+   "win": 1,
+   "time": 174.64999999999998,
+   "aw1": 6,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0.24,
+   "ttk": {
+    "5": 11.8,
+    "10": 9.2,
+    "15": 11.7,
+    "20": 13.5
+   },
+   "forms": {
+    "aurora": 8
+   },
+   "frz8": 0.24,
+   "frzW": 0.17,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 48,
+   "maxParts": 252,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "hibrida",
+   "id": "ice/ice+bolt",
+   "n": 8,
+   "win": 1,
+   "time": 223.4,
+   "aw1": 6,
+   "aw2": 12.5,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0.22,
+   "ttk": {
+    "5": 14.2,
+    "10": 14.5,
+    "15": 18.7,
+    "20": 16.1
+   },
+   "forms": {
+    "aurora": 8
+   },
+   "frz8": 0.22,
+   "frzW": 0.17,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 48,
+   "maxParts": 230,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "hibrida",
+   "id": "ice/ice+poison",
+   "n": 8,
+   "win": 1,
+   "time": 187.2,
+   "aw1": 6,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0.13,
+   "ttk": {
+    "5": 11.1,
+    "10": 10.9,
+    "15": 9.8,
+    "20": 10.7
+   },
+   "forms": {
+    "mortaja": 8
+   },
+   "frz8": 0.13,
+   "frzW": 0.07,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 48,
+   "maxParts": 266,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "hibrida",
+   "id": "poison/poison+ice",
+   "n": 8,
+   "win": 1,
+   "time": 167.1,
+   "aw1": 5.5,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 9.3,
+    "10": 8.2,
+    "15": 12.7,
+    "20": 12.4
+   },
+   "forms": {
+    "mortaja": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 79,
+   "maxParts": 237,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "hibrida",
+   "id": "poison/poison+fire",
+   "n": 8,
+   "win": 1,
+   "time": 170,
+   "aw1": 6.5,
+   "aw2": 13,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 10.7,
+    "10": 9.6,
+    "15": 13.6,
+    "20": 11.1
+   },
+   "forms": {
+    "azufre": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 77,
+   "maxParts": 331,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "hibrida",
+   "id": "fire/fire+poison",
+   "n": 8,
+   "win": 1,
+   "time": 164.8,
+   "aw1": 6,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 9.3,
+    "10": 7.6,
+    "15": 10.4,
+    "20": 12.9
+   },
+   "forms": {
+    "azufre": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 24,
+   "maxParts": 324,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "eclipse",
+   "id": "fire/fire+ice pacto",
+   "n": 8,
+   "win": 1,
+   "time": 153.1,
+   "aw1": 6,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 6.8,
+    "10": 6.2,
+    "15": 8,
+    "20": 9.9
+   },
+   "forms": {
+    "eclipse": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 54,
+   "maxParts": 324,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "eclipse",
+   "id": "ice/ice+fire pacto",
+   "n": 8,
+   "win": 1,
+   "time": 159.15,
+   "aw1": 6,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0.16,
+   "ttk": {
+    "5": 8.1,
+    "10": 6.1,
+    "15": 9.1,
+    "20": 9.5
+   },
+   "forms": {
+    "eclipse": 8
+   },
+   "frz8": 0.13,
+   "frzW": 0.08,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 44,
+   "maxParts": 377,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "eclipse",
+   "id": "bolt/bolt+poison pacto",
+   "n": 8,
+   "win": 1,
+   "time": 160.45,
+   "aw1": 6,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 6,
+    "10": 7.5,
+    "15": 9.8,
+    "20": 7.9
+   },
+   "forms": {
+    "eclipse": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 41,
+   "maxParts": 293,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "eclipse",
+   "id": "poison/poison+bolt pacto",
+   "n": 8,
+   "win": 1,
+   "time": 162.75,
+   "aw1": 6,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 7.6,
+    "10": 8.2,
+    "15": 9.7,
+    "20": 8.6
+   },
+   "forms": {
+    "eclipse": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 54,
+   "maxParts": 320,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "opuesto",
+   "id": "fire/fire+ice",
+   "n": 8,
+   "win": 1,
+   "time": 159.75,
+   "aw1": 6.5,
+   "aw2": null,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 10.4,
+    "10": 7,
+    "15": 10.9,
+    "20": 12.8
+   },
+   "forms": {
+    "ignea": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 8,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 51,
+   "maxParts": 290,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "arcanista",
+   "id": "arcane/fire+bolt",
+   "n": 8,
+   "win": 1,
+   "time": 175.85000000000002,
+   "aw1": 5,
+   "aw2": 10,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 9.7,
+    "10": 9.5,
+    "15": 12,
+    "20": 14.7
+   },
+   "forms": {
+    "plasma": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 0,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 39,
+   "maxParts": 266,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "arcanista",
+   "id": "arcane/ice+poison",
+   "n": 8,
+   "win": 1,
+   "time": 176.45,
+   "aw1": 5,
+   "aw2": 11,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0.16,
+   "ttk": {
+    "5": 10.5,
+    "10": 8.4,
+    "15": 9.8,
+    "20": 12.3
+   },
+   "forms": {
+    "mortaja": 8
+   },
+   "frz8": 0.13,
+   "frzW": 0.08,
+   "locks": 0,
+   "linaje": 0,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 62,
+   "maxParts": 279,
+   "stuck": 0,
+   "ults": 0
+  },
+  {
+   "g": "traicion",
+   "id": "fire/bolt+fire",
+   "n": 8,
+   "win": 1,
+   "time": 167.8,
+   "aw1": 6,
+   "aw2": 12,
+   "netA": 0,
+   "netB": 0,
+   "netC": 0,
+   "frz": 0,
+   "ttk": {
+    "5": 12.9,
+    "10": 9,
+    "15": 11,
+    "20": 13.6
+   },
+   "forms": {
+    "plasma": 8
+   },
+   "frz8": 0,
+   "frzW": 0,
+   "locks": 0,
+   "linaje": 8,
+   "badOffer": 0,
+   "maxAff": 2,
+   "maxShots": 52,
+   "maxParts": 277,
+   "stuck": 0,
+   "ults": 0
+  }
+ ],
+ "checks": [
+  {
+   "name": "victorias 100%",
+   "ok": true,
+   "val": []
+  },
+  {
+   "name": "tiempo con formas 4:00-6:00",
+   "ok": false,
+   "val": [
+    "fire/fire 3:09",
+    "ice/ice 3:37",
+    "bolt/bolt 3:16",
+    "poison/poison 3:09",
+    "fire/fire+bolt 3:13",
+    "bolt/bolt+fire 2:53",
+    "bolt/bolt+ice 2:54",
+    "ice/ice+bolt 3:43",
+    "ice/ice+poison 3:07",
+    "poison/poison+ice 2:47",
+    "poison/poison+fire 2:50",
+    "fire/fire+poison 2:44",
+    "fire/fire+ice pacto 2:33",
+    "ice/ice+fire pacto 2:39",
+    "bolt/bolt+poison pacto 2:40",
+    "poison/poison+bolt pacto 2:42",
+    "fire/fire+ice 2:39",
+    "arcane/fire+bolt 2:55",
+    "arcane/ice+poison 2:56",
+    "fire/bolt+fire 2:47"
+   ]
+  },
+  {
+   "name": "ninguna forma final >25% más rápida",
+   "ok": true,
+   "val": [
+    "fire/fire+bolt 1.11",
+    "bolt/bolt+fire 1",
+    "bolt/bolt+ice 1",
+    "ice/ice+bolt 1.28",
+    "ice/ice+poison 1.07",
+    "poison/poison+ice 0.96",
+    "poison/poison+fire 0.98",
+    "fire/fire+poison 0.95",
+    "fire/fire+ice pacto 0.88",
+    "ice/ice+fire pacto 0.91",
+    "bolt/bolt+poison pacto 0.92",
+    "poison/poison+bolt pacto 0.93"
+   ]
+  },
+  {
+   "name": "formas/base 0,80-1,00",
+   "ok": true,
+   "val": 0.85
+  },
+  {
+   "name": "1er despertar en sala 5-7",
+   "ok": true,
+   "val": [
+    "fire/fire 7",
+    "ice/ice 6.5",
+    "bolt/bolt 6.5",
+    "poison/poison 7",
+    "fire/fire+bolt 6",
+    "bolt/bolt+fire 6",
+    "bolt/bolt+ice 6",
+    "ice/ice+bolt 6",
+    "ice/ice+poison 6",
+    "poison/poison+ice 5.5",
+    "poison/poison+fire 6.5",
+    "fire/fire+poison 6",
+    "fire/fire+ice pacto 6",
+    "ice/ice+fire pacto 6",
+    "bolt/bolt+poison pacto 6",
+    "poison/poison+bolt pacto 6",
+    "fire/fire+ice 6.5",
+    "arcane/fire+bolt 5",
+    "arcane/ice+poison 5",
+    "fire/bolt+fire 6"
+   ]
+  },
+  {
+   "name": "2º despertar en sala 11-14",
+   "ok": false,
+   "val": [
+    "fire/fire+bolt 12.5",
+    "bolt/bolt+fire 12.5",
+    "bolt/bolt+ice 12",
+    "ice/ice+bolt 12.5",
+    "ice/ice+poison 12",
+    "poison/poison+ice 12",
+    "poison/poison+fire 13",
+    "fire/fire+poison 12",
+    "fire/fire+ice pacto 12",
+    "ice/ice+fire pacto 12",
+    "bolt/bolt+poison pacto 12",
+    "poison/poison+bolt pacto 12",
+    "arcane/fire+bolt 10",
+    "arcane/ice+poison 11",
+    "fire/bolt+fire 12"
+   ]
+  },
+  {
+   "name": "red (b) <= 15%",
+   "ok": true,
+   "val": 0
+  },
+  {
+   "name": "red (c) <= 20%",
+   "ok": true,
+   "val": 0
+  },
+  {
+   "name": "congelación del jefe <= 35%",
+   "ok": true,
+   "val": []
+  },
+  {
+   "name": "congelación del jefe <= 35% (combates de 8 s o más)",
+   "ok": true,
+   "val": []
+  },
+  {
+   "name": "badOffer 0 y Afinidad <= 2",
+   "ok": true,
+   "val": []
+  },
+  {
+   "name": "maxShots <= 200",
+   "ok": true,
+   "val": 120
+  },
+  {
+   "name": "maxParts <= 500",
+   "ok": true,
+   "val": 377
+  },
+  {
+   "name": "opuesto sin pacto: se queda en Ígnea",
+   "ok": true,
+   "val": {
+    "formas": {
+     "ignea": 8
+    },
+    "bloqueadas": 8
+   }
+  }
+ ]
+}

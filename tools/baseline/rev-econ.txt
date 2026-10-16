@@ -1,0 +1,5 @@
+partida: {"state":"play","room":12,"iters":39999,"awk":[{"st":1,"room":6,"el":"fire"}],"form":"ignea"}
+final: 
+logros: boss1,untouchable,awaken1,room10,boss2
+esencia guardada 65 · essenceTotal 65 · partida + NaN · grim {"f":3,"w":0,"e":2,"m":3,"n":"0100000000","k":[6,1,0,0],"t":-1}
+premios en la lista de Logros: ["Primer conjuro:5","Rompepiedras:10","Explorador:10","Regicida viscoso:15","Duelo de magos:20","Señor de nada:30","Archimago:50","Alquimista:20","Reacción en cadena:20","Intocable:25","Erudito:15","Renacido:10","Cazaélites:20","Exterminador:30","Biblioteca completa:25","Contrarreloj:40","Maestro de escuelas:75","Cazatesoros:15","Trato hecho:10","Despertar:5","Alma doble:10","Cuatro caminos:15","Equilibrio roto:15","Grimorio de formas:25","Mil caras:20","Mezclador:10"]
