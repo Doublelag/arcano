@@ -1,0 +1,89 @@
+320 partidas (tools/esquivador-out/matriz.jsonl)
+
+perfil formas escuela  n  victorias  sala muerte(media)  t victoria(med/min)  golpes/partida b/c/t/j/x  vida perdida/partida  curas  tp   esencia
+medio  no     fire     8   63% (5/8)   20                  4:35 / 3:41          1.1/0/1.4/4.8/0           180                   142    0.4  99.9
+medio  no     ice      8   88% (7/8)   20                  4:04 / 3:34          0.9/0/0.9/0.4/0           49                    48     0.1  104.6
+medio  no     bolt     8   75% (6/8)   20                  3:51 / 3:37          1.3/0/1/3.9/0             151                   127    0.5  100.6
+medio  no     poison   8   88% (7/8)   20                  4:19 / 3:41          1.1/0/0.6/2.4/0           108                   102    0.5  105.6
+medio  no     arcane   8   88% (7/8)   20                  3:54 / 3:37          0.8/0/0.5/2.9/0           108                   91     0.4  106.1
+medio  no     TOTAL    40  80% (32/40) 20                  3:59 / 3:34          1/0/0.9/2.9/0             119                   102    0.4  103.4
+
+medio  sí     fire     12  92% (11/12) 20                  3:39 / 2:41          0.7/0/0.3/2.1/0           81                    80     0.3  105
+medio  sí     ice      12  100% (12/12) —                   3:55 / 3:02          0.4/0/0.8/0.8/0           45                    60     1    108.8
+medio  sí     bolt     12  92% (11/12) 20                  3:30 / 2:54          1/0/0.3/1.6/0             79                    83     0.8  107.5
+medio  sí     poison   12  100% (12/12) —                   3:42 / 2:54          0.5/0/1.3/2/0             86                    94     0.5  112
+medio  sí     arcane   12  100% (12/12) —                   3:23 / 2:53          0.8/0/0.8/2.1/0           96                    108    0.4  109.9
+medio  sí     TOTAL    60  97% (58/60) 20                  3:32 / 2:41          0.7/0/0.7/1.7/0           77                    85     0.6  108.6
+
+bueno  no     fire     8   100% (8/8)  —                   4:20 / 3:57          0.4/0/1/2/0               87                    84     0.6  107
+bueno  no     ice      8   100% (8/8)  —                   4:15 / 3:48          0.1/0/0.6/0/0             12                    46     0.6  108.3
+bueno  no     bolt     8   100% (8/8)  —                   3:50 / 3:20          0.1/0/0.4/2.1/0           79                    94     1    110.1
+bueno  no     poison   8   100% (8/8)  —                   4:10 / 3:24          0/0/0.5/1.1/0             41                    60     0.5  110.9
+bueno  no     arcane   8   100% (8/8)  —                   4:41 / 3:56          0.6/0/0.8/1.6/0           79                    80     1.1  109.1
+bueno  no     TOTAL    40  100% (40/40) —                   4:15 / 3:20          0.3/0/0.7/1.4/0           60                    73     0.8  109.1
+
+bueno  sí     fire     12  100% (12/12) —                   3:27 / 2:45          0.2/0/0.7/1.2/0           49                    65     0.5  109
+bueno  sí     ice      12  100% (12/12) —                   3:48 / 3:08          0/0/0.4/0.3/0             15                    22     0.7  108.8
+bueno  sí     bolt     12  100% (12/12) —                   3:39 / 3:04          0.3/0/0.8/1.9/0           75                    90     1.2  107.9
+bueno  sí     poison   12  92% (11/12) 20                  3:45 / 3:00          0.1/0/1/1.4/0             63                    64     0.8  108.3
+bueno  sí     arcane   12  100% (12/12) —                   3:34 / 2:44          0.6/0/1.3/1.3/0           76                    83     0.7  106.9
+bueno  sí     TOTAL    60  98% (59/60) 20                  3:34 / 2:44          0.2/0/0.8/1.2/0           56                    64     0.8  108.2
+
+dios   no     fire     6   100% (6/6)  —                   4:02 / 3:25          0/0/0/0/0                 0                     8      0.7  109.8
+dios   no     ice      6   100% (6/6)  —                   4:30 / 3:53          0/0/0/0/0                 0                     25     0.2  109
+dios   no     bolt     6   100% (6/6)  —                   3:47 / 3:05          0/0/0/0/0                 0                     17     0.2  107
+dios   no     poison   6   100% (6/6)  —                   3:43 / 3:01          0/0/0/0/0                 0                     13     0    109.5
+dios   no     arcane   6   100% (6/6)  —                   3:48 / 3:17          0/0/0/0/0                 0                     4      0.2  110.3
+dios   no     TOTAL    30  100% (30/30) —                   3:58 / 3:01          0/0/0/0/0                 0                     13     0.2  109.1
+
+dios   sí     fire     6   100% (6/6)  —                   3:22 / 3:14          0/0/0/0/0                 0                     21     0    112.5
+dios   sí     ice      6   100% (6/6)  —                   4:17 / 4:00          0/0/0/0/0                 0                     13     0.5  104.8
+dios   sí     bolt     6   100% (6/6)  —                   3:32 / 3:09          0/0/0/0/0                 0                     13     0.3  108.3
+dios   sí     poison   6   100% (6/6)  —                   3:35 / 3:18          0/0/0/0/0                 0                     21     0.7  106.3
+dios   sí     arcane   6   100% (6/6)  —                   3:22 / 2:55          0/0/0/0/0                 0                     4      0    106.8
+dios   sí     TOTAL    30  100% (30/30) —                   3:33 / 2:55          0/0/0/0/0                 0                     14     0.3  107.8
+
+novato no     fire     6   0% (0/6)    15.8                — / —                1.8/0/0.3/8.7/0           252                   152    0.3  55
+novato no     ice      6   67% (4/6)   15                  3:52 / 3:30          2.3/0/0.8/2.3/0           123                   89     0.5  89.7
+novato no     bolt     6   0% (0/6)    16.7                — / —                2.2/0/1/6.5/0             219                   118    0.7  61
+novato no     poison   6   0% (0/6)    15                  — / —                2.3/0/0.5/5.8/0           192                   89     0.7  53.3
+novato no     arcane   6   33% (2/6)   16.3                3:46 / 3:27          3.7/0/1/6.3/0             253                   187    0.7  75.7
+novato no     TOTAL    30  20% (6/30)  15.8                3:52 / 3:27          2.5/0/0.7/5.9/0           208                   127    0.6  66.9
+
+novato sí     fire     6   50% (3/6)   20                  3:27 / 3:10          0.8/0/1.8/8/0             260                   215    0.5  89.3
+novato sí     ice      6   67% (4/6)   20                  4:17 / 4:11          1.2/0/0.5/4.2/0           142                   106    0.5  98.7
+novato sí     bolt     6   0% (0/6)    15.8                — / —                2.3/0/0.7/6/0             206                   106    0.5  58
+novato sí     poison   6   17% (1/6)   15                  3:24 / 3:24          2.2/0/1/7/0               233                   145    0.3  60.8
+novato sí     arcane   6   33% (2/6)   20                  3:32 / 3:09          2.7/0/0.8/6/0             233                   162    0.3  87.2
+novato sí     TOTAL    30  33% (10/30) 17.5                3:49 / 3:09          1.8/0/1/6.2/0             215                   146    0.4  78.8
+
+[medio] muertes por sala: s20×10
+[medio] salas con más vida perdida (media por partida que la juega): s20 44 (38% vida máx, 1.4 golpes) · s15 10 (9% vida máx, 0.4 golpes) · s10 8 (7% vida máx, 0.3 golpes) · s17 6 (5% vida máx, 0.3 golpes) · s5 5 (5% vida máx, 0.4 golpes) · s16 5 (4% vida máx, 0.3 golpes)
+[medio] vida perdida en jefes: 72% del total; salas normales: 0.1 golpes/sala de media
+[medio] tiempo medio por sala (s): 1:12 2:13 3:12 4:5 5:16 6:13 7:13 8:14 9:5 10:17 11:13 12:13 13:13 14:5 15:20 16:13 17:13 18:13 19:5 20:22
+[medio] golpes de bala (incl. jefe): vista 68% · aún sin ver por reacción 2% · despiste 29%; esquivas por Parpadeo 0.1/partida; % del combate moviéndose 24%
+[medio] de dónde vienen los golpes (balas y toques, sin trampas): jefe:choque/teleport 35% · spirit 19% · jefe:rafaga 14% · jefe:anillo 14% · jefe:espiral 7% · archer 4% · mage 2% · toque:boss/dash 2% · totem 1% · toque:boss/idle 1% · charger 0%
+[medio] en las victorias, vida mínima media 58% · victorias sin bajar del 50%: 68% · sin recibir golpe en jefes: 22%
+
+[bueno] muertes por sala: s20×1
+[bueno] salas con más vida perdida (media por partida que la juega): s20 36 (31% vida máx, 1.2 golpes) · s10 4 (3% vida máx, 0.2 golpes) · s17 3 (3% vida máx, 0.2 golpes) · s15 3 (3% vida máx, 0.1 golpes) · s18 3 (3% vida máx, 0.1 golpes) · s16 2 (2% vida máx, 0.1 golpes)
+[bueno] vida perdida en jefes: 78% del total; salas normales: 0.1 golpes/sala de media
+[bueno] tiempo medio por sala (s): 1:12 2:12 3:12 4:5 5:17 6:13 7:13 8:14 9:5 10:17 11:14 12:14 13:13 14:5 15:20 16:14 17:14 18:13 19:5 20:23
+[bueno] golpes de bala (incl. jefe): vista 58% · aún sin ver por reacción 4% · despiste 38%; esquivas por Parpadeo 0.1/partida; % del combate moviéndose 25%
+[bueno] de dónde vienen los golpes (balas y toques, sin trampas): jefe:choque/teleport 61% · spirit 10% · jefe:anillo 10% · jefe:rafaga 7% · totem 5% · toque:boss/dash 4% · jefe:espiral 3% · archer 1%
+[bueno] en las victorias, vida mínima media 66% · victorias sin bajar del 50%: 75% · sin recibir golpe en jefes: 27%
+
+[novato] muertes por sala: s20×24 s10×10 s15×10
+[novato] salas con más vida perdida (media por partida que la juega): s20 78 (70% vida máx, 2.6 golpes) · s15 44 (40% vida máx, 1.6 golpes) · s10 37 (35% vida máx, 1.7 golpes) · s5 28 (28% vida máx, 1.6 golpes) · s18 13 (13% vida máx, 0.6 golpes) · s16 13 (12% vida máx, 0.5 golpes)
+[novato] vida perdida en jefes: 73% del total; salas normales: 0.3 golpes/sala de media
+[novato] tiempo medio por sala (s): 1:12 2:14 3:13 4:5 5:17 6:13 7:14 8:15 9:5 10:17 11:14 12:13 13:14 14:5 15:20 16:17 17:13 18:14 19:5 20:16
+[novato] golpes de bala (incl. jefe): vista 77% · aún sin ver por reacción 6% · despiste 17%; esquivas por Parpadeo 0.1/partida; % del combate moviéndose 19%
+[novato] de dónde vienen los golpes (balas y toques, sin trampas): jefe:choque/teleport 31% · jefe:rafaga 19% · jefe:anillo 14% · spirit 12% · archer 9% · jefe:espiral 7% · totem 4% · toque:boss/dash 2% · mage 1% · toque:boss/idle 1% · toque:boss/wind 0%
+[novato] en las victorias, vida mínima media 28% · victorias sin bajar del 50%: 19% · sin recibir golpe en jefes: 13%
+
+OBJETIVO                                   ACTUAL
+perfil medio gana 15-30%                   90%
+perfil bueno gana 50-70%                   99%
+nadie gana en menos de ~5:00               95% de las victorias < 5:00 (mín 2:41, mediana 3:49)
+modo dios sin formas: fire 4:02 (3:25-4:55) · ice 4:30 (3:53-5:49) · bolt 3:47 (3:05-4:05) · poison 3:43 (3:01-5:01) · arcane 3:48 (3:17-4:57)
+modo dios con formas: fire 3:22 (3:14-4:05) · ice 4:17 (4:00-4:39) · bolt 3:32 (3:09-3:42) · poison 3:35 (3:18-4:06) · arcane 3:22 (2:55-3:37)
