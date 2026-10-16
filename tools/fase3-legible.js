@@ -85,7 +85,8 @@ ok(H.hits === 0 && H.rawN === 0 && H.lastHit === null, 'newRun vacía el contado
 
 // ---------- 4. avisos del jefe y del espectro ----------
 const warn = await ev('JSON.stringify(__arcano.CH.warn)');
-ok(warn === '{"aimed":0.25,"early":false}', 'C1_LEGACY: avisos de siempre (0,25 s y destino al final)', warn);
+ok(warn === '{"aimed":0.35,"early":true}', 'C1 v1.1 (fase 4): abanico de 0,35 s y destino elegido al empezar', warn);
+await P(`A.CH.warn.aimed = 0.25; A.CH.warn.early = false; return 1;`); // primero, los avisos de antes (C1_LEGACY)
 await ev(`__arcano.seed(4)`); await ev(`__arcano.school('fire')`); await ev('__arcano.goto(15)');
 const boss = `const b = E.find(e => e.kind === 'boss');`;
 await P(`A.god(true); ${boss} b.spawnT = 0; A.step(1 / 60); return 1;`);
@@ -119,6 +120,6 @@ await ev('__arcano.step(0.15)'); await shot('lg-aviso-espectro');
 await ev('__arcano.step(0.25)');
 const sp2 = await P(`const s = E.find(e => e.kind === 'spirit'); return { st: s.state, x: s.x, y: s.y };`);
 ok(sp2.st === 'in' && sp.tp && Math.abs(sp2.x - sp.tp.x) < 0.01, 'espectro: reaparece en la marca', { sp2, tp: sp.tp });
-await P(`A.CH.warn.early = false; A.CH.warn.aimed = 0.25; return 1;`); // el CH está en la caché de chapters.js: se deja como estaba
+await P(`A.CH.warn.early = true; A.CH.warn.aimed = 0.35; return 1;`); // el CH está en la caché de chapters.js: se deja como estaba
 
 console.log(fails ? `FALLOS: ${fails} (de ${oks + fails})` : `TODO OK (${oks})`);

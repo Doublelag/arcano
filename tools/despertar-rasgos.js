@@ -31,12 +31,12 @@ r = await P(`E[0].hp = 1; A.hit(0, ['fire']); return A.formInfo();`);
 ok(r.ready && r.net.some(n => n.net === 'b'), '(b) 1º despertar garantizado tras el Rey Slime', r.net);
 await run('fire', ['fire'], 15);
 r = await P(`E[0].hp = 1; A.hit(0, ['fire']); return A.formInfo();`);
-ok(r.ready && r.net.some(n => n.net === 'c') && r.need === 160, '(c) 2º despertar garantizado tras el Brujo', r.net);
+ok(r.ready && r.net.some(n => n.net === 'c') && r.need === 175, '(c) 2º despertar garantizado tras el Brujo (need 175 desde la fase 4)', r.net);
 
 // ---------- Fuentes de Ánima ----------
 console.log('--- Ánima');
 await run('fire', [], 7);
-r = await P(`${park} const a0 = P.anima; E[0].hp = 1; A.hit(0, []); const a1 = P.anima; E[1].hp = 1; E[1].elite = true; A.hit(1, []); const a2 = P.anima; E[2].hp = 1; E[2].minion = true; A.hit(2, []); return [a1 - a0, a2 - a1, P.anima - a2];`);
+r = await P(`${park} const a0 = P.anima; E[0].hp = 1; E[0].elite = false; A.hit(0, []); const a1 = P.anima; E[1].hp = 1; E[1].elite = true; A.hit(1, []); const a2 = P.anima; E[2].hp = 1; E[2].minion = true; A.hit(2, []); return [a1 - a0, a2 - a1, P.anima - a2];`);
 ok(r[0] === 2 && r[1] === 6 && r[2] === 0.5, 'bajas: +2 normal, +6 élite, +0,5 esbirro', r);
 r = await P(`${park} const a0 = P.anima; for (let i = 0; i < 12; i++) { E[3].reactCd = 0; E[3].burn = 1; A.hit(3, ['ice']); E[3].slow = 0; } return P.anima - a0;`);
 ok(Math.abs(r - 12) < 1e-9, 'reacciones: +1,5 con tope de 12 por sala', r);
@@ -53,7 +53,7 @@ ok(r === 2.5, 'Arcanista: todo ×1,25', r);
 // ---------- Ígnea: estallido al morir ardiendo (3 cada 0,3 s) ----------
 console.log('--- Rasgos');
 await run('fire', ['fire'], 7);
-r = await P(`${park} const a = E[0], b = E[1]; a.x = 200; a.y = 400; b.x = 240; b.y = 400; a.burn = 2; a.hp = 1; const hb = b.hp; A.hit(0, []); return { dead: a.dead, dmg: hb - b.hp, burn: b.burn, atk: P.atk };`);
+r = await P(`${park} const a = E.find(e => e.kind !== 'bomber'), b = E.find(e => e !== a); a.x = 200; a.y = 400; b.x = 240; b.y = 400; a.burn = 2; a.hp = 1; const hb = b.hp; A.hit(E.indexOf(a), []); return { dead: a.dead, dmg: hb - b.hp, burn: b.burn, atk: P.atk };`);
 ok(r.dead && Math.abs(r.dmg - 0.8 * r.atk) < 0.01 && r.burn === 3.5, 'Ígnea: estalla (0,8×atk) y prende al vecino (3,5 s)', r);
 await ev('__arcano.goto(16)'); await ev('__arcano.god(true)'); await ev('__arcano.step(0.5)'); // que se recarguen las fichas
 r = await P(`${park} const L = E.filter(e => e.kind !== 'boss' && e.kind !== 'bomber'), b = L[L.length - 1]; let n = 0; /* el diablillo revienta al morir por su cuenta */ for (let i = 0; i < Math.min(5, L.length - 1); i++) { const a = L[i]; a.x = 300; a.y = 500; b.x = 330; b.y = 500; a.burn = 2; a.hp = 1; const h = b.hp; A.hit(E.indexOf(a), []); if (b.hp < h) n++; } return { n, tries: Math.min(5, L.length - 1), kinds: L.slice(0, 5).map(e => e.kind) };`);

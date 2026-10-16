@@ -97,7 +97,7 @@ r = await P(`A.step(0.8); return { left: A.ults().meteors.length, pools: A.ults(
 ok(r.left === 0 && r.pools >= 1 && r.pools <= 6 && r.fp > 0, 'caen todas: charcos de azufre y fuego + veneno', r);
 // pocos enemigos: repiten objetivo
 r = await P(`E.forEach((e, i) => { if (i) e.dead = true; }); A.step(0.05); P.mana = 100; A.ult(); const m = A.ults().meteors; return { n: m.length, live: A.enemies.filter(e => !e.dead).length };`);
-ok(r.n === 6 && r.live === 1, 'con 1 enemigo caen igualmente las 6', r);
+ok(r.n === 6 && r.live >= 1, 'con 1 enemigo caen igualmente las 6 (pueden llegar refuerzos: fase 4)', r);
 await ev('__arcano.step(1.5)');
 
 // ---------- SOL NEGRO (Eclipse con pacto) ----------

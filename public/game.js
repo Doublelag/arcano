@@ -302,18 +302,21 @@
   // ================================================================
   const Chapters = () => window.ArcanoChapters;
   const CH_FALLBACK = (() => {
-    const BOSSES = { // las salas de jefe de siempre (modelo, logro y arena van con el modelo)
-      5:  { model: 'golem', ach: 'boss1', arena: 'golem', tier: 1, title: 'Guardián de la pradera', name: 'Gólem de Piedra', hp: 480, r: 40, speed: 55, color: '#8f8270', bullet: '#ff4d6d', pats: ['ring', 'charge', 'aimed'] },
-      10: { model: 'rey', ach: 'boss2', arena: 'rey', tier: 2, title: 'Monarca de la cripta', name: 'Rey Slime', hp: 1150, r: 42, speed: 65, color: '#57c75e', bullet: '#ff5a7a', pats: ['summon', 'ring', 'charge', 'aimed'] },
-      15: { model: 'brujo', ach: 'boss3', arena: 'brujo', tier: 3, title: 'Tirano de la gruta helada', name: 'Brujo Sombrío', hp: 2600, r: 34, speed: 45, color: '#6d4bd8', bullet: '#ff5aa0', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'] },
-      20: { model: 'senor', ach: 'boss4', arena: 'senor', tier: 4, title: 'Corazón del volcán', name: 'Señor de la Mazmorra', hp: 4700, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff2e63', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], final: true },
+    const BOSSES = { // las salas de jefe del C1 v1.1 (modelo, logro y arena van con el modelo)
+      5:  { model: 'golem', ach: 'boss1', arena: 'golem', tier: 1, title: 'Guardián de la pradera', name: 'Gólem de Piedra', hp: 624, r: 40, speed: 55, color: '#8f8270', bullet: '#ff4d6d', pats: ['ring', 'charge', 'aimed'] },
+      10: { model: 'rey', ach: 'boss2', arena: 'rey', tier: 2, title: 'Monarca de la cripta', name: 'Rey Slime', hp: 1725, r: 42, speed: 65, color: '#57c75e', bullet: '#ff5a7a', pats: ['summon', 'ring', 'charge', 'aimed'] },
+      15: { model: 'brujo', ach: 'boss3', arena: 'brujo', tier: 3, title: 'Tirano de la gruta helada', name: 'Brujo Sombrío', hp: 3900, r: 34, speed: 45, color: '#6d4bd8', bullet: '#ff5aa0', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'] },
+      20: { model: 'senor', ach: 'boss4', arena: 'senor', tier: 4, title: 'Corazón del volcán', name: 'Señor de la Mazmorra', hp: 5640, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff2e63', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], final: true },
     };
     const ch = {
       id: 1, name: 'La Mazmorra', short: 'Mazmorra', len: 20, hero: false, k: 0, altars: [4, 9, 14, 19], tint: null, enemyTint: null,
       ENEMY_UNLOCK: { slime: 1, bat: 1, archer: 2, charger: 3, mage: 4, bigslime: 6, bomber: 6, totem: 7, spirit: 11 }, // sala a partir de la que aparece cada enemigo
-      nets: { a: 1, b: 2, c: 3 }, markRoom: 6, stars: [7, 14], speedrun: 270, warn: { aimed: 0.25, early: false },
+      nets: { a: 1, b: 2, c: 3 }, markRoom: 6, stars: [7, 14], speedrun: 270, warn: { aimed: 0.35, early: true },
+      spawnStep: 0.04, anima: [110, 175], waves: [6, 7, 8, 11, 12, 13, 16, 17, 18],
+      foe: { archer: { sp: [295, 5], cd: [0.9, 1.6] }, mage: { sp: [175, 4], cd: [2.0, 3.0] }, totem: { sp: [160, 4], cd: [1.15, 0.9] }, spirit: { sp: [220, 2] },
+        speed: { slime: 90, bigslime: 62, bat: 122, bomber: 112 }, batZig: 0.675, dash: 540, rest: 0.45, ring: 185 },
     };
-    const HEAL = { boss: 0.25, bossHearts: 2, heart: 0.06, eliteHeart: 0.3, heartVal: 0.15, chest: 0.15, altar: 0.6 };
+    const HEAL = { boss: 0.10, bossHearts: 1, heart: 0.04, eliteHeart: 0.20, heartVal: 0.12, chest: 0.10, altar: 0.5, fullAt: 0.95, autoHearts: false };
     const api = {
       lastRoom: c => c.len,
       bossAt: (c, r) => (BOSSES[r] ? Object.assign({}, BOSSES[r], { pats: BOSSES[r].pats.slice(), ord: r / 5, final: !!BOSSES[r].final }) : null),
@@ -325,10 +328,12 @@
       hpMul: (c, h, r) => 1 + 0.2 * (r - 1) + 0.006 * (r - 1) * (r - 1),
       dmgMul: (c, h, r) => 1 + 0.07 * (r - 1),
       enemyLv: (c, h, r) => r,
-      budget: (c, h, r) => ({ budget: 3.5 + r * 0.55, maxN: 11, caps: { totem: 2, spirit: 3, bomber: 3, bigslime: 2 }, pool: Object.keys(c.ENEMY_UNLOCK).filter(k => r >= c.ENEMY_UNLOCK[k]) }),
-      firstAttack: () => [0.6, 1.6],
-      spawnDist: () => 300,
-      eliteParams: (c, h, r) => ({ p: r < 6 ? 0 : 0.1 + r * 0.006, max: 2, affixes: [], dual: 0 }),
+      budget: (c, h, r) => ({ budget: (4.5 + r * 0.75) * (r <= 3 ? 0.85 : 1), maxN: 14, caps: { totem: 2, spirit: 3, bomber: 3, bigslime: 2, mage: 4 },
+        pool: Object.keys(c.ENEMY_UNLOCK).filter(k => r >= c.ENEMY_UNLOCK[k]), threat: r >= 6 ? { p: 0.65, light: ['slime', 'bat'] } : null }),
+      firstAttack: (c, h, r) => (r <= 3 ? [0.6, 1.6] : [0.35, 1.0]),
+      spawnDist: (c, r) => (r <= 3 ? 280 : 220),
+      eliteParams: (c, h, r) => ({ p: r < 6 ? 0 : 0.18 + r * 0.008, max: 2, affixes: [], dual: 0, hp: 2.0 }),
+      wavesAt: (c, h, r) => (c.waves.includes(r) ? { share: 0.4, at: 0.3 } : null),
       hazard: () => ({ from: 3, chance: 0.6, n: [2, 3], special: 0.55, arenaK: 1 }),
       chest: () => ({ from: 2, p: 0.2, max: 3 }),
       heal: () => Object.assign({}, HEAL),
@@ -349,28 +354,31 @@
   const altarAt = r => CHA().altarAt(CH, r);
   const biomeAt = r => CHA().biomeAt(CH, Math.max(1, r));
   const healCfg = () => CHA().heal(CH, HEROIC);
+  const foeCfg = () => CH.foe || CH_FALLBACK.ch.foe; // ritmo de los enemigos (§4.4)
+  // Ánima para despertar (1º, 2º): la del capítulo o, sin ella, la de forms.js
+  const animaNeed = i => (CH.anima ? CH.anima[i] : FX().ANIMA.need[i]);
 
 
   const SKILLS = [
-    { id: 'front',    icon: '🔮', name: 'Proyectil extra',  max: 3, w: 1.1, desc: '+1 proyectil hacia delante (−12% daño cada uno)' },
-    { id: 'multi',    icon: '🔁', name: 'Eco arcano',       max: 3, w: 1.1, desc: 'El hechizo se repite justo después (−10% daño)' },
+    { id: 'front',    icon: '🔮', name: 'Proyectil extra',  max: 3, w: 1.1, desc: '+1 proyectil hacia delante (−15% daño cada uno)' },
+    { id: 'multi',    icon: '🔁', name: 'Eco arcano',       max: 3, w: 1.1, desc: 'El hechizo se repite justo después (−13% daño)' },
     { id: 'diag',     icon: '↗️', name: 'Abanico',          max: 2, w: 1,   desc: '+2 proyectiles en diagonal' },
     { id: 'side',     icon: '↔️', name: 'Orbes laterales',  max: 1, w: 0.8, desc: '+2 proyectiles a los lados' },
     { id: 'rear',     icon: '↩️', name: 'Guardia trasera',  max: 1, w: 0.8, desc: '+1 proyectil hacia atrás' },
-    { id: 'ricochet', icon: '🔀', name: 'Salto arcano',     max: 2, w: 1,   desc: 'Los proyectiles saltan a 2 enemigos más' },
-    { id: 'pierce',   icon: '💫', name: 'Lanza de éter',    max: 2, w: 1,   desc: 'Los proyectiles atraviesan 1 enemigo más' },
-    { id: 'wall',     icon: '↪️', name: 'Rebote',           max: 2, w: 0.9, desc: 'Los proyectiles rebotan 2 veces en muros y rocas' },
+    { id: 'ricochet', icon: '🔀', name: 'Salto arcano',     max: 2, w: 1,   desc: 'Los proyectiles saltan a 2 enemigos más (−25% por salto)' },
+    { id: 'pierce',   icon: '💫', name: 'Lanza de éter',    max: 2, w: 1,   desc: 'Los proyectiles atraviesan 1 enemigo más (−25% por enemigo)' },
+    { id: 'wall',     icon: '↪️', name: 'Rebote',           max: 2, w: 0.9, desc: 'Los proyectiles rebotan 2 veces en muros y rocas (−40% por rebote)' },
     { id: 'atk',      icon: '💥', name: 'Poder +25%',       max: 6, w: 1,   desc: 'Más daño en todos tus hechizos' },
     { id: 'atkspd',   icon: '⏱️', name: 'Celeridad',        max: 5, w: 1,   desc: '+22% de velocidad de lanzamiento' },
     { id: 'crit',     icon: '🎯', name: 'Concentración',    max: 4, w: 0.9, desc: '+10% prob. de crítico y +25% daño crítico' },
     { id: 'hp',       icon: '❤️', name: 'Vitalidad',        max: 5, w: 0.9, desc: '+25 de vida máxima y te cura 25' },
-    { id: 'heal',     icon: '⚗️', name: 'Poción',           max: 99, w: 1.4, desc: 'Recuperas el 40% de la vida', cond: () => player.hp < player.maxHp * 0.75 },
+    { id: 'heal',     icon: '⚗️', name: 'Poción',           max: 99, w: 1.0, desc: 'Recuperas el 35% de la vida', cond: () => player.hp < player.maxHp * 0.6 },
     { id: 'fire',     icon: '🔥', name: 'Runa de fuego',    max: 2, w: 1.1, el: true, desc: 'Tus hechizos queman durante 2,5 s' },
     { id: 'ice',      icon: '❄️', name: 'Runa de hielo',    max: 2, w: 1.1, el: true, desc: 'Tus hechizos ralentizan a los enemigos' },
     { id: 'bolt',     icon: '⚡', name: 'Runa de rayo',     max: 2, w: 1.1, el: true, desc: 'Electrocutan y a veces saltan a 2 enemigos' },
     { id: 'poison',   icon: '☠️', name: 'Runa de veneno',   max: 2, w: 1,   el: true, desc: 'Daño continuo que se acumula con cada impacto' },
     { id: 'orbs',     icon: '🌀', name: 'Orbes guardianes', max: 3, w: 0.9, desc: 'Un orbe gira a tu alrededor y daña al contacto' },
-    { id: 'blood',    icon: '🦇', name: 'Drenar vida',      max: 3, w: 0.8, desc: 'Cada baja te cura un 2% de la vida máxima' },
+    { id: 'blood',    icon: '🦇', name: 'Drenar vida',      max: 3, w: 0.8, desc: 'Cada baja te cura un 1,5% de la vida máxima' },
     { id: 'channel',  icon: '💠', name: 'Canalización',     max: 2, w: 0.9, desc: 'Tu hechizo definitivo se carga un 35% más rápido' },
     { id: 'speed',    icon: '👟', name: 'Botas ligeras',    max: 2, w: 0.8, desc: '+12% de velocidad de movimiento' },
     { id: 'dodge',    icon: '💨', name: 'Parpadeo',         max: 3, w: 0.8, desc: '+8% de probabilidad de esquivar golpes' },
@@ -441,6 +449,7 @@
   // Despertar: cinemática, esquirlas de Eclipse, espera de la oferta, música retenida, cola de avisos, charcos...
   let awakenFx = null, eclipseFx = null, awakenWait = 0, musicHoldT = 0, toastQ = [], bannerNext = null, flashNext = null;
   let pools = [], amb = [], ash = [], pactRun = false, roomReactA = 0, ambT = 0, fxDepth = 0, netLog = [];
+  let waveQ = [], wave1N = 0, waveAt = 0.3; // refuerzos pendientes de la sala (§4.5)
   let curtains = [], fog = null; // definitivos combinados: columnas de Cortina boreal y niebla de Invierno negro
   const seenMixes = new Set();   // Mezclas ya anunciadas en esta partida
   let runGrim0 = null; // páginas del Grimorio al empezar la partida (para "Nueva página" en el final)
@@ -1005,7 +1014,7 @@
   function gainAnima(v) {
     const p = player, F = FX();
     if (!F || !p || p.awak >= 2 || p.animaReady || room >= lastRoom()) return; // en la sala final ya no hay despertar
-    const A = F.ANIMA, need = A.need[p.awak];
+    const A = F.ANIMA, need = animaNeed(p.awak);
     p.anima += v * (p.school === 'arcane' ? A.arcane : 1);
     if (!settings.tips.anima && p.anima >= need * 0.5 && p.anima < need) // si se llena de golpe, el consejo espera al siguiente
       pushToast({ text: 'DESPERTAR', sub: 'El anillo del definitivo se llena con bajas, reacciones y jefes', color: '#fff1c4', t: 3.2, max: 3.2, tip: 'anima' });
@@ -1619,7 +1628,7 @@
     player.crit = 0.05 + 0.1 * (s.crit || 0) + g.critPct;
     player.critMul = 2 + 0.25 * (s.crit || 0);
     player.speed = 190 * (1 + 0.12 * (s.speed || 0)) * (1 + 0.04 * metaLv('paso')) * (1 + g.speedP);
-    player.dodge = Math.min(0.6, 0.08 * (s.dodge || 0) + g.dodgeP); // nunca más de un 60% de esquiva
+    player.dodge = Math.min(0.45, 0.08 * (s.dodge || 0) + g.dodgeP); // nunca más de un 45% de esquiva
     // runas del equipo que no caben en la Afinidad (+6% por nivel, tope +24%) y precio/bonus de la forma (Eclipse)
     player.atk *= (1 + 0.06 * Math.min(4, player.fusedLv || 0)) * ((player.tr && player.tr.atkMul) || 1);
     refreshStyle();
@@ -1755,7 +1764,7 @@
   function fireVolley(target, echo = false) {
     const s = player.sk;
     const base = angTo(player, target);
-    const dmg = player.atk * Math.pow(0.88, s.front || 0) * Math.pow(0.9, s.multi || 0);
+    const dmg = player.atk * Math.pow(0.85, s.front || 0) * Math.pow(0.87, s.multi || 0);
     const nF = 1 + (s.front || 0), sty = echo ? player.styEcho : player.sty;
     const px = Math.cos(base + Math.PI / 2), py = Math.sin(base + Math.PI / 2);
     for (let i = 0; i < nF; i++) {
@@ -1848,7 +1857,7 @@
     const d = ENEMIES[kind], hm = CHA().hpMul(CH, HEROIC, room), fa = CHA().firstAttack(CH, HEROIC, room);
     const tint = window.ArcanoBiomes ? BIOME_TINT[biomeAt(room)] : null;
     return {
-      kind, x, y, r: d.r, hp: d.hp * hm, maxHp: d.hp * hm, speed: d.speed * rand(0.92, 1.08),
+      kind, x, y, r: d.r, hp: d.hp * hm, maxHp: d.hp * hm, speed: (foeCfg().speed[kind] || d.speed) * rand(0.92, 1.08),
       dmg: d.dmg * dmgMul(), xp: d.xp, ground: d.ground, color: (CH.enemyTint && CH.enemyTint[kind]) || (tint && tint[kind]) || d.color,
       lv: CHA().enemyLv(CH, HEROIC, room), // nivel: lo que leen sus ataques (en el C1 Normal, la sala)
       spawnT: 0.75 + delay, spawnMax: 0.75 + delay, t: 0, seed: rand(0, TAU), flash: 0,
@@ -1857,13 +1866,14 @@
       shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0, frzImm: 0, corrMul: 0,
       heavy: kind === 'totem', alpha: kind === 'spirit' ? 1 : undefined, spin: rand(0, TAU),
       vscale: kind === 'bigslime' ? 1.4 : 1, // se dibuja más grande de lo que ocupa (cabe por pasillos de 1 celda)
+      kbMul: kind === 'charger' || kind === 'totem' ? 0 : 0.6, // empujón de tus hechizos (embestidores, élites y pesados: nada)
     };
   }
 
-  // Élite: más vida, más daño, aura dorada y el doble de experiencia
-  function makeElite(e) {
-    e.elite = true;
-    e.hp *= 2.2; e.maxHp *= 2.2;
+  // Élite: más vida (hpK: la del capítulo), más daño, aura dorada, sin empujón y el doble de experiencia
+  function makeElite(e, hpK = 2.0) {
+    e.elite = true; e.kbMul = 0;
+    e.hp *= hpK; e.maxHp *= hpK;
     e.r = Math.min(Math.round(e.r * 1.15), e.ground ? 19 : 30); // en tierra tiene que caber por pasillos de 40 px
     e.vscale = (e.vscale || 1) * 1.15;
     e.dmg *= 1.25; e.xp *= 2;
@@ -1886,8 +1896,11 @@
     const P = CHA().budget(CH, HEROIC, n), pool = P.pool, cap = P.caps; // cap: máximo por sala
     let budget = P.budget;
     const list = [];
+    const T = P.threat, heavy = T ? pool.filter(x => !T.light.includes(x)) : null; // K2: densidad de amenaza, no de bichos
     for (let guard = 0; guard < 200 && budget > 0.9 && list.length < P.maxN; guard++) {
-      const k = pick(pool), c = ENEMIES[k].cost;
+      let k = pick(pool);
+      if (T && T.light.includes(k) && heavy.length && Math.random() < T.p) k = pick(heavy);
+      const c = ENEMIES[k].cost;
       if (c > budget + 0.3) continue;
       if (cap[k] && list.filter(x => x === k).length >= cap[k]) continue;
       list.push(k); budget -= c;
@@ -1917,6 +1930,9 @@
 
   // balas enemigas: familia rojo-rosa-magenta (nada de naranja: es el Fuego, la lava y el volcán); src = origen del golpe
   const BUL = { archer: '#ff6b8a', mage: '#ff6f9c', totem: '#ff8ad1', spirit: '#ffb3c8', volatile: '#ff3b6b' };
+  // D23: si hay más de 280 balas al empezar un ataque, el enemigo se lo salta entero (los anillos nunca salen con huecos)
+  const bulletCap = () => bullets.length > 280;
+  const bulMul = () => CHA().bulletMul ? CHA().bulletMul(CH, HEROIC) : 1; // velocidad de bala del capítulo (k)
   function fireBullet(x, y, a, sp, dmg, color, r = 7, src = 'shot') {
     bullets.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r, dmg, color, src });
   }
@@ -1960,7 +1976,9 @@
       if (Math.abs(e.kx) + Math.abs(e.ky) < 2) e.kx = e.ky = 0;
     }
     const chill = (player.sk.ice || 0) >= 2 ? 0.5 : 0.62;
-    const ds = dt * (e.slow > 0 ? chill : 1); // el hielo ralentiza también sus ataques
+    const ds = dt * (e.slow > 0 ? chill : 1); // movimiento ralentizado por el hielo
+    const dsA = dt * (e.slow > 0 ? 0.8 : 1); // sus ataques, menos (K10: el hielo no puede ser la escuela «segura»)
+    const F = foeCfg();
 
     switch (e.kind) {
       case 'slime':
@@ -1973,30 +1991,32 @@
       }
       case 'bat': {
         if (e.knock > 0) { e.knock -= dt; e.x += e.vx * ds; e.y += e.vy * ds; break; }
-        const a = angTo(e, player) + Math.sin(e.t * 2.6 + e.seed) * 0.9;
+        const a = angTo(e, player) + Math.sin(e.t * 2.6 + e.seed) * F.batZig;
         e.x += Math.cos(a) * e.speed * ds;
         e.y += Math.sin(a) * e.speed * ds;
         break;
       }
       case 'archer': {
-        e.timer -= ds;
+        e.timer -= dsA;
         if (e.state === 'move') {
           wanderOrSeek(e, ds);
           if (e.timer <= 0) { e.state = 'aim'; e.timer = 0.6; }
         } else if (e.timer > 0) {
           if (e.timer > 0.15) e.aim = angTo(e, player);
         } else {
-          const sp = 290 + e.lv * 4;
-          fireBullet(e.x, e.y, e.aim, sp, e.dmg, BUL.archer, 6, 'archer');
-          if (e.lv >= 9) { fireBullet(e.x, e.y, e.aim - 0.22, sp, e.dmg, BUL.archer, 6, 'archer'); fireBullet(e.x, e.y, e.aim + 0.22, sp, e.dmg, BUL.archer, 6, 'archer'); }
-          Sfx.eshot();
+          const sp = (F.archer.sp[0] + e.lv * F.archer.sp[1]) * bulMul();
+          if (!bulletCap()) {
+            fireBullet(e.x, e.y, e.aim, sp, e.dmg, BUL.archer, 6, 'archer');
+            if (e.lv >= 9) { fireBullet(e.x, e.y, e.aim - 0.22, sp, e.dmg, BUL.archer, 6, 'archer'); fireBullet(e.x, e.y, e.aim + 0.22, sp, e.dmg, BUL.archer, 6, 'archer'); }
+            Sfx.eshot();
+          }
           const t = freeCellNear(e.x, e.y, 150);
-          Object.assign(e, { state: 'move', timer: rand(1.1, 1.9), tx: t.x, ty: t.y });
+          Object.assign(e, { state: 'move', timer: rand(F.archer.cd[0], F.archer.cd[1]), tx: t.x, ty: t.y });
         }
         break;
       }
       case 'charger': {
-        e.timer -= ds;
+        e.timer -= dsA;
         if (e.state === 'idle') {
           const a = chaseDir(e);
           e.x += Math.cos(a) * e.speed * ds; e.y += Math.sin(a) * e.speed * ds;
@@ -2005,31 +2025,33 @@
           if (e.timer > 0.2) e.aim = angTo(e, player);
           if (e.timer <= 0) { e.state = 'dash'; e.timer = 0.6; }
         } else if (e.state === 'dash') {
-          e.x += Math.cos(e.aim) * 500 * ds; e.y += Math.sin(e.aim) * 500 * ds;
+          e.x += Math.cos(e.aim) * F.dash * ds; e.y += Math.sin(e.aim) * F.dash * ds;
           const hit = collideRocks(e) | clampArena(e, false);
           if (hit || e.timer <= 0) {
-            e.state = 'rest'; e.timer = 0.6;
+            e.state = 'rest'; e.timer = F.rest;
             if (hit) { shake = Math.max(shake, 3); sparks(e.x, e.y, '#c9b38a', 8); }
           }
         } else if (e.timer <= 0) { e.state = 'idle'; e.timer = rand(1.2, 2.2); }
         break;
       }
       case 'mage': {
-        e.timer -= ds;
+        e.timer -= dsA;
         if (e.state === 'idle') {
           wanderOrSeek(e, ds);
           if (e.timer <= 0) { e.state = 'cast'; e.timer = 0.75; }
         } else if (e.timer <= 0) {
           const n = 8 + Math.floor(e.lv / 5) * 2, off = rand(0, TAU);
-          for (let i = 0; i < n; i++) fireBullet(e.x, e.y, off + i * TAU / n, 165 + e.lv * 3, e.dmg, BUL.mage, 7, 'mage');
-          Sfx.eshot();
+          if (!bulletCap()) {
+            for (let i = 0; i < n; i++) fireBullet(e.x, e.y, off + i * TAU / n, (F.mage.sp[0] + e.lv * F.mage.sp[1]) * bulMul(), e.dmg, BUL.mage, 7, 'mage');
+            Sfx.eshot();
+          }
           const t = freeCellNear(e.x, e.y, 120);
-          Object.assign(e, { state: 'idle', timer: rand(2.4, 3.4), tx: t.x, ty: t.y });
+          Object.assign(e, { state: 'idle', timer: rand(F.mage.cd[0], F.mage.cd[1]), tx: t.x, ty: t.y });
         }
         break;
       }
       case 'bomber': { // corre hacia ti, se para, chisporrotea y explota
-        e.timer -= ds;
+        e.timer -= dsA;
         if (e.state === 'idle') {
           const a = chaseDir(e);
           e.x += Math.cos(a) * e.speed * ds; e.y += Math.sin(a) * e.speed * ds;
@@ -2042,18 +2064,20 @@
         break;
       }
       case 'totem': { // torreta fija: cruz de balas que va girando
-        e.timer -= ds;
+        e.timer -= dsA;
         if (e.timer <= 0) {
           const n = e.lv >= 15 ? 6 : 4;
-          for (let i = 0; i < n; i++) fireBullet(e.x, e.y, e.spin + i * TAU / n, 150 + e.lv * 3, e.dmg, BUL.totem, 6, 'totem');
-          e.spin += 0.38;
-          e.timer = e.lv >= 14 ? 0.95 : 1.3;
-          Sfx.eshot();
+          if (!bulletCap()) {
+            for (let i = 0; i < n; i++) fireBullet(e.x, e.y, e.spin + i * TAU / n, (F.totem.sp[0] + e.lv * F.totem.sp[1]) * bulMul(), e.dmg, BUL.totem, 6, 'totem');
+            e.spin += 0.38;
+            Sfx.eshot();
+          }
+          e.timer = e.lv >= 14 ? F.totem.cd[1] : F.totem.cd[0];
         }
         break;
       }
       case 'spirit': { // flota, se desvanece y reaparece a tu lado para dispararte
-        e.timer -= ds;
+        e.timer -= dsA;
         if (e.state === 'idle') {
           const a = angTo(e, player) + Math.sin(e.t * 2 + e.seed) * 1.2;
           e.x += Math.cos(a) * e.speed * ds; e.y += Math.sin(a) * e.speed * ds;
@@ -2071,15 +2095,17 @@
           if (e.timer <= 0) {
             e.alpha = 1;
             const a = angTo(e, player), n = e.lv >= 15 ? 5 : 3;
-            for (let i = 0; i < n; i++) fireBullet(e.x, e.y, a + (i - (n - 1) / 2) * 0.2, 210, e.dmg, BUL.spirit, 6, 'spirit');
-            Sfx.eshot();
+            if (!bulletCap()) {
+              for (let i = 0; i < n; i++) fireBullet(e.x, e.y, a + (i - (n - 1) / 2) * 0.2, (F.spirit.sp[0] + e.lv * F.spirit.sp[1]) * bulMul(), e.dmg, BUL.spirit, 6, 'spirit');
+              Sfx.eshot();
+            }
             e.state = 'idle'; e.timer = rand(1.8, 2.6);
           }
         }
         break;
       }
       case 'boss':
-        updateBoss(e, ds);
+        updateBoss(e, ds, dsA);
         break;
     }
 
@@ -2110,7 +2136,7 @@
   // ---------- Jefes ----------
   function bossRing(b, off) {
     const n = b.ringN + (b.enraged ? 4 : 0);
-    for (let i = 0; i < n; i++) fireBullet(b.x, b.y, off + i * TAU / n, 175 + b.tier * 12, b.dmg, b.bcolor, 8, 'boss:ring');
+    for (let i = 0; i < n; i++) fireBullet(b.x, b.y, off + i * TAU / n, (foeCfg().ring + b.tier * 12) * bulMul(), b.dmg, b.bcolor, 8, 'boss:ring');
     Sfx.eshot();
   }
 
@@ -2138,6 +2164,7 @@
   }
 
   function bossNext(b) {
+    if (bulletCap()) return bossIdle(b); // D23: con la pantalla llena se salta el ataque
     const p = b.pats[b.pi++ % b.pats.length];
     b.sub = 0;
     if (p === 'ring') { b.state = 'ring'; b.timer = 0.3; }
@@ -2148,8 +2175,8 @@
     else if (p === 'teleport') { b.state = 'tpOut'; b.timer = 0.4; b.tp = warnCfg().early ? bossTpDest() || { x: b.x, y: b.y } : null; }
   }
 
-  function updateBoss(b, ds) {
-    b.timer -= ds;
+  function updateBoss(b, ds, dsA = ds) {
+    b.timer -= dsA;
     if (!b.enraged && b.hp < b.maxHp * 0.5) {
       b.enraged = true;
       addText(b.x, b.y - b.r - 20, '¡FURIA!', '#ff5a5a', 1.3);
@@ -2172,7 +2199,7 @@
         }
         break;
       case 'spiral': {
-        b.acc += ds;
+        b.acc += dsA;
         const arms = b.tier >= 4 ? 4 : 3;
         while (b.acc >= 0.075) {
           b.acc -= 0.075; b.spin += 0.3;
@@ -2263,7 +2290,7 @@
     if (e.kind === 'boss' && FX()) gainAnima(Math.min(dmg, Math.max(0, e.hp)) / e.maxHp * Forms().ANIMA.boss); // +40 de Ánima por jefe entero
     e.hp -= dmg;
     e.flash = 0.08;
-    if (e.kind === 'boss') gainMana(dmg / e.maxHp * 90);
+    if (e.kind === 'boss') gainMana(dmg / e.maxHp * 45);
     if (settings.dmgNumbers) addText(e.x + rand(-6, 6), e.y - e.r - 6, Math.max(1, Math.round(dmg)), color || (crit ? '#ffd23f' : '#ffffff'), crit ? 1.35 : small ? 0.75 : 1);
     if (e.hp <= 0) killEnemy(e);
   }
@@ -2287,10 +2314,16 @@
       xp -= v;
       drops.push({ type: 'gem', v, x: e.x, y: e.y, vx: rand(-150, 150), vy: rand(-150, 150), t: 0 });
     }
-    const HL = healCfg(), hearts = isBoss ? HL.bossHearts : Math.random() < (e.elite ? HL.eliteHeart : HL.heart) ? 1 : 0;
+    const HL = healCfg(), full = HL.fullAt && player.hp >= player.maxHp * HL.fullAt; // con la vida casi llena no cae corazón
+    const hearts = isBoss ? HL.bossHearts : Math.random() < (e.elite ? HL.eliteHeart : HL.heart) && !full ? 1 : 0;
     for (let i = 0; i < hearts; i++) drops.push({ type: 'heart', x: e.x, y: e.y, vx: rand(-120, 120), vy: rand(-120, 120), t: 0 });
-    if (player.sk.blood) heal(player.maxHp * 0.02 * player.sk.blood);
-    if (perkLv('lifeOnKill')) heal(player.maxHp * 0.01 * perkLv('lifeOnKill'));
+    if (player.sk.blood) heal(player.maxHp * 0.015 * player.sk.blood);
+    if (perkLv('lifeOnKill')) { // Sed de sangre: 0,75 % por nivel y baja, como mucho un 1 % de la vida máxima por segundo
+      const tok = Math.min(0.01, (player.lokTok != null ? player.lokTok : 0.01) + (runTime - (player.lokT || 0)) * 0.01);
+      const got = Math.min(tok, 0.0075 * perkLv('lifeOnKill'));
+      player.lokTok = tok - got; player.lokT = runTime;
+      if (got > 0) heal(player.maxHp * got);
+    }
     if (!isBoss) gainMana(e.minion ? 2 : e.elite ? 10 : 5);
     const F = FX();
     if (F && !isBoss && !e.wiped) gainAnima(e.minion ? F.ANIMA.minion : e.elite ? F.ANIMA.elite : F.ANIMA.kill);
@@ -2474,7 +2507,8 @@
     if (crit && fx && mixOn('chispazo') && takeTok('spark')) { const P = MIXP.chispazo.p; chainLightning(e, dmg * P.k * mixOn('chispazo'), P.n, P.r, BOLT_SKY); }
     if (!e.dead && !e.heavy) { // retroceso al recibir el impacto
       const sp = Math.hypot(ar.vx, ar.vy) || 1;
-      e.kx = (e.kx || 0) + ar.vx / sp * 80; e.ky = (e.ky || 0) + ar.vy / sp * 80;
+      const kb = 80 * (e.kbMul != null ? e.kbMul : 0.6); // embestidores y élites no retroceden: el cuerpo a cuerpo llega
+      e.kx = (e.kx || 0) + ar.vx / sp * kb; e.ky = (e.ky || 0) + ar.vy / sp * kb;
     }
     // nofx (esquirlas y proyectiles secundarios): sin reacciones, sin cadena y sin rasgos; solo daño y elementos
     if (fx && !e.dead && e.reactCd <= 0) {
@@ -2504,7 +2538,7 @@
         if (d2 < bd) { bd = d2; best = o; }
       }
       if (best) {
-        ar.rico--;
+        ar.rico--; ar.dmg *= 0.75; // −25 % por salto
         const a = angTo(ar, best);
         ar.vx = Math.cos(a) * SHOT_SPEED; ar.vy = Math.sin(a) * SHOT_SPEED;
         ar.life = Math.max(ar.life, 0.8);
@@ -2519,7 +2553,7 @@
       }
     }
     if (ar.pierce > 0) {
-      ar.pierce--;
+      ar.pierce--; ar.dmg *= 0.75; // −25 % por enemigo atravesado
       const mc = fx ? mixOn('cometa') : 0;
       if (mc && takeTok('comet')) cometa(ar.x, ar.y, mc); // Cometa: llamarada al atravesar
       return;
@@ -2560,7 +2594,7 @@
             if (hx && !hy) ar.vx = -ar.vx;
             else if (hy && !hx) ar.vy = -ar.vy;
             else { ar.vx = -ar.vx; ar.vy = -ar.vy; }
-            ar.x = px; ar.y = py; ar.hit.clear();
+            ar.x = px; ar.y = py; // ya no vuelve a dar a los que tocó (sin hit.clear)
             // Glaciar (Mezcla): la primera vez que rebota se parte en 2 (±25°) con el 60% del daño cada uno;
             // la otra mitad es un secundario (nofx) que entra en shots al acabar el bucle
             const mg = !ar.nofx && !ar.split ? mixOn('glaciar') : 0;
@@ -2571,7 +2605,7 @@
               const o = spawnSub(ar.x, ar.y, a - da, ar.dmg, ar.els, { life: ar.life, wall: ar.wall, split: true, col: ar.col, col2: ar.col2 });
               if (o) { o.vx = Math.cos(a - da) * sp; o.vy = Math.sin(a - da) * sp; }
               if (Sfx.gate('split', 80)) Sfx.tone(1700, 0.08, 'triangle', 0.04, 0.7);
-            }
+            } else ar.dmg *= 0.6; // −40 % por rebote (el rebote que parte el Glaciar ya reparte su daño)
           } else {
             ar.dead = true;
             sparks(px, py, '#d8d0ea', 3);
@@ -2825,10 +2859,16 @@
     let elites = 0;
     const CC = CHA().chest(CH), EP = CHA().eliteParams(CH, HEROIC, room);
     if (room >= CC.from && chestsThisRun < CC.max && Math.random() < CC.p) placeChest(cells.slice().reverse());
-    roomEnemies(room).forEach((k, i) => {
+    let list = roomEnemies(room);
+    const WV = CHA().wavesAt ? CHA().wavesAt(CH, HEROIC, room) : null;
+    if (WV && list.length >= 3) { // refuerzos: el 60 % sale ahora y el 40 % espera en waveQ
+      const cut = Math.ceil(list.length * (1 - WV.share));
+      waveQ = list.slice(cut); list = list.slice(0, cut); wave1N = list.length; waveAt = WV.at;
+    }
+    list.forEach((k, i) => {
       const p = cells[i % Math.max(1, cells.length)] || { x: AX + AW / 2, y: AY + 150 };
       const e = makeEnemy(k, k === 'totem' ? p.x : p.x + rand(-5, 5), k === 'totem' ? p.y : p.y + rand(-5, 5), i * (CH.spawnStep || 0.05));
-      if (EP.p > 0 && elites < EP.max && Math.random() < EP.p) { makeElite(e); elites++; } // p = 0 antes de su sala: sin gastar azar
+      if (EP.p > 0 && elites < EP.max && Math.random() < EP.p) { makeElite(e, EP.hp); elites++; } // p = 0 antes de su sala: sin gastar azar
       enemies.push(e);
     });
     banner = { text: 'SALA ' + room, sub: room === lastRoom() - 1 ? 'Se oye algo enorme al otro lado…' : '', color: '#ffffff', t: 1.4, max: 1.4 };
@@ -2842,8 +2882,35 @@
     }
   }
 
+  // Refuerzos (§4.5): la tanda que quedó en waveQ aparece lejos de ti, con su círculo violeta y su rótulo
+  function spawnWave() {
+    const ks = waveQ, EP = CHA().eliteParams(CH, HEROIC, room);
+    waveQ = [];
+    const cells = [];
+    for (let i = 0; i < COLS * ROWS; i++) {
+      if (grid[i]) continue;
+      const c = i % COLS, r = (i / COLS) | 0;
+      const x = AX + c * CELL + CELL / 2, y = AY + r * CELL + CELL / 2;
+      if (r < 12 && Math.hypot(x - player.x, y - player.y) > 220) cells.push({ x, y });
+    }
+    shuffle(cells);
+    let elites = enemies.filter(o => o.elite && !o.dead).length;
+    ks.forEach((k, i) => {
+      const p = cells[i % Math.max(1, cells.length)] || { x: AX + AW / 2, y: AY + 150 };
+      const e = makeEnemy(k, p.x, p.y, i * (CH.spawnStep || 0.04));
+      e.wave = true;
+      if (EP.p > 0 && elites < EP.max && Math.random() < EP.p) { makeElite(e, EP.hp); elites++; } // también pueden traer élite
+      enemies.push(e);
+    });
+    banner = { text: '¡REFUERZOS!', sub: '', color: '#ff8a5a', t: 1.2, max: 1.2 };
+    Sfx.boss();
+    if (!settings.tips.waves) pushToast({ text: 'REFUERZOS', sub: 'No te confíes al quedar pocos: llegan más', color: '#ff8a5a', t: 3, max: 3, tip: 'waves' });
+  }
+
   function nextRoom() {
-    for (const g of drops) collectDrop(g); // nada se pierde al cambiar de sala
+    const auto = healCfg().autoHearts; // al salir solo se recogen solas las gemas: los corazones hay que pisarlos (K3)
+    for (const g of drops) if (auto || g.type === 'gem') collectDrop(g); // la experiencia no se pierde al cambiar de sala
+    waveQ = []; wave1N = 0;
     room++;
     if (progStars(false)) saveMeta(); // la estrella de tercio cuenta al llegar, aunque mueras en esta sala
     if (room >= 10) unlock('room10');
@@ -2869,7 +2936,7 @@
     bullets = [];
     const isBossRoom = !!bossAt(room);
     if (isBossRoom) heal(player.maxHp * healCfg().boss);
-    if (perkLv('roomShield') >= 2) heal(player.maxHp * 0.1);
+    if (perkLv('roomShield') >= 2) heal(player.maxHp * 0.06);
     if (!roomHit && FX() && (isBossRoom || !altarAt(room))) gainAnima(Forms().ANIMA.clean); // sala limpia sin recibir daño
     if (room >= lastRoom()) { winTimer = 2.2; pendingLevels = 0; }
     else Sfx.door();
@@ -2887,7 +2954,7 @@
     toastQ = []; bannerNext = null; flashNext = null; awakenFx = null; eclipseFx = null; musicHoldT = 0;
     pactRun = false; pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; fxDepth = 0; netLog = []; ambT = 0;
     curtains = []; fog = null; seenMixes.clear();
-    runGrim0 = grimPages(); runProg = null; hitStat = HIT_STAT0(); lastHit = null;
+    runGrim0 = grimPages(); runProg = null; hitStat = HIT_STAT0(); lastHit = null; waveQ = []; wave1N = 0;
     seenReactions.clear();
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
@@ -2984,7 +3051,7 @@
   function syncForm(force) {
     if (!player) return;
     const p = player, F = FX(), on = !!F && p.awak < 2;
-    const a = on ? Math.round(clamp(p.anima / F.ANIMA.need[p.awak], 0, 1) * 100) : 0;
+    const a = on ? Math.round(clamp(p.anima / animaNeed(p.awak), 0, 1) * 100) : 0;
     const rdy = on && p.animaReady && room < lastRoom(); // en la sala final ya no se ofrece: el anillo no gira
     const cls = (on ? 'a' : '') + (rdy ? (p.awkLock ? 'l' : 'f') : '') + p.awak;
     if (!force && a === animaShown && cls === animaCls) return;
@@ -3032,6 +3099,8 @@
     syncUlt();
     enemies = enemies.filter(e => !e.dead);
 
+    // refuerzos: cuando quedan pocos (sin contar esbirros ni tótems, que no se mueven)
+    if (!cleared && waveQ.length && enemies.filter(e => !e.dead && !e.minion && !e.heavy).length <= Math.ceil(wave1N * waveAt)) spawnWave();
     if (!cleared && enemies.length === 0) onCleared();
     if (cleared) doorAnim = Math.min(1, doorAnim + dt * 2);
     if (altar && !altar.used && state === 'play' && !awakenFx && dist(player, altar) < player.r + 26) openAltar();
@@ -3416,7 +3485,15 @@
 
   function drawTelegraphs() {
     for (const e of enemies) {
-      if (e.spawnT > 0) continue;
+      if (e.spawnT > 0) { // refuerzo a punto de salir: círculo violeta en el suelo
+        if (e.wave) {
+          const k = clamp(1 - e.spawnT / e.spawnMax, 0, 1);
+          ctx.fillStyle = `rgba(176,107,255,${0.12 + 0.14 * k})`; ctx.strokeStyle = 'rgba(200,150,255,.75)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 10, 0, TAU); ctx.fill();
+          ctx.beginPath(); ctx.arc(e.x, e.y, (e.r + 10) * (1 - 0.6 * k) + 4, 0, TAU); ctx.stroke();
+        }
+        continue;
+      }
       if (e.kind === 'archer' && e.state === 'aim') {
         const end = rayEnd(e.x, e.y, e.aim, 700);
         ctx.strokeStyle = `rgba(255,70,70,${0.3 + 0.3 * Math.sin(clock * 30)})`;
@@ -3812,7 +3889,7 @@
     const L = F ? F.look(p.form, p, EL) : null; // paleta de la forma (Aprendiz: la de siempre con la cinta de la escuela)
     const blink = p.inv > 0 && !awakenFx && Math.floor(p.inv * 16) % 2 === 0;
     ctx.globalAlpha = blink ? 0.4 : 1;
-    if (F) F.drawAura(ctx, p, p.form, clock, p.awak ? 0 : p.anima / F.ANIMA.need[0]); // aura detrás del mago
+    if (F) F.drawAura(ctx, p, p.form, clock, p.awak ? 0 : p.anima / animaNeed(0)); // aura detrás del mago
     shadow(p);
     const lev = p.lev || 0; // levitación de la transformación
     const bob = p.moving ? Math.abs(Math.sin(p.walkT * 12)) * 3 : 0;
@@ -5038,7 +5115,7 @@
     if (!F || !p) return '';
     const D = F.FORMS[p.form], aff = p.aff.map(el => EL[el].name).join(' + ');
     const prog = p.awak >= 2 ? '' : p.animaReady ? (p.awkLock ? (altarLeft() ? 'Despertar: falta un Pacto oscuro' : 'Opuestos: sin Pacto no hay 2º despertar') : 'Despertar listo')
-      : `Despertar ${Math.floor(clamp(p.anima / F.ANIMA.need[p.awak], 0, 1) * 100)}%`;
+      : `Despertar ${Math.floor(clamp(p.anima / animaNeed(p.awak), 0, 1) * 100)}%`;
     const parts = p.awak ? [`Forma: <b>${D.short}</b>`, p.awak === 2 ? F.pairText(p.core, p.second) : aff.includes('+') ? 'Afinidad: ' + aff : EL[p.core].name]
       : ['Aprendiz', aff ? 'Afinidad: ' + aff : ''];
     return `<div class="formline" style="--c:${D.color}">${D.icon} ${parts.concat(prog).filter(Boolean).join(' · ')}</div>`;
@@ -5328,7 +5405,7 @@
   function pickSkill(id) {
     if (id.startsWith('awk:')) return startAwaken(id.slice(4)); // carta del despertar
     const s = player.sk, F = FX(), k = SKILL_BY_ID[id];
-    if (id === 'heal') heal(player.maxHp * 0.4);
+    if (id === 'heal') heal(player.maxHp * 0.35);
     else {
       s[id] = (s[id] || 0) + 1;
       if (id === 'hp') { player.maxHp += 25; player.hp += 25; }
@@ -5592,7 +5669,7 @@
       formInfo() {
         const p = player, F = FX();
         if (!p) return null;
-        return JSON.parse(JSON.stringify({ form: p.form, core: p.core, second: p.second, aff: p.aff, awak: p.awak, anima: p.anima, need: F && p.awak < 2 ? F.ANIMA.need[p.awak] : null,
+        return JSON.parse(JSON.stringify({ form: p.form, core: p.core, second: p.second, aff: p.aff, awak: p.awak, anima: p.anima, need: F && p.awak < 2 ? animaNeed(p.awak) : null,
           ready: p.animaReady, lock: p.awkLock, snooze: p.snoozeRoom, tr: p.tr, fusedLv: p.fusedLv, mixes: p.mixes.map(m => m.id), pactRun, atk: p.atk, maxHp: p.maxHp,
           awakenFx: awakenFx && { t: awakenFx.t, el: awakenFx.el, st: awakenFx.st, boom: awakenFx.boom }, eclipseFx: !!eclipseFx, pools: pools.length, net: netLog, ultKey: ultKey(), linaje: linaje() }));
       },

@@ -1,5 +1,5 @@
 // Pruebas de lógica pura de public/chapters.js (docs/progresion-spec.md §9.1): node tools/test-chapters.mjs
-// validate() vacío, el C1_LEGACY reproduce los números de siempre, tablas del §2.2, récords, progreso, migración y desbloqueos.
+// validate() vacío, el C1_LEGACY reproduce los números de siempre, el C1 v1.1 (fase 4), tablas del §2.2, récords, progreso, migración y desbloqueos.
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
@@ -24,7 +24,8 @@ ok(C.get(1, false) === ch, 'get() cacheado');
 ok(C.get(99, false) === null, 'capítulo que no existe = null');
 ok(Object.keys(ch.pool).join() === 'slime,bat,archer,charger,mage,bigslime,bomber,totem,spirit', 'plantel en el orden de ENEMY_UNLOCK');
 
-// ---------- el C1 de siempre, número a número (mismo cálculo que game.js antes del refactor; colores de bala de K9, fase 3) ----------
+// ---------- el C1 de siempre (C1_LEGACY), número a número (mismo cálculo que game.js antes del refactor; colores de bala de K9, fase 3) ----------
+const chL = Object.assign(C.deepMerge(C.C1_LEGACY, { hero: false }), { k: 0, cEf: 1 });
 const OLD_BOSSES = {
   5: { tier: 1, name: 'Gólem de Piedra', hp: 480, r: 40, speed: 55, color: '#8f8270', bullet: '#ff4d6d', pats: ['ring', 'charge', 'aimed'], title: 'Guardián de la pradera', ach: 'boss1', model: 'golem' },
   10: { tier: 2, name: 'Rey Slime', hp: 1150, r: 42, speed: 65, color: '#57c75e', bullet: '#ff5a7a', pats: ['summon', 'ring', 'charge', 'aimed'], title: 'Monarca de la cripta', ach: 'boss2', model: 'rey' },
@@ -34,37 +35,56 @@ const OLD_BOSSES = {
 const UNLOCK = { slime: 1, bat: 1, archer: 2, charger: 3, mage: 4, bigslime: 6, bomber: 6, totem: 7, spirit: 11 };
 const forRoom = r => (r <= 5 ? 'pradera' : r <= 10 ? 'cripta' : r <= 15 ? 'cristal' : 'volcan');
 for (let r = 1; r <= 20; r++) {
-  const B = C.bossAt(ch, r), O = OLD_BOSSES[r];
+  const B = C.bossAt(chL, r), O = OLD_BOSSES[r];
   if (O) ok(B && Object.keys(O).every(k => JSON.stringify(B[k]) === JSON.stringify(O[k])) && B.ord === r / 5, `jefe de la sala ${r}`, B);
   else ok(B === null, `sin jefe en la sala ${r}`);
-  ok(C.altarAt(ch, r) === [4, 9, 14, 19].includes(r), `altar sala ${r}`);
-  ok(C.biomeAt(ch, r) === forRoom(r), `bioma sala ${r}`);
-  ok(C.zoneStart(ch, r) === (r % 5 === 1) && C.zoneAt(ch, r) + 1 === Math.ceil(r / 5), `zona sala ${r}`);
-  ok(C.hpMul(ch, false, r) === 1 + 0.2 * (r - 1) + 0.006 * (r - 1) * (r - 1), `vida sala ${r} (bit a bit)`);
-  ok(C.dmgMul(ch, false, r) === 1 + 0.07 * (r - 1), `daño sala ${r} (bit a bit)`);
-  ok(C.enemyLv(ch, false, r) === r, `nivel sala ${r}`);
-  const P = C.budget(ch, false, r);
+  ok(C.altarAt(chL, r) === [4, 9, 14, 19].includes(r), `altar sala ${r}`);
+  ok(C.biomeAt(chL, r) === forRoom(r), `bioma sala ${r}`);
+  ok(C.zoneStart(chL, r) === (r % 5 === 1) && C.zoneAt(chL, r) + 1 === Math.ceil(r / 5), `zona sala ${r}`);
+  ok(C.hpMul(chL, false, r) === 1 + 0.2 * (r - 1) + 0.006 * (r - 1) * (r - 1), `vida sala ${r} (bit a bit)`);
+  ok(C.dmgMul(chL, false, r) === 1 + 0.07 * (r - 1), `daño sala ${r} (bit a bit)`);
+  ok(C.enemyLv(chL, false, r) === r, `nivel sala ${r}`);
+  const P = C.budget(chL, false, r);
   ok(P.budget === 3.5 + r * 0.55 && P.maxN === 11 && JSON.stringify(P.caps) === '{"totem":2,"spirit":3,"bomber":3,"bigslime":2}', `presupuesto sala ${r} (bit a bit)`, P);
   ok(P.pool.join() === Object.keys(UNLOCK).filter(k => r >= UNLOCK[k]).join(), `plantel sala ${r}`);
-  const fa = C.firstAttack(ch, false, r);
-  ok(fa[0] === 0.6 && fa[1] === 1.6 && C.spawnDist(ch, r) === 300, `primer ataque y aparición sala ${r}`);
-  const E = C.eliteParams(ch, false, r);
+  const fa = C.firstAttack(chL, false, r);
+  ok(fa[0] === 0.6 && fa[1] === 1.6 && C.spawnDist(chL, r) === 300, `primer ataque y aparición sala ${r}`);
+  const E = C.eliteParams(chL, false, r);
   ok(E.p === (r >= 6 ? 0.1 + r * 0.006 : 0) && E.max === 2 && E.dual === 0 && E.affixes.length === 0, `élites sala ${r} (bit a bit)`, E);
-  ok(C.lootDepth(ch, false, r, 3) === Math.min(20, r + 3) && C.lootDepth(ch, false, r) === r, `botín sala ${r}`);
-  ok(C.wavesAt(ch, false, r) === null && C.heroCount(ch, false, r) === 0, `sin refuerzos ni héroes sala ${r}`);
+  ok(C.lootDepth(chL, false, r, 3) === Math.min(20, r + 3) && C.lootDepth(chL, false, r) === r, `botín sala ${r}`);
+  ok(C.wavesAt(chL, false, r) === null && C.heroCount(chL, false, r) === 0, `sin refuerzos ni héroes sala ${r}`);
 }
-const Z = C.hazard(ch, false, 7);
+const Z = C.hazard(chL, false, 7);
 ok(Z.from === 3 && Z.chance === 0.6 && Z.n.join() === '2,3' && Z.special === 0.55, 'trampas como siempre', Z);
-ok(JSON.stringify(C.chest(ch)) === '{"from":2,"p":0.2,"max":3}', 'cofres como siempre');
-const H = C.heal(ch, false);
+ok(JSON.stringify(C.chest(chL)) === '{"from":2,"p":0.2,"max":3}', 'cofres como siempre');
+const H = C.heal(chL, false);
 ok(H.boss === 0.25 && H.bossHearts === 2 && H.heart === 0.06 && H.eliteHeart === 0.3 && H.heartVal === 0.15 && H.chest === 0.15 && H.altar === 0.6, 'curas como siempre', H);
-ok(JSON.stringify(C.nets(ch)) === '{"a":1,"b":2,"c":3}' && C.markRoom(ch) === 6 && C.anima(ch) === null, 'redes, Marca II y Ánima como siempre');
-ok(C.essMul(ch, false) === 1 && C.bulletMul(ch, false) === 1 && C.tintAt(ch, false, 3) === null, 'esencia ×1, balas ×1, sin tinte');
-ok(JSON.stringify(C.milestones(ch)) === '[7,14,20]', 'hitos del C1');
-ok(C.starsFor(ch, 6, false) === 0 && C.starsFor(ch, 7, false) === 1 && C.starsFor(ch, 14, false) === 2 && C.starsFor(ch, 20, false) === 2 && C.starsFor(ch, 20, true) === 3, 'estrellas por sala');
+ok(JSON.stringify(C.nets(chL)) === '{"a":1,"b":2,"c":3}' && C.markRoom(chL) === 6 && C.anima(chL) === null, 'redes, Marca II y Ánima como siempre');
+ok(C.essMul(chL, false) === 1 && C.bulletMul(chL, false) === 1 && C.tintAt(chL, false, 3) === null, 'esencia ×1, balas ×1, sin tinte');
+ok(JSON.stringify(C.milestones(chL)) === '[7,14,20]', 'hitos del C1');
+ok(C.starsFor(chL, 6, false) === 0 && C.starsFor(chL, 7, false) === 1 && C.starsFor(chL, 14, false) === 2 && C.starsFor(chL, 20, false) === 2 && C.starsFor(chL, 20, true) === 3, 'estrellas por sala');
+
+// ---------- C1 v1.1 (fase 4: §4.1-4.7 con K2, K3 y K10) ----------
+for (let r = 1; r <= 20; r++) {
+  ok(C.hpMul(ch, false, r) === C.hpMul(chL, false, r) && C.dmgMul(ch, false, r) === C.dmgMul(chL, false, r) && C.enemyLv(ch, false, r) === r, `v1.1: vida, daño y nivel sin cambios sala ${r}`);
+  const P = C.budget(ch, false, r);
+  ok(near(P.budget, (4.5 + 0.75 * r) * (r <= 3 ? 0.85 : 1), 1e-9) && P.maxN === 14 && P.caps.mage === 4, `v1.1: presupuesto sala ${r}`, P);
+  ok(r >= 6 ? P.threat && P.threat.p === 0.65 && P.threat.light.join() === 'slime,bat' : P.threat === null, `v1.1: plantel ponderado (K2) sala ${r}`, P.threat);
+  const fa = C.firstAttack(ch, false, r);
+  ok(fa.join() === (r <= 3 ? '0.6,1.6' : '0.35,1') && C.spawnDist(ch, r) === (r <= 3 ? 280 : 220), `v1.1: primer ataque y aparición sala ${r}`, fa);
+  const E = C.eliteParams(ch, false, r);
+  ok(E.p === (r >= 6 ? 0.18 + r * 0.008 : 0) && E.max === 2 && E.hp === 2, `v1.1: élites sala ${r}`, E);
+  ok(!!C.wavesAt(ch, false, r) === [6, 7, 8, 11, 12, 13, 16, 17, 18].includes(r), `v1.1: refuerzos sala ${r}`);
+}
+ok([5, 10, 15, 20].map(r => C.bossAt(ch, r).hp).join() === '624,1725,3900,5640', 'v1.1: jefes ×1,3 / ×1,5 / ×1,5 / ×1,2 (K3 calibrado)', [5, 10, 15, 20].map(r => C.bossAt(ch, r).hp));
+const H1 = C.heal(ch, false);
+ok(H1.boss === 0.1 && H1.bossHearts === 1 && H1.heart === 0.04 && H1.eliteHeart === 0.2 && H1.heartVal === 0.12 && H1.chest === 0.1 && H1.altar === 0.5 && H1.fullAt === 0.95 && H1.autoHearts === false, 'v1.1: curas (§4.7)', H1);
+ok(JSON.stringify(C.anima(ch)) === '[110,175]' && ch.warn.aimed === 0.35 && ch.warn.early === true && ch.speedrun === 270, 'v1.1: Ánima, avisos y speedrun');
+ok(ch.foe.archer.sp.join() === '295,5' && ch.foe.dash === 540 && ch.foe.ring === 185 && chL.foe.archer.sp.join() === '290,4' && chL.foe.ring === 175, 'v1.1: ritmos §4.4 (y los de siempre en C1_LEGACY)');
+ok(C.hazard(ch, false, 7).chance === 0.6 && JSON.stringify(C.chest(ch)) === '{"from":2,"p":0.2,"max":3}', 'v1.1: trampas y cofres sin cambios');
 
 // ---------- tablas del §2.2 (capítulo de prueba con k = 0..6) ----------
-const chK = k => Object.assign(C.deepMerge(C.C1_LEGACY, { id: k + 1 }), { k });
+const chK = k => Object.assign(C.deepMerge(C.C1, { id: k + 1 }), { k });
 const T = { hp: [1, 1.12, 1.25, 1.40, 1.57, 1.76, 1.97], dmg: [1, 1.06, 1.12, 1.19, 1.26, 1.34, 1.42], bul: [1, 1.04, 1.08, 1.12, 1.17, 1.20, 1.20], ess: [1, 1.1, 1.2, 1.4, 1.5, 1.6, 1.8] };
 for (let k = 0; k <= 6; k++) {
   const c = chK(k), r = 10;
@@ -73,9 +93,9 @@ for (let k = 0; k <= 6; k++) {
   ok(near(C.dmgMul(c, false, r) / C.dmgMul(ch, false, r), T.dmg[k]), `daño ×1,06^${k}`);
   ok(near(C.bulletMul(c, false), T.bul[k]), `balas k ${k}`, C.bulletMul(c, false));
   ok(C.enemyLv(c, false, r) === r + Math.min(12, 3 * k), `nivel r+min(12,3k) k ${k}`);
-  ok(near(C.budget(c, false, r).budget - C.budget(ch, false, r).budget, 0.4 * k + 0.04 * k * r, 1e-9) && C.budget(c, false, r).maxN === Math.min(16, 11 + k), `presupuesto k ${k}`);
+  ok(near(C.budget(c, false, r).budget - C.budget(ch, false, r).budget, 0.4 * k + 0.04 * k * r, 1e-9) && C.budget(c, false, r).maxN === Math.min(16, 14 + k), `presupuesto k ${k}`);
   const E = C.eliteParams(c, false, 12);
-  ok(near(E.p, 0.1 + 0.02 * k + 0.006 * 12, 1e-9) && E.max === (k >= 4 ? 4 : k >= 1 ? 3 : 2) && E.dual === (k >= 3 ? 0.35 : k >= 1 ? 0.2 : 0), `élites k ${k}`, E);
+  ok(near(E.p, 0.18 + 0.02 * k + 0.008 * 12, 1e-9) && E.max === (k >= 4 ? 4 : k >= 1 ? 3 : 2) && E.dual === (k >= 3 ? 0.35 : k >= 1 ? 0.2 : 0), `élites k ${k}`, E);
   ok(C.essMul(c, false) === T.ess[k], `esencia k ${k}`);
   ok(C.lootDepth(c, false, 18) === Math.min(20, 18 + 3 * k), `botín k ${k}`);
 }
@@ -84,17 +104,19 @@ const h1 = C.get(1, true);
 ok(h1.hero === true && h1.cEf === 4 && h1.k === 3 && C.k(h1, true) === 3, 'Héroe 1 = c_ef 4, k 3');
 ok(C.get(1, true) !== C.get(1, false), 'Héroe y Normal cacheados por separado');
 ok(near(C.hpMul(h1, true, 10) / C.hpMul(ch, false, 10), 1.40) && C.enemyLv(h1, true, 5) === 14, 'Héroe 1: vida ×1,40 y nivel r+9');
-ok(C.bossAt(h1, 20).hp === Math.round(4700 * Math.pow(1.12, 3) * 1e6) / 1e6 || near(C.bossAt(h1, 20).hp, 4700 * Math.pow(1.12, 3), 1e-6), 'Héroe: vida absoluta de jefe × 1,12³');
+ok(C.bossAt(h1, 20).hp === Math.round(5640 * Math.pow(1.12, 3)) && C.bossAt(h1, 20).hp < 10000, 'Héroe: vida de jefe × 1,12³ (por debajo de 10.000)', C.bossAt(h1, 20).hp);
+const h1L = Object.assign(C.deepMerge(C.C1_LEGACY, { hero: true }), { k: 3, cEf: 4 });
+ok(near(C.bossAt(h1L, 20).hp, 4700 * Math.pow(1.12, 3), 1e-6), 'Héroe: vida absoluta de jefe × 1,12³');
 ok(C.bossAt(h1, 20).phase2At === 0.6 && C.bossAt(h1, 20).phase3At === 0.35 && C.bossAt(ch, 20).phase3At === 0.25 && C.bossAt(ch, 5).phase3At === 0, 'fases de jefe 50/25 (Héroe 60/35)');
 const Hh = C.heal(h1, true);
-ok(Hh.boss === 0.05 && Hh.bossHearts === 1 && near(Hh.heart, 0.03, 1e-9) && Hh.altar === 0.5 && Hh.chest === 0.1, 'curas de Héroe', Hh);
+ok(Hh.boss === 0.05 && Hh.bossHearts === 1 && near(Hh.heart, 0.02, 1e-9) && Hh.altar === 0.4 && Hh.chest === 0.1, 'curas de Héroe', Hh);
 ok(C.heroCount(h1, true, 1) === 0 && C.heroCount(h1, true, 2) === 1 && C.heroCount(h1, true, 11) === 2 && C.heroCount(h1, true, 5) === 0 && C.heroCount(h1, true, 4) === 0, 'monstruos héroe por sala');
-ok(C.wavesAt(h1, true, 7) && C.wavesAt(h1, true, 16) && !C.wavesAt(h1, true, 8), 'refuerzos extra del Héroe 1 (7 y 16)');
+ok(C.wavesAt(h1, true, 7) && C.wavesAt(h1, true, 16) && !C.wavesAt(h1, true, 9) && !C.wavesAt(h1, true, 3), 'refuerzos del Héroe 1 (7 y 16; con K3 el C1 Normal ya los tiene: revisar en la fase 8)');
 const Zh = C.hazard(h1, true, 7);
 ok(near(Zh.chance, 0.8, 1e-9) && Zh.n.join() === '3,4', 'trampas de Héroe', Zh);
 // vida de jefe por sala real (puntos K3) y extrapolación
-ok(C.bossHp(5) === 720 && C.bossHp(10) === 1725 && C.bossHp(15) === 3900 && C.bossHp(20) === 7050, 'BOSS_HP en los puntos');
-ok(C.bossHp(3) < 720 && C.bossHp(3) >= 300 && C.bossHp(1) >= 300 && C.bossHp(12) > 1725 && C.bossHp(12) < 3900, 'BOSS_HP entre puntos y por debajo de la sala 5', [C.bossHp(1), C.bossHp(3), C.bossHp(12)]);
+ok(C.bossHp(5) === 624 && C.bossHp(10) === 1725 && C.bossHp(15) === 3900 && C.bossHp(20) === 5640, 'BOSS_HP en los puntos');
+ok(C.bossHp(3) < 624 && C.bossHp(3) >= 300 && C.bossHp(1) >= 300 && C.bossHp(12) > 1725 && C.bossHp(12) < 3900 && C.bossHp(18) > 3900 && C.bossHp(18) < 5640, 'BOSS_HP entre puntos y por debajo de la sala 5', [C.bossHp(1), C.bossHp(3), C.bossHp(12)]);
 
 // ---------- récords (S.best) ----------
 for (let v = 1; v <= 21; v++) { const d = C.decodeBest(v); ok(d.ch === 1 && !d.hero && d.win === (v === 21) && d.room === Math.min(20, v), `récord antiguo ${v}`, d); }

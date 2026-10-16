@@ -9,6 +9,24 @@
   const VERSION = '1.1';
   const MAX_CH = 4; // capítulos previstos al lanzar (las máscaras de progreso y el desbloqueo trabajan con 1..MAX_CH)
 
+  // ------------------------------------------- utilidades -------------------------------------------
+  const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  // copia profunda de base con over encima (los objetos internos se copian; las listas se sustituyen por copias)
+  function deepMerge(base, over) {
+    const out = {};
+    for (const src of [base, over]) {
+      if (!isObj(src)) continue;
+      for (const k of Object.keys(src)) {
+        const v = src[k];
+        if (isObj(v)) out[k] = deepMerge(isObj(out[k]) ? out[k] : {}, v);
+        else if (Array.isArray(v)) out[k] = v.map(x => (Array.isArray(x) ? x.slice() : isObj(x) ? deepMerge({}, x) : x));
+        else out[k] = v;
+      }
+    }
+    return out;
+  }
+  const int0 = v => (Number.isFinite(+v) && +v >= 0 ? Math.floor(+v) : 0);
+
   // ---------------------------------------------- datos ----------------------------------------------
   // Modelos de jefe: dibujo (model), logro (ach), arena de trampas (arena) y su ataque extra (fase 5)
   const BOSS_DEFS = {
@@ -37,55 +55,61 @@
     tint: { color: '#c77dff', a: 0.08 }, title: ['Cazador de Héroes', 'Verdugo de Ceniza', 'Corazón de Escarcha', 'Leyenda de Arcano'],
   };
   const HERO_MOVES = { slime: 'slam', bat: 'dash', archer: 'fan5', charger: 'dash2', mage: 'ring2', bigslime: 'split3', bomber: 'lava', totem: 'spiral', spirit: 'tp2' };
-  // vida de jefe por sala real (D13 corregido por K3: ×1,5 sobre la de hoy); interpolación logarítmica
-  const BOSS_HP_PTS = [[5, 720], [10, 1725], [15, 3900], [20, 7050]];
+  // vida de jefe por sala real; interpolación logarítmica. K3 pedía ×1,5 sobre la de antes (720/1725/3900/7050); calibrado en la
+  // fase 4 con el esquivador: el Gólem ×1,3 (es la puerta del novato) y el Señor ×1,2 (la s20 se llevaba el 80 % de las muertes)
+  const BOSS_HP_PTS = [[5, 624], [10, 1725], [15, 3900], [20, 5640]];
   const ESS_MUL = [1, 1.1, 1.2, 1.4, 1.5, 1.6, 1.8];
 
-  // Capítulo 1 tal y como es hoy (fases 1-3): reproduce el juego bit a bit. En la fase 4 lo sustituye el C1 v1.1.
-  const C1_LEGACY = {
+  // ritmo de los enemigos (§4.4): velocidad de bala [base, por nivel], pausas, movimiento, embestida y anillo del jefe
+  const FOE = {
+    archer: { sp: [295, 5], cd: [0.9, 1.6] }, mage: { sp: [175, 4], cd: [2.0, 3.0] },
+    totem: { sp: [160, 4], cd: [1.15, 0.9] }, spirit: { sp: [220, 2] },
+    speed: { slime: 90, bigslime: 62, bat: 122, bomber: 112 }, batZig: 0.675, dash: 540, rest: 0.45, ring: 185,
+  };
+  // Capítulo 1 v1.1 (fase 4, §4.1-4.7 con K2, K3 y K10): más amenaza, refuerzos, élites, curas recortadas y jefes ×1,5
+  const C1 = {
     id: 1, name: 'La Mazmorra', short: 'Mazmorra', len: 20, format: 'std',
     zones: [['pradera', 5], ['cripta', 5], ['cristal', 5], ['volcan', 5]],
     tint: null, enemyTint: null,
-    bosses: {
-      5:  { id: 'golem', tier: 1, hp: 480,  title: 'Guardián de la pradera' },
-      10: { id: 'rey',   tier: 2, hp: 1150, title: 'Monarca de la cripta' },
-      15: { id: 'brujo', tier: 3, hp: 2600, title: 'Tirano de la gruta helada' },
-      20: { id: 'senor', tier: 4, hp: 4700, title: 'Corazón del volcán', final: true },
+    bosses: { // vida por sala real (BOSS_HP_PTS: 624 / 1725 / 3900 / 5640)
+      5:  { id: 'golem', tier: 1, title: 'Guardián de la pradera' },
+      10: { id: 'rey',   tier: 2, title: 'Monarca de la cripta' },
+      15: { id: 'brujo', tier: 3, title: 'Tirano de la gruta helada' },
+      20: { id: 'senor', tier: 4, title: 'Corazón del volcán', final: true },
     },
     altars: [4, 9, 14, 19],
     pool: { slime: 1, bat: 1, archer: 2, charger: 3, mage: 4, bigslime: 6, bomber: 6, totem: 7, spirit: 11 },
-    caps: { totem: 2, spirit: 3, bomber: 3, bigslime: 2 },
-    budget: { base: 3.5, per: 0.55, maxN: 11 }, budgetMul: 1, budgetEarly: 1,
-    waves: [], spawnDist: [300, 300], spawnStep: 0.05, firstAtk: [[0.6, 1.6], [0.6, 1.6]],
-    elite: { from: 6, max: 2, p0: 0.1, pr: 0.006, affixes: {} },
+    caps: { totem: 2, spirit: 3, bomber: 3, bigslime: 2, mage: 4 },
+    budget: { base: 4.5, per: 0.75, maxN: 14 }, budgetMul: 1, budgetEarly: 0.85,
+    // K2: desde la s6, un slime o murciélago sacado del plantel se cambia por otro tipo con probabilidad p (densidad de amenaza)
+    threat: { from: 6, p: 0.65, light: ['slime', 'bat'] },
+    waves: [6, 7, 8, 11, 12, 13, 16, 17, 18], spawnDist: [280, 220], spawnStep: 0.04, firstAtk: [[0.6, 1.6], [0.35, 1.0]],
+    elite: { from: 6, max: 2, p0: 0.18, pr: 0.008, hpMul: 2.0, affixes: {} },
     hazard: { from: 3, chance: 0.6, n: [2, 3], special: 0.55, arenaK: 1 },
     chest: { from: 2, p: 0.2, max: 3 },
-    heal: { boss: 0.25, bossHearts: 2, heart: 0.06, eliteHeart: 0.3, heartVal: 0.15, chest: 0.15, altar: 0.6 },
+    // fullAt: no cae corazón con la vida ≥ 95 % · autoHearts: al salir de la sala también se recogen los corazones
+    heal: { boss: 0.10, bossHearts: 1, heart: 0.04, eliteHeart: 0.20, heartVal: 0.12, chest: 0.10, altar: 0.5, fullAt: 0.95, autoHearts: false },
     loot: { cap: 20, chest: 3 },
-    anima: null, nets: { a: 1, b: 2, c: 3 }, markRoom: 6,
+    anima: [110, 175], nets: { a: 1, b: 2, c: 3 }, markRoom: 6,
     stars: [7, 14], title2: 'Caminante de la Mazmorra', tint3: 'Piedra', speedrun: 270, unlock: null, music: { key: 0 },
-    // avisos: abanico apuntado (s) y destino del teletransporte/espectro elegido al empezar (cambia el orden del azar)
-    warn: { aimed: 0.25, early: false },
+    // avisos: abanico apuntado (s) y destino del teletransporte/espectro elegido al empezar (§4.8)
+    warn: { aimed: 0.35, early: true },
+    foe: FOE,
   };
-  const CHAPTERS = [C1_LEGACY];
-
-  // ------------------------------------------- utilidades -------------------------------------------
-  const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
-  // copia profunda de base con over encima (los objetos internos se copian; las listas se sustituyen por copias)
-  function deepMerge(base, over) {
-    const out = {};
-    for (const src of [base, over]) {
-      if (!isObj(src)) continue;
-      for (const k of Object.keys(src)) {
-        const v = src[k];
-        if (isObj(v)) out[k] = deepMerge(isObj(out[k]) ? out[k] : {}, v);
-        else if (Array.isArray(v)) out[k] = v.map(x => (Array.isArray(x) ? x.slice() : isObj(x) ? deepMerge({}, x) : x));
-        else out[k] = v;
-      }
-    }
-    return out;
-  }
-  const int0 = v => (Number.isFinite(+v) && +v >= 0 ? Math.floor(+v) : 0);
+  // Capítulo 1 de las fases 1-3 (el juego de antes de la v1.1): solo para pruebas y comparaciones; no se juega
+  const C1_LEGACY = deepMerge(C1, {
+    bosses: { 5: { hp: 480 }, 10: { hp: 1150 }, 15: { hp: 2600 }, 20: { hp: 4700 } },
+    caps: { mage: 0 }, threat: null,
+    budget: { base: 3.5, per: 0.55, maxN: 11 }, budgetEarly: 1,
+    waves: [], spawnDist: [300, 300], spawnStep: 0.05, firstAtk: [[0.6, 1.6], [0.6, 1.6]],
+    elite: { p0: 0.1, pr: 0.006, hpMul: 2.2 },
+    heal: { boss: 0.25, bossHearts: 2, heart: 0.06, eliteHeart: 0.3, heartVal: 0.15, chest: 0.15, altar: 0.6, fullAt: 0, autoHearts: true },
+    anima: null, warn: { aimed: 0.25, early: false },
+    foe: { archer: { sp: [290, 4], cd: [1.1, 1.9] }, mage: { sp: [165, 3], cd: [2.4, 3.4] }, totem: { sp: [150, 3], cd: [1.3, 0.95] }, spirit: { sp: [210, 0] },
+      speed: { slime: 78, bigslime: 52, bat: 112, bomber: 100 }, batZig: 0.9, dash: 500, rest: 0.6, ring: 175 },
+  });
+  delete C1_LEGACY.caps.mage;
+  const CHAPTERS = [C1];
 
   // ------------------------------------------- resolución -------------------------------------------
   const cache = new Map();
@@ -164,7 +188,8 @@
     let b = k ? (B.base + 0.4 * k) + (B.per + 0.04 * k) * r : B.base + r * B.per;
     if (r <= 3 && ch.budgetEarly !== 1) b *= ch.budgetEarly;
     if (ch.budgetMul !== 1) b *= ch.budgetMul;
-    return { budget: b, maxN: Math.min(16, B.maxN + k), caps: Object.assign({}, ch.caps), pool: Object.keys(ch.pool).filter(x => r >= ch.pool[x]) };
+    const T = ch.threat && r >= ch.threat.from ? { p: ch.threat.p, light: ch.threat.light.slice() } : null; // K2
+    return { budget: b, maxN: Math.min(16, B.maxN + k), caps: Object.assign({}, ch.caps), pool: Object.keys(ch.pool).filter(x => r >= ch.pool[x]), threat: T };
   }
   // ventana del primer ataque [a, b] (game.js hace UNA llamada a rand(a, b))
   function firstAttack(ch, hero, r) {
@@ -172,13 +197,13 @@
     return k ? [Math.max(0.25, w[0] - 0.03 * k), Math.max(0.25, w[1] - 0.03 * k)] : [w[0], w[1]];
   }
   const spawnDist = (ch, r) => ch.spawnDist[r <= 3 ? 0 : 1];
-  // élites: p = 0 antes de `from` (game.js mantiene el cortocircuito y no gasta Math.random)
+  // élites: p = 0 antes de `from` (game.js mantiene el cortocircuito y no gasta Math.random); hp = multiplicador de vida
   function eliteParams(ch, hero, r) {
     const k = kOf(ch, hero), E = ch.elite;
     const p = r < E.from ? 0 : k ? (E.p0 + 0.02 * k) + E.pr * r : E.p0 + r * E.pr;
     const affixes = Object.keys(E.affixes || {}).filter(id => r >= E.affixes[id]);
     const dual = k >= 3 ? (r >= 8 ? 0.35 : 0) : k >= 1 ? (r >= 11 ? 0.2 : 0) : 0;
-    return { p, max: Math.max(E.max, k >= 4 ? 4 : k >= 1 ? 3 : 0), affixes, dual };
+    return { p, max: Math.max(E.max, k >= 4 ? 4 : k >= 1 ? 3 : 0), affixes, dual, hp: E.hpMul || 2.2 };
   }
   // monstruos héroe de la sala (solo Héroe, salas normales desde la 2 y la antesala)
   function heroCount(ch, hero, r) {
@@ -307,7 +332,7 @@
   }
 
   window.ArcanoChapters = {
-    VERSION, MAX_CH, BOSS_DEFS, ENEMY_KINDS, AFFIXES, AFFIX_DENY, HERO, HERO_MOVES, BOSS_HP_PTS, ESS_MUL, CHAPTERS, C1_LEGACY,
+    VERSION, MAX_CH, BOSS_DEFS, ENEMY_KINDS, AFFIXES, AFFIX_DENY, HERO, HERO_MOVES, BOSS_HP_PTS, ESS_MUL, CHAPTERS, C1, C1_LEGACY, FOE,
     get, cEf, k: kOf, lastRoom, bossRooms, bossHp, bossAt, altarAt, zoneAt, biomeAt, zoneStart, tintAt,
     hpMul, dmgMul, bulletMul, enemyLv, budget, firstAttack, spawnDist, eliteParams, heroCount, wavesAt, hazard, chest, heal,
     lootDepth, essMul, anima, nets, markRoom, milestones, starsFor, encodeBest, decodeBest, bestRank,

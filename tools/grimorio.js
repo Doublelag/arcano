@@ -64,7 +64,7 @@ await ev(`__arcano.school('fire')`); await ev('__arcano.god(true)');
 await ev('__arcano.anima(64)');
 await key('Escape'); await sleep(200);
 t = await txt();
-ok(/Aprendiz · Afinidad: Fuego · Despertar 64%/.test(t), 'pausa Aprendiz: "Aprendiz · Afinidad: Fuego · Despertar 64%"', (t.match(/.*Despertar.*/) || [''])[0]);
+ok(/Aprendiz · Afinidad: Fuego · Despertar 58%/.test(t), 'pausa Aprendiz: "Aprendiz · Afinidad: Fuego · Despertar 58%" (64 de 110, fase 4)', (t.match(/.*Despertar.*/) || [''])[0]);
 await key('Escape'); await sleep(100);
 await ev(`__arcano.awaken('fire')`);
 await ev(`__arcano.give('bolt')`); // sella Fuego + Rayo
@@ -74,7 +74,7 @@ await ev(`(() => { const A = __arcano, i = A.enemies.findIndex(e => !e.dead), e 
 await ev('__arcano.step(0.1)');
 await key('Escape'); await sleep(200);
 t = await txt();
-ok(/Forma: ÍGNEA · Afinidad: Fuego \+ Rayo · Despertar 25%/.test(t), 'pausa Ígnea: forma, Afinidad y Despertar 25%', (t.match(/.*Forma.*/) || [''])[0]);
+ok(/Forma: ÍGNEA · Afinidad: Fuego \+ Rayo · Despertar 23%/.test(t), 'pausa Ígnea: forma, Afinidad y Despertar 23% (de 175, fase 4)', (t.match(/.*Forma.*/) || [''])[0]);
 ok((t.match(/Cerrada esta partida/g) || []).length === 5, '5 reacciones "Cerrada esta partida" (solo queda SOBRECARGA)', (t.match(/Cerrada esta partida/g) || []).length);
 ok(await fits(), 'la pausa cabe sin desplazamiento');
 await shot('05-pausa-ignea');
