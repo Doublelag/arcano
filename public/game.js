@@ -42,9 +42,14 @@
     music: 0.6, sfx: 0.8, vibration: true, shake: true, dmgNumbers: true,
     lefty: false, quality: 'alta', fps: false, tutorial: false, ultTip: false, seenHz: {},
     tips: {}, // avisos únicos ya vistos (aff, opp, anima, mix)
+    chapter: { id: 1, hero: false }, // capítulo y modo que relanza JUGAR (se corrige con meta.prog en fixChapter)
+    seenAfx: {}, skin: 0, // afijos ya avisados · tinte de túnica elegido
   };
   const settings = Object.assign({}, SETTINGS_DEFAULT, store.get('settings', {}));
   settings.tips = Object.assign({}, typeof settings.tips === 'object' && settings.tips); // copia propia, nunca la de SETTINGS_DEFAULT
+  settings.seenAfx = Object.assign({}, typeof settings.seenAfx === 'object' && settings.seenAfx);
+  settings.skin = Number.isInteger(settings.skin) && settings.skin >= 0 && settings.skin < 16 ? settings.skin : 0;
+  { const c = settings.chapter; settings.chapter = { id: c && Number.isInteger(c.id) && c.id >= 1 && c.id <= 9 ? c.id : 1, hero: !!(c && c.hero === true) }; }
   const saveSettings = () => store.set('settings', settings);
   const lowQ = () => settings.quality === 'baja';
 
@@ -336,7 +341,8 @@
   const CHA = () => Chapters() || CH_FALLBACK.api;
   // capítulo resuelto (id, Héroe); si no existe, el Capítulo 1
   const resolveCH = (id, hero) => (Chapters() && (Chapters().get(id, hero) || Chapters().get(1, false))) || CH_FALLBACK.ch;
-  let chSel = { id: 1, hero: false }; // capítulo elegido para la próxima partida (hasta la fase 2, solo desde ?debug)
+  // el capítulo de la próxima partida es settings.chapter; chForce (?debug) deja jugar uno cerrado
+  let chForce = false;
   let CH = resolveCH(1, false), HEROIC = false;
   const lastRoom = () => CH.len;
   const bossAt = r => CHA().bossAt(CH, r);
@@ -438,6 +444,7 @@
   let curtains = [], fog = null; // definitivos combinados: columnas de Cortina boreal y niebla de Invierno negro
   const seenMixes = new Set();   // Mezclas ya anunciadas en esta partida
   let runGrim0 = null; // páginas del Grimorio al empezar la partida (para "Nueva página" en el final)
+  let runProg = null;  // lo nuevo de meta.prog en esta partida (estrellas, desbloqueos, récord): lo pinta el final (fase 6)
 
   const dmgMul = () => CHA().dmgMul(CH, HEROIC, room);
   const xpNeed = lvl => 6 + (lvl - 1) * 5;
@@ -449,6 +456,8 @@
     // Grimorio: f = formas descubiertas, w = ganadas, e = despertadas pronto, m = Mezclas (máscaras de bits);
     // n = despertares por forma (10 dígitos, tope 9); k = [suma sala 1º, nº 1º, suma sala 2º, nº 2º]; t = título elegido
     grim: { f: 1, w: 0, e: 0, m: 0, n: '0000000000', k: [0, 0, 0, 0], t: -1 },
+    // capítulos (chapters.js): n = Normal más alto abierto, d / h = completados (bits), st = estrellas, b = récords, t = título, af = afijos
+    prog: Chapters() ? Chapters().PROG_DEFAULT() : { n: 1, d: 0, h: 0, st: '00000000', b: {}, t: -1, af: 0 },
   });
   // la cookie lleva el Grimorio compacto: "f.w.e.m.n.k0-k1-k2-k3.t" (sin comillas ni llaves que codificar)
   const grimPack = g => [g.f, g.w, g.e, g.m, g.n, g.k.map(Math.round).join('-'), g.t].join('.');
@@ -489,15 +498,40 @@
     m.stats = Object.assign(META_DEFAULT().stats, s.stats);
     for (const k of ['best', 'winsBy', 'reactSeen']) m.stats[k] = Object.assign({}, s.stats && s.stats[k]);
     m.grim = grimValid(typeof s.grim === 'string' ? grimUnpack(s.grim) : s.grim); // un guardado antiguo carga el de por defecto
+    const C = Chapters(); // sin chapters.js, prog se queda tal cual venga (para no perderlo)
+    if (C) {
+      if (typeof s.prog === 'string') m.prog = C.progUnpack(s.prog); // copia compacta de la cookie
+      else if (s.prog && typeof s.prog === 'object') m.prog = C.progValid(s.prog);
+      else m.prog = C.migrate({ stats: m.stats }, store.get('best', null)); // guardado de antes de los capítulos
+      progRebuild(m);
+    }
     if (!(m.essence >= 0)) m.essence = 0;
     return m;
   }
+  // récord 'room.len.lvl.win.time.school': victoria > sala > nivel; entre victorias, menos tiempo (0 = sin tiempo, el peor)
+  function recRank(r) { const [rm, , lv, w, t] = String(r).split('.').map(Number); return w ? 2e6 + (t > 0 ? 1e5 - t : 0) : rm * 100 + lv; }
+  // récords de capítulo que faltan (la cookie los suelta si no caben): se rehacen desde S.best, sin nivel ni tiempo
+  function progRebuild(m) {
+    const C = Chapters(), b = m.prog.b, add = {};
+    for (const [school, v] of Object.entries(m.stats.best)) {
+      if (!SCHOOLS[school] || !(v > 0)) continue;
+      const d = C.decodeBest(v), c = C.get(d.ch, false), key = d.ch + (d.hero ? 'h' : '');
+      if (!c || b[key] || !(d.win || d.room > 0)) continue;
+      const rec = [d.win ? c.len : Math.min(d.room, c.len), c.len, 0, d.win ? 1 : 0, 0, school].join('.');
+      if (!add[key] || recRank(rec) > recRank(add[key])) add[key] = rec;
+    }
+    Object.assign(b, add);
+  }
   // copia para la cookie (no admite más de ~4 KB): equipo y Grimorio van compactos; si aun así no cabe, el equipo se queda fuera
+  // prog va compacto ("n.d.h.st.t.af|1:…"); si no cabe sale primero el equipo, después los récords de capítulo (se rehacen desde S.best)
   function cookieValue() {
     const inv = meta.gear.inv.map(it => `${it.uid}.${it.base}.${it.r}`).join(',');
-    const grim = grimPack(meta.grim);
-    let v = encodeURIComponent(JSON.stringify(Object.assign({}, meta, { gear: { inv, eq: meta.gear.eq, next: meta.gear.next }, grim })));
-    if (v.length > 3800) v = encodeURIComponent(JSON.stringify(Object.assign({}, meta, { gear: undefined, grim })));
+    const grim = grimPack(meta.grim), C = Chapters();
+    const prog = C ? C.progPack(meta.prog) : meta.prog, progNoB = C ? C.progPack(Object.assign({}, meta.prog, { b: {} })) : prog;
+    const enc = o => encodeURIComponent(JSON.stringify(Object.assign({}, meta, o)));
+    let v = enc({ gear: { inv, eq: meta.gear.eq, next: meta.gear.next }, grim, prog });
+    if (v.length > 3800) v = enc({ gear: undefined, grim, prog });
+    if (v.length > 3800) v = enc({ gear: undefined, grim, prog: progNoB });
     return v.length <= 3800 ? v : '';
   }
   function saveMeta() {
@@ -510,6 +544,54 @@
   }
   const metaLv = id => meta.up[id] || 0;
   const schoolOpen = id => meta.schools.includes(id);
+
+  // ---------- Capítulos: qué está abierto, estrellas y récords (meta.prog) ----------
+  // sin chapters.js solo existe el Capítulo 1 Normal
+  const chOpen = (id, hero) => (Chapters() ? !!Chapters().get(id, false) && Chapters().isUnlocked(meta.prog, id, hero) : id === 1 && !hero);
+  // settings.chapter apuntando a un capítulo cerrado (o que ya no existe) → el Normal más alto abierto
+  function fixChapter() {
+    const c = settings.chapter;
+    if (chOpen(c.id, c.hero)) return;
+    let id = Math.max(1, Math.min(meta.prog.n | 0, 9));
+    while (id > 1 && !chOpen(id, false)) id--;
+    settings.chapter = { id, hero: false };
+    saveSettings();
+  }
+  fixChapter();
+  // JUGAR desde el selector de capítulos (fase 6): fija y guarda el capítulo y va al selector de escuela
+  function startChapter(id, hero) {
+    settings.chapter = { id, hero: !!hero }; chForce = false;
+    fixChapter(); saveSettings();
+    newRun();
+  }
+  // estrellas del capítulo y modo en curso hasta esta sala (cuentan aunque mueras); devuelve las nuevas o 0
+  function progStars(win) {
+    const C = Chapters();
+    if (!C || !player) return 0;
+    const P = meta.prog, i = CH.id - 1 + (HEROIC ? 4 : 0), had = +P.st[i] || 0, got = C.starsFor(CH, room, win);
+    if (i > 7 || got <= had) return 0;
+    P.st = P.st.slice(0, i) + got + P.st.slice(i + 1);
+    return got;
+  }
+  // final de partida: estrellas, completados, capítulo siguiente y récord del capítulo y modo; devuelve lo nuevo (para el final)
+  function progEnd(win) {
+    const C = Chapters();
+    if (!C || !player) return null;
+    const P = meta.prog, bit = 1 << (CH.id - 1), was = { n: P.n, hero: C.heroOpen(P) }, key = CH.id + (HEROIC ? 'h' : '');
+    const out = { stars: progStars(win), first: false, unlock: [], record: false };
+    if (win) {
+      if (HEROIC) { out.first = !(P.h & bit); P.h |= bit; }
+      else { out.first = !(P.d & bit); P.d |= bit; P.n = Math.max(P.n, Math.min(C.MAX_CH, CH.id + 1)); }
+    }
+    if (C.get(CH.id + 1, false) && C.isUnlocked(P, CH.id + 1, false) && was.n < CH.id + 1) out.unlock.push({ id: CH.id + 1, hero: false });
+    if (!was.hero && C.heroOpen(P)) out.unlock.push({ id: 1, hero: true });
+    const rec = [win ? CH.len : Math.min(room, CH.len), CH.len, Math.min(99, player.lvl), win ? 1 : 0, win ? Math.min(99999, Math.round(runTime)) : 0, player.school].join('.');
+    if (!P.b[key] || recRank(rec) > recRank(P.b[key])) { P.b[key] = rec; out.record = true; }
+    return out;
+  }
+  // S.best[escuela]: el C1 Normal se guarda como siempre (1-20 sala, 21 victoria); el resto con encodeBest
+  const bestCode = win => (!Chapters() || (CH.id === 1 && !HEROIC) ? (win ? CH.len + 1 : room) : Chapters().encodeBest(CH, HEROIC, room, win));
+  const bestRank = v => (Chapters() ? Chapters().bestRank(v) : v);
 
   // ---------- Equipo (lógica en equipment.js) ----------
   const Gear = () => window.ArcanoGear;
@@ -621,6 +703,7 @@
     const f = loadMeta();
     for (const k of Object.keys(meta)) delete meta[k];
     Object.assign(meta, f);
+    fixChapter();
     if (state === 'menu') showMenu(); else if (state === 'shop') showShop(); else if (state === 'stats') showStats(); else if (state === 'grimoire') showGrimoire();
   });
   document.addEventListener('visibilitychange', () => {
@@ -2723,6 +2806,7 @@
   function nextRoom() {
     for (const g of drops) collectDrop(g); // nada se pierde al cambiar de sala
     room++;
+    if (progStars(false)) saveMeta(); // la estrella de tercio cuenta al llegar, aunque mueras en esta sala
     if (room >= 10) unlock('room10');
     if (tut && room >= 2) tutDone();
     roomHit = false;
@@ -2754,7 +2838,8 @@
   }
 
   function newRun() {
-    CH = resolveCH(chSel.id, chSel.hero); HEROIC = !!CH.hero; // capítulo y modo de la partida (fase 2: settings.chapter)
+    { const s = settings.chapter, ok = chForce || chOpen(s.id, s.hero); // capítulo y modo de la partida
+      CH = resolveCH(ok ? s.id : 1, ok && s.hero); HEROIC = !!CH.hero; }
     player = newPlayer();
     recalc();
     room = 0; kills = 0; runTime = 0; winTimer = -1; bossesKilled = 0; runEssence = 0;
@@ -2763,7 +2848,7 @@
     toastQ = []; bannerNext = null; flashNext = null; awakenFx = null; eclipseFx = null; musicHoldT = 0;
     pactRun = false; pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; fxDepth = 0; netLog = []; ambT = 0;
     curtains = []; fog = null; seenMixes.clear();
-    runGrim0 = grimPages();
+    runGrim0 = grimPages(); runProg = null;
     seenReactions.clear();
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
@@ -4563,6 +4648,7 @@
     saveMeta();
     store.del('best');
     settings.tutorial = false; settings.ultTip = false; settings.seenHz = {}; settings.tips = {};
+    settings.chapter = { id: 1, hero: false }; settings.seenAfx = {}; settings.skin = 0; chForce = false;
     saveSettings();
     notice = 'Progreso borrado: empiezas de cero';
     showSettings();
@@ -4714,6 +4800,13 @@
 
   // ---------- Logros y estadísticas ----------
   const fmtLong = s => s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min` : `${Math.floor(s / 60)} min`;
+  // S.best: «Sala 12» / «🏆» en el C1 Normal; «C2·S12», «🏆 C3», «♛ C1·S8» en el resto
+  function bestLabel(v) {
+    const d = Chapters() ? Chapters().decodeBest(v) : { ch: 1, hero: false, room: Math.min(20, v), win: v > CH_FALLBACK.ch.len };
+    if (d.ch === 1 && !d.hero) return d.win ? '🏆' : 'Sala ' + d.room;
+    const c = (d.hero ? '♛ ' : '') + 'C' + d.ch;
+    return d.win ? '🏆 ' + c : c + '·S' + d.room;
+  }
   function showStats() {
     state = 'stats';
     const S = meta.stats;
@@ -4721,7 +4814,7 @@
     const bests = Object.entries(SCHOOLS).map(([id, s]) => {
       const b = S.best[id], w = S.winsBy[id] || 0;
       return `<div class="sb ${schoolOpen(id) ? '' : 'off'}" style="--c:${EL[id].color}">
-          <span>${schoolOpen(id) ? s.icon : '🔒'}</span><b>${b ? (b > CH_FALLBACK.ch.len ? '🏆' : 'Sala ' + b) : '—'}</b>
+          <span>${schoolOpen(id) ? s.icon : '🔒'}</span><b>${b ? bestLabel(b) : '—'}</b>
           <i>${w ? w + (w > 1 ? ' victorias' : ' victoria') : s.name}</i></div>`;
     }).join('');
     const achs = AL.map(a => {
@@ -5213,10 +5306,12 @@
     hud(false);
     resetJoy();
     if (win) Sfx.win();
-    const prev = store.get('best', null);
-    const cur = { room, lvl: player.lvl, win, school: player.school };
-    const better = !prev || (win && !prev.win) || (!prev.win && (room > prev.room || (room === prev.room && player.lvl > prev.lvl)));
+    // récord del menú: el del capítulo más alto (c_ef) jugado; sin ch = Capítulo 1 Normal (guardados de antes)
+    const prev = store.get('best', null), cEf = b => ((b && b.ch) || 1) + (b && b.hero ? 3 : 0);
+    const cur = { room, lvl: player.lvl, win, school: player.school, ch: CH.id, hero: HEROIC };
+    const better = !prev || cEf(cur) > cEf(prev) || (cEf(cur) === cEf(prev) && ((win && !prev.win) || (!prev.win && (room > prev.room || (room === prev.room && player.lvl > prev.lvl)))));
     if (better) store.set('best', cur);
+    runProg = progEnd(win); // estrellas, capítulos completados y récord por capítulo (meta.prog)
     runEssence = calcEssence(win);
     meta.essence += runEssence;
     if (Gear() && room >= 3) { // botín de equipo según hasta dónde llegaste
@@ -5226,7 +5321,7 @@
     meta.runs++;
     const S = meta.stats;
     S.essenceTotal += runEssence;
-    S.best[player.school] = Math.max(S.best[player.school] || 0, win ? lastRoom() + 1 : room);
+    { const v = bestCode(win), o = S.best[player.school] || 0; if (!o || bestRank(v) > bestRank(o)) S.best[player.school] = v; }
     let mark = null; // Marca II conseguida con esta victoria (combinadas, Eclipse y Aprendiz)
     if (win) {
       S.wins++;
@@ -5350,7 +5445,7 @@
     get state() { return state; }, get room() { return room; }, get player() { return player; },
     get enemies() { return enemies; }, get bullets() { return bullets; }, get grid() { return grid; },
     get kills() { return kills; }, get shots() { return shots; },
-    get chapterId() { return CH.id; }, get hero() { return HEROIC; }, get CH() { return CH; }, // chapter(id, hero) cambia de capítulo (?debug)
+    get chapterId() { return CH.id; }, get hero() { return HEROIC; }, get CH() { return CH; }, get meta() { return meta; }, // chapter(id, hero) cambia de capítulo (?debug)
   };
   if (/[?&]debug\b/.test(location.search)) {
     const rnd0 = Math.random;
@@ -5381,7 +5476,8 @@
       forceChest() { const cells = []; for (let i = 0; i < COLS * ROWS; i++) if (!grid[i]) cells.push({ x: AX + (i % COLS) * CELL + 20, y: AY + ((i / COLS) | 0) * CELL + 20 }); placeChest(cells.filter(p => p.y > AY + 200)); return !!chest; },
       give(id, n = 1) { for (let i = 0; i < n; i++) pickSkill(id); },
       // capítulo y modo de las partidas siguientes (y de la actual, para goto); devuelve el capítulo resuelto
-      chapter(id = 1, hero = false) { chSel = { id, hero: !!hero }; CH = resolveCH(id, !!hero); HEROIC = !!CH.hero; return CH; },
+      // (no se guarda en los ajustes y vale aunque el capítulo esté cerrado; chapter() sin forzar = como un jugador)
+      chapter(id = 1, hero = false, force = true) { settings.chapter = { id, hero: !!hero }; chForce = !!force; CH = resolveCH(id, !!hero); HEROIC = !!CH.hero; return CH; },
       goto(n, ch = CH.id, hero = HEROIC) { if (ch !== CH.id || !!hero !== HEROIC) dbg.chapter(ch, hero); room = n - 1; nextRoom(); state = 'play'; hideOverlay(); },
       toDoor() { player.x = AX + AW / 2; player.y = AY - 30; },
       god(v = true) { player.god = !!v; player.inv = 0; }, // player.god ya ignora golpes y trampas (sin parpadeo)
@@ -5401,6 +5497,13 @@
         return state;
       },
       grim(reset) { if (reset) { meta.grim = META_DEFAULT().grim; saveMeta(); } return meta.grim; },
+      // progreso de capítulos: prog() lo lee; prog(objeto | cadena compacta) lo sustituye y lo guarda
+      prog(p) {
+        if (p != null && Chapters()) { meta.prog = typeof p === 'string' ? Chapters().progUnpack(p) : Chapters().progValid(p); fixChapter(); saveMeta(); }
+        return meta.prog;
+      },
+      runProg() { return runProg; },
+      settingsChapter() { return Object.assign({}, settings.chapter); },
       ach() { return Object.keys(meta.ach).filter(k => meta.ach[k]); }, // logros conseguidos
       cookie() { return cookieValue(); }, // lo que se guardaría en la cookie ('' = no cabe)
       sfx(name, ...args) { Sfx.init(); Sfx[name](...args); return !!Sfx.ctx; }, // probar un sonido: sfx('awakenBoom', 2, 523)
@@ -5465,7 +5568,7 @@
     const med = a => { const v = a.filter(Number.isFinite).sort((x, y) => x - y), m = v.length >> 1; return !v.length ? null : v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
     // nada de lo que pase en una partida de bot se queda: ni esencia, ni logros, ni Grimorio, ni equipo, ni ajustes, ni sonido
     function sandbox(fn) {
-      const m0 = JSON.stringify(meta), s0 = JSON.stringify(settings), fr = flags.freeze, nf = flags.noForms, mu = Sfx.muted, gt = Sfx.gate, cs = chSel;
+      const m0 = JSON.stringify(meta), s0 = JSON.stringify(settings), fr = flags.freeze, nf = flags.noForms, mu = Sfx.muted, gt = Sfx.gate, cs = settings.chapter, cf = chForce;
       // Sfx.gate mira el reloj real y xpFill gasta Math.random si pasa: sin esto la misma semilla da partidas distintas
       quiet = true; flags.freeze = true; Sfx.muted = true; Sfx.gate = () => false;
       try { return fn(); } finally {
@@ -5475,7 +5578,7 @@
         Object.assign(meta, m, { grim: grimValid(m.grim) });
         Object.assign(settings, JSON.parse(s0));
         quiet = false; flags.freeze = fr; flags.noForms = nf; Sfx.muted = mu;
-        dbg.chapter(cs.id, cs.hero);
+        dbg.chapter(cs.id, cs.hero, cf);
         Math.random = rnd0;
         showMenu();
       }
