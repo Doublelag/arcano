@@ -5,7 +5,7 @@ const [a, b] = process.argv.slice(2);
 let bad = 0;
 for (const f of ['simMatrix.json', 'sims.json', 'bench.json', 'roomBench.json']) {
   if (!existsSync(`${a}/${f}`) || !existsSync(`${b}/${f}`)) { console.log(`${f}: falta`); bad++; continue; }
-  const x = readFileSync(`${a}/${f}`, 'utf8'), y = readFileSync(`${b}/${f}`, 'utf8');
+  const x = readFileSync(`${a}/${f}`, 'utf8').replace(/\r/g, ''), y = readFileSync(`${b}/${f}`, 'utf8').replace(/\r/g, '');
   if (x === y) { console.log(`${f}: IDÉNTICO`); continue; }
   bad++;
   const X = x.split('\n'), Y = y.split('\n');
