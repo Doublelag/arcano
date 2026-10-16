@@ -12,10 +12,10 @@
   // ---------------------------------------------- datos ----------------------------------------------
   // Modelos de jefe: dibujo (model), logro (ach), arena de trampas (arena) y su ataque extra (fase 5)
   const BOSS_DEFS = {
-    golem: { model: 'golem', ach: 'boss1', arena: 'golem', name: 'Gólem de Piedra',      r: 40, speed: 55, color: '#8f8270', bullet: '#ffb347', pats: ['ring', 'charge', 'aimed'], extra: 'rocks' },
-    rey:   { model: 'rey',   ach: 'boss2', arena: 'rey',   name: 'Rey Slime',            r: 42, speed: 65, color: '#57c75e', bullet: '#b6ff6b', pats: ['summon', 'ring', 'charge', 'aimed'], extra: 'slam' },
-    brujo: { model: 'brujo', ach: 'boss3', arena: 'brujo', name: 'Brujo Sombrío',        r: 34, speed: 45, color: '#6d4bd8', bullet: '#c58bff', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'], extra: 'mirror' },
-    senor: { model: 'senor', ach: 'boss4', arena: 'senor', name: 'Señor de la Mazmorra', r: 44, speed: 70, color: '#d63c3c', bullet: '#ff6a3d', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], extra: 'sweep' },
+    golem: { model: 'golem', ach: 'boss1', arena: 'golem', name: 'Gólem de Piedra',      r: 40, speed: 55, color: '#8f8270', bullet: '#ff4d6d', pats: ['ring', 'charge', 'aimed'], extra: 'rocks' },
+    rey:   { model: 'rey',   ach: 'boss2', arena: 'rey',   name: 'Rey Slime',            r: 42, speed: 65, color: '#57c75e', bullet: '#ff5a7a', pats: ['summon', 'ring', 'charge', 'aimed'], extra: 'slam' },
+    brujo: { model: 'brujo', ach: 'boss3', arena: 'brujo', name: 'Brujo Sombrío',        r: 34, speed: 45, color: '#6d4bd8', bullet: '#ff5aa0', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'], extra: 'mirror' },
+    senor: { model: 'senor', ach: 'boss4', arena: 'senor', name: 'Señor de la Mazmorra', r: 44, speed: 70, color: '#d63c3c', bullet: '#ff2e63', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], extra: 'sweep' },
   };
   // tipos de enemigo que existen en game.js (ENEMIES), en el orden de ENEMY_UNLOCK de siempre
   const ENEMY_KINDS = ['slime', 'bat', 'archer', 'charger', 'mage', 'bigslime', 'bomber', 'totem', 'spirit'];
@@ -64,6 +64,8 @@
     loot: { cap: 20, chest: 3 },
     anima: null, nets: { a: 1, b: 2, c: 3 }, markRoom: 6,
     stars: [7, 14], title2: 'Caminante de la Mazmorra', tint3: 'Piedra', speedrun: 270, unlock: null, music: { key: 0 },
+    // avisos: abanico apuntado (s) y destino del teletransporte/espectro elegido al empezar (cambia el orden del azar)
+    warn: { aimed: 0.25, early: false },
   };
   const CHAPTERS = [C1_LEGACY];
 

@@ -24,12 +24,12 @@ ok(C.get(1, false) === ch, 'get() cacheado');
 ok(C.get(99, false) === null, 'capítulo que no existe = null');
 ok(Object.keys(ch.pool).join() === 'slime,bat,archer,charger,mage,bigslime,bomber,totem,spirit', 'plantel en el orden de ENEMY_UNLOCK');
 
-// ---------- el C1 de siempre, número a número (mismo cálculo que game.js antes del refactor) ----------
+// ---------- el C1 de siempre, número a número (mismo cálculo que game.js antes del refactor; colores de bala de K9, fase 3) ----------
 const OLD_BOSSES = {
-  5: { tier: 1, name: 'Gólem de Piedra', hp: 480, r: 40, speed: 55, color: '#8f8270', bullet: '#ffb347', pats: ['ring', 'charge', 'aimed'], title: 'Guardián de la pradera', ach: 'boss1', model: 'golem' },
-  10: { tier: 2, name: 'Rey Slime', hp: 1150, r: 42, speed: 65, color: '#57c75e', bullet: '#b6ff6b', pats: ['summon', 'ring', 'charge', 'aimed'], title: 'Monarca de la cripta', ach: 'boss2', model: 'rey' },
-  15: { tier: 3, name: 'Brujo Sombrío', hp: 2600, r: 34, speed: 45, color: '#6d4bd8', bullet: '#c58bff', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'], title: 'Tirano de la gruta helada', ach: 'boss3', model: 'brujo' },
-  20: { tier: 4, name: 'Señor de la Mazmorra', hp: 4700, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff6a3d', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], title: 'Corazón del volcán', ach: 'boss4', model: 'senor' },
+  5: { tier: 1, name: 'Gólem de Piedra', hp: 480, r: 40, speed: 55, color: '#8f8270', bullet: '#ff4d6d', pats: ['ring', 'charge', 'aimed'], title: 'Guardián de la pradera', ach: 'boss1', model: 'golem' },
+  10: { tier: 2, name: 'Rey Slime', hp: 1150, r: 42, speed: 65, color: '#57c75e', bullet: '#ff5a7a', pats: ['summon', 'ring', 'charge', 'aimed'], title: 'Monarca de la cripta', ach: 'boss2', model: 'rey' },
+  15: { tier: 3, name: 'Brujo Sombrío', hp: 2600, r: 34, speed: 45, color: '#6d4bd8', bullet: '#ff5aa0', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'], title: 'Tirano de la gruta helada', ach: 'boss3', model: 'brujo' },
+  20: { tier: 4, name: 'Señor de la Mazmorra', hp: 4700, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff2e63', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], title: 'Corazón del volcán', ach: 'boss4', model: 'senor' },
 };
 const UNLOCK = { slime: 1, bat: 1, archer: 2, charger: 3, mage: 4, bigslime: 6, bomber: 6, totem: 7, spirit: 11 };
 const forRoom = r => (r <= 5 ? 'pradera' : r <= 10 ? 'cripta' : r <= 15 ? 'cristal' : 'volcan');
