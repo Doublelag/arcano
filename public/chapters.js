@@ -57,7 +57,7 @@
   const HERO_MOVES = { slime: 'slam', bat: 'dash', archer: 'fan5', charger: 'dash2', mage: 'ring2', bigslime: 'split3', bomber: 'lava', totem: 'spiral', spirit: 'tp2' };
   // vida de jefe por sala real; interpolación logarítmica. K3 pedía ×1,5 sobre la de antes (720/1725/3900/7050); calibrado en la
   // fase 4 con el esquivador: el Gólem ×1,3 (es la puerta del novato) y el Señor ×1,2 (la s20 se llevaba el 80 % de las muertes)
-  const BOSS_HP_PTS = [[5, 624], [10, 1725], [15, 3900], [20, 5640]];
+  const BOSS_HP_PTS = [[5, 560], [10, 1725], [15, 3900], [20, 5200]];
   const ESS_MUL = [1, 1.1, 1.2, 1.4, 1.5, 1.6, 1.8];
 
   // ritmo de los enemigos (§4.4): velocidad de bala [base, por nivel], pausas, movimiento, embestida y anillo del jefe
@@ -74,7 +74,7 @@
     bosses: { // vida por sala real (BOSS_HP_PTS: 624 / 1725 / 3900 / 5640)
       5:  { id: 'golem', tier: 1, title: 'Guardián de la pradera' },
       10: { id: 'rey',   tier: 2, title: 'Monarca de la cripta' },
-      15: { id: 'brujo', tier: 3, title: 'Tirano de la gruta helada' },
+      15: { id: 'brujo', tier: 3, title: 'Tirano de la gruta helada', dmgK: 1.1 }, // dmgK: daño del jefe (§4.10, palanca 3)
       20: { id: 'senor', tier: 4, title: 'Corazón del volcán', final: true },
     },
     altars: [4, 9, 14, 19],
@@ -84,7 +84,7 @@
     // K2: desde la s6, un slime o murciélago sacado del plantel se cambia por otro tipo con probabilidad p (densidad de amenaza)
     threat: { from: 6, p: 0.65, light: ['slime', 'bat'] },
     waves: [6, 7, 8, 11, 12, 13, 16, 17, 18], spawnDist: [280, 220], spawnStep: 0.04, firstAtk: [[0.6, 1.6], [0.35, 1.0]],
-    elite: { from: 6, max: 2, p0: 0.18, pr: 0.008, hpMul: 2.0, affixes: {} },
+    elite: { from: 6, max: 2, p0: 0.18, pr: 0.008, hpMul: 2.0, affixes: { veloz: 6, escudado: 6, volatil: 11, invocador: 13 } }, // afijo: sala desde la que sale (fase 5)
     hazard: { from: 3, chance: 0.6, n: [2, 3], special: 0.55, arenaK: 1 },
     chest: { from: 2, p: 0.2, max: 3 },
     // fullAt: no cae corazón con la vida ≥ 95 % · autoHearts: al salir de la sala también se recogen los corazones
@@ -102,7 +102,7 @@
     caps: { mage: 0 }, threat: null,
     budget: { base: 3.5, per: 0.55, maxN: 11 }, budgetEarly: 1,
     waves: [], spawnDist: [300, 300], spawnStep: 0.05, firstAtk: [[0.6, 1.6], [0.6, 1.6]],
-    elite: { p0: 0.1, pr: 0.006, hpMul: 2.2 },
+    elite: { p0: 0.1, pr: 0.006, hpMul: 2.2, affixes: null },
     heal: { boss: 0.25, bossHearts: 2, heart: 0.06, eliteHeart: 0.3, heartVal: 0.15, chest: 0.15, altar: 0.6, fullAt: 0, autoHearts: true },
     anima: null, warn: { aimed: 0.25, early: false },
     foe: { archer: { sp: [290, 4], cd: [1.1, 1.9] }, mage: { sp: [165, 3], cd: [2.4, 3.4] }, totem: { sp: [150, 3], cd: [1.3, 0.95] }, spirit: { sp: [210, 0] },

@@ -303,10 +303,10 @@
   const Chapters = () => window.ArcanoChapters;
   const CH_FALLBACK = (() => {
     const BOSSES = { // las salas de jefe del C1 v1.1 (modelo, logro y arena van con el modelo)
-      5:  { model: 'golem', ach: 'boss1', arena: 'golem', tier: 1, title: 'Guardián de la pradera', name: 'Gólem de Piedra', hp: 624, r: 40, speed: 55, color: '#8f8270', bullet: '#ff4d6d', pats: ['ring', 'charge', 'aimed'] },
-      10: { model: 'rey', ach: 'boss2', arena: 'rey', tier: 2, title: 'Monarca de la cripta', name: 'Rey Slime', hp: 1725, r: 42, speed: 65, color: '#57c75e', bullet: '#ff5a7a', pats: ['summon', 'ring', 'charge', 'aimed'] },
-      15: { model: 'brujo', ach: 'boss3', arena: 'brujo', tier: 3, title: 'Tirano de la gruta helada', name: 'Brujo Sombrío', hp: 3900, r: 34, speed: 45, color: '#6d4bd8', bullet: '#ff5aa0', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'] },
-      20: { model: 'senor', ach: 'boss4', arena: 'senor', tier: 4, title: 'Corazón del volcán', name: 'Señor de la Mazmorra', hp: 5640, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff2e63', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], final: true },
+      5:  { model: 'golem', ach: 'boss1', arena: 'golem', tier: 1, title: 'Guardián de la pradera', name: 'Gólem de Piedra', hp: 560, r: 40, speed: 55, color: '#8f8270', bullet: '#ff4d6d', pats: ['ring', 'charge', 'aimed'], extra: 'rocks' },
+      10: { model: 'rey', ach: 'boss2', arena: 'rey', tier: 2, title: 'Monarca de la cripta', name: 'Rey Slime', hp: 1725, r: 42, speed: 65, color: '#57c75e', bullet: '#ff5a7a', pats: ['summon', 'ring', 'charge', 'aimed'], extra: 'slam' },
+      15: { model: 'brujo', ach: 'boss3', arena: 'brujo', tier: 3, title: 'Tirano de la gruta helada', name: 'Brujo Sombrío', hp: 3900, dmgK: 1.1, r: 34, speed: 45, color: '#6d4bd8', bullet: '#ff5aa0', pats: ['spiral', 'teleport', 'aimed', 'summon', 'ring'], extra: 'mirror' },
+      20: { model: 'senor', ach: 'boss4', arena: 'senor', tier: 4, title: 'Corazón del volcán', name: 'Señor de la Mazmorra', hp: 5200, r: 44, speed: 70, color: '#d63c3c', bullet: '#ff2e63', pats: ['spiral', 'charge', 'ring', 'summon', 'teleport', 'aimed'], extra: 'sweep', final: true },
     };
     const ch = {
       id: 1, name: 'La Mazmorra', short: 'Mazmorra', len: 20, hero: false, k: 0, altars: [4, 9, 14, 19], tint: null, enemyTint: null,
@@ -316,10 +316,11 @@
       foe: { archer: { sp: [295, 5], cd: [0.9, 1.6] }, mage: { sp: [175, 4], cd: [2.0, 3.0] }, totem: { sp: [160, 4], cd: [1.15, 0.9] }, spirit: { sp: [220, 2] },
         speed: { slime: 90, bigslime: 62, bat: 122, bomber: 112 }, batZig: 0.675, dash: 540, rest: 0.45, ring: 185 },
     };
+    const AFX_FROM = { veloz: 6, escudado: 6, volatil: 11, invocador: 13 }; // afijos de élite: sala desde la que salen
     const HEAL = { boss: 0.10, bossHearts: 1, heart: 0.04, eliteHeart: 0.20, heartVal: 0.12, chest: 0.10, altar: 0.5, fullAt: 0.95, autoHearts: false };
     const api = {
       lastRoom: c => c.len,
-      bossAt: (c, r) => (BOSSES[r] ? Object.assign({}, BOSSES[r], { pats: BOSSES[r].pats.slice(), ord: r / 5, final: !!BOSSES[r].final }) : null),
+      bossAt: (c, r) => (BOSSES[r] ? Object.assign({}, BOSSES[r], { pats: BOSSES[r].pats.slice(), ord: r / 5, final: !!BOSSES[r].final, ascended: false, phase2At: 0.5, phase3At: BOSSES[r].final ? 0.25 : 0 }) : null),
       bossRooms: () => [5, 10, 15, 20],
       altarAt: (c, r) => c.altars.includes(r),
       zoneAt: (c, r) => Math.min(3, Math.ceil(r / 5) - 1),
@@ -332,7 +333,7 @@
         pool: Object.keys(c.ENEMY_UNLOCK).filter(k => r >= c.ENEMY_UNLOCK[k]), threat: r >= 6 ? { p: 0.65, light: ['slime', 'bat'] } : null }),
       firstAttack: (c, h, r) => (r <= 3 ? [0.6, 1.6] : [0.35, 1.0]),
       spawnDist: (c, r) => (r <= 3 ? 280 : 220),
-      eliteParams: (c, h, r) => ({ p: r < 6 ? 0 : 0.18 + r * 0.008, max: 2, affixes: [], dual: 0, hp: 2.0 }),
+      eliteParams: (c, h, r) => ({ p: r < 6 ? 0 : 0.18 + r * 0.008, max: 2, affixes: Object.keys(AFX_FROM).filter(id => r >= AFX_FROM[id]), dual: 0, hp: 2.0 }),
       wavesAt: (c, h, r) => (c.waves.includes(r) ? { share: 0.4, at: 0.3 } : null),
       hazard: () => ({ from: 3, chance: 0.6, n: [2, 3], special: 0.55, arenaK: 1 }),
       chest: () => ({ from: 2, p: 0.2, max: 3 }),
@@ -450,6 +451,8 @@
   let awakenFx = null, eclipseFx = null, awakenWait = 0, musicHoldT = 0, toastQ = [], bannerNext = null, flashNext = null;
   let pools = [], amb = [], ash = [], pactRun = false, roomReactA = 0, ambT = 0, fxDepth = 0, netLog = [];
   let waveQ = [], wave1N = 0, waveAt = 0.3; // refuerzos pendientes de la sala (§4.5)
+  // fase 5: rocas del Gólem en el aire, estallidos de Volátil pendientes y Pacto favorable (el último jefe no te tocó)
+  let rocks = [], volatileQ = [], lastBossClean = false;
   let curtains = [], fog = null; // definitivos combinados: columnas de Cortina boreal y niebla de Invierno negro
   const seenMixes = new Set();   // Mezclas ya anunciadas en esta partida
   let runGrim0 = null; // páginas del Grimorio al empezar la partida (para "Nueva página" en el final)
@@ -665,7 +668,7 @@
 
   // un espectro o jefe congelado a medio desvanecerse vuelve a ser visible y tocable
   function unfade(e) {
-    if (e.alpha === undefined || e.kind === 'boss') return;
+    if (e.alpha === undefined || e.kind === 'boss' || e.decoy) return;
     e.alpha = 1;
     if (e.kind === 'spirit') { e.state = 'idle'; e.timer = rand(1, 1.6); }
   }
@@ -992,7 +995,7 @@
   // avisos en cola: el nuevo no pisa al que se está leyendo (como mucho 8 esperando; si sobra uno, antes un consejo, que volverá otro día).
   // Los consejos de una vez (tip = clave de settings.tips, hz = trampa) se dan por vistos al salir en pantalla, no al encolarse
   function pushToast(o) {
-    if ((o.tip || o.hz) && [toast, ...toastQ].some(t => t && t.tip === o.tip && t.hz === o.hz)) return; // ya en cola
+    if ((o.tip || o.hz || o.afx) && [toast, ...toastQ].some(t => t && t.tip === o.tip && t.hz === o.hz && t.afx === o.afx)) return; // ya en cola
     if (!toast) return showToast(o);
     toastQ.push(o);
     if (toastQ.length > 8) { const i = toastQ.findIndex(t => t.tip || t.hz); toastQ.splice(i >= 0 ? i : 0, 1); }
@@ -1001,6 +1004,7 @@
     toast = o;
     if (o && o.tip) { settings.tips[o.tip] = 1; saveSettings(); }
     if (o && o.hz) { (settings.seenHz || (settings.seenHz = {}))[o.hz] = true; saveSettings(); }
+    if (o && o.afx) { settings.seenAfx[o.afx] = 1; saveSettings(); }
   }
   // un consejo que ya sobra: fuera de la cola y, si se está leyendo, se desvanece (now: se quita ya). Si apenas se ha visto, volverá a salir
   function dropTip(k, now) {
@@ -1880,12 +1884,51 @@
     return e;
   }
 
+  // ---------- Afijos de élite (§5.1): aura, glifo blanco y nombre al aparecer; aviso la primera vez ----------
+  const AFX_FB = [ // sin chapters.js, los del Capítulo 1
+    { id: 'veloz', name: 'VELOZ', color: '#ffcf4a', glyph: '»', tip: 'Se mueve y ataca más rápido' },
+    { id: 'escudado', name: 'ESCUDADO', color: '#dfe6f0', glyph: '⬡', tip: 'Rompe su escudo y quedará aturdido' },
+    { id: 'volatil', name: 'VOLÁTIL', color: '#ff8a3d', glyph: '✶', tip: 'No te quedes donde muere' },
+    { id: 'invocador', name: 'INVOCADOR', color: '#ffcf4a', glyph: '✧', tip: 'Mátalo antes de que llame a más' },
+  ];
+  const afxList = () => (Chapters() ? Chapters().AFFIXES : AFX_FB);
+  const afxInfo = id => afxList().find(a => a.id === id) || AFX_FB[0];
+  // uno por élite (y un 2º con la probabilidad `dual`, nunca una pareja prohibida): una llamada a Math.random por afijo
+  function giveAffix(e, EP) {
+    if (!EP.affixes || !EP.affixes.length) return;
+    addAffix(e, pick(EP.affixes));
+    if (EP.dual > 0 && Math.random() < EP.dual) {
+      const deny = Chapters() ? Chapters().AFFIX_DENY : [];
+      const rest = EP.affixes.filter(id => !e.afx.includes(id) && !deny.some(d => d.includes(id) && d.includes(e.afx[0])));
+      if (rest.length) addAffix(e, pick(rest));
+    }
+  }
+  function addAffix(e, id, quiet) {
+    (e.afx || (e.afx = [])).push(id);
+    e.afxT = 2; // su nombre flota 2 s al aparecer
+    if (id === 'veloz') { e.speed *= 1.35; e.hasteK = 1 / 0.7; } // temporizadores ×0,7
+    else if (id === 'escudado') e.shield = e.shieldMax = e.maxHp * 0.3;
+    else if (id === 'invocador') e.sumT = 4;
+    const A = afxInfo(id);
+    if (!quiet && !settings.seenAfx[id]) pushToast({ text: 'ÉLITE ' + A.name, sub: A.tip, color: A.color, t: 3, max: 3, afx: id });
+  }
+  const hasAfx = (e, id) => !!(e.afx && e.afx.includes(id));
+  function shieldBreak(e) {
+    e.shield = 0; e.stun = 0.3;
+    burst(e.x, e.y, '#dfe6f0', lowQ() ? 8 : 16, 230);
+    rings.push({ x: e.x, y: e.y, r0: e.r + 4, r1: e.r + 30, t: 0.3, max: 0.3, color: '#ffffff', w: 3 });
+    addText(e.x, e.y - e.r - 24, '¡ESCUDO ROTO!', '#dfe6f0', 0.95);
+    Sfx.shield();
+  }
+
   function makeBoss(B) {
     return {
       kind: 'boss', tier: B.tier, model: B.model, ach: B.ach, arena: B.arena, ord: B.ord, final: !!B.final, name: B.name, x: AX + AW / 2, y: AY + 190, r: B.r,
-      hp: B.hp, maxHp: B.hp, speed: B.speed, dmg: 14 * dmgMul(), xp: 25 + B.tier * 10, ground: true,
-      color: B.color, bcolor: B.bullet, pats: B.pats, pi: 0, state: 'idle', timer: 1.4, sub: 0,
-      aim: 0, spin: 0, acc: 0, alpha: 1, ringN: 12 + B.tier * 3, enraged: false,
+      hp: B.hp, maxHp: B.hp, speed: B.speed, dmg: 14 * dmgMul() * (B.dmgK || 1), xp: 25 + B.tier * 10, ground: true,
+      color: B.color, bcolor: B.bullet, pats: B.ascended && B.extra && !B.pats.includes(B.extra) ? [B.extra, ...B.pats] : B.pats, pi: 0, state: 'idle', timer: 1.4, sub: 0,
+      aim: 0, spin: 0, acc: 0, alpha: 1, ringN: 12 + B.tier * 3,
+      // fases (§5.2): phase 0/1/2, phaseT = transición invulnerable; extra = su ataque de 2ª fase (ascendido: desde el principio)
+      phase: 0, phaseT: 0, phase2At: B.phase2At || 0.5, phase3At: B.phase3At || 0, extra: B.extra || null, strong: false,
       spawnT: 1, spawnMax: 1, t: 0, seed: 0, flash: 0, tx: 0, ty: 0, vx: 0, vy: 0, knock: 0,
       burn: 0, burnDps: 0, poisonDps: 0, dotT: 0.5, slow: 0, orbCd: 0, dead: false,
       shock: 0, frozen: 0, reactCd: 0, corrode: 0, plague: 0, frzImm: 0, corrMul: 0, heavy: true,
@@ -1969,6 +2012,8 @@
       if (e.frozen <= 0 && e.shatter) shatter(e);
       return;
     }
+    if (e.stun > 0) { e.stun -= dt; return; } // escudo roto: aturdido
+    if (e.afxT > 0) e.afxT -= dt;
     if (e.kx || e.ky) { // empujón del impacto, se frena rápido
       e.x += e.kx * dt; e.y += e.ky * dt;
       const f = Math.pow(0.0004, dt);
@@ -1977,8 +2022,10 @@
     }
     const chill = (player.sk.ice || 0) >= 2 ? 0.5 : 0.62;
     const ds = dt * (e.slow > 0 ? chill : 1); // movimiento ralentizado por el hielo
-    const dsA = dt * (e.slow > 0 ? 0.8 : 1); // sus ataques, menos (K10: el hielo no puede ser la escuela «segura»)
+    // sus ataques, menos (K10: el hielo no puede ser la escuela «segura»; a los jefes, nada: con la fase 5 sus avisos lentos regalaban el combate); Veloz: ×1/0,7
+    const dsA = dt * (e.slow > 0 && e.kind !== 'boss' ? 0.8 : 1) * (e.hasteK || 1);
     const F = foeCfg();
+    if (e.sumT != null && (e.sumT -= dsA) <= 0) { e.sumT = 6; summonBats(e); } // Invocador: 2 murciélagos cada 6 s
 
     switch (e.kind) {
       case 'slime':
@@ -2107,6 +2154,11 @@
       case 'boss':
         updateBoss(e, ds, dsA);
         break;
+      case 'mirror': // copia del Espejismo: repite el abanico del Brujo 2 veces (en blanco 0,35 s antes) y se desvanece a los 4 s
+        e.life -= dt;
+        if (e.shots < 2 && (e.timer -= dsA) <= 0) { bossFan(e, e.strong ? 7 : 5, 'boss:mirror'); e.shots++; e.timer = 1.3; }
+        if (e.life <= 0) { killEnemy(e); return; }
+        break;
     }
 
     if (e.ground) collideRocks(e);
@@ -2117,7 +2169,7 @@
       if (d < min && d > 0.01) { player.x += (player.x - e.x) / d * (min - d); player.y += (player.y - e.y) / d * (min - d); }
       return;
     }
-    if (e.kind === 'bomber') return; // solo hace daño al explotar
+    if (e.kind === 'bomber' || e.decoy) return; // el diablillo solo hace daño al explotar; las copias del Espejismo, con sus balas
 
     // daño por contacto
     if ((e.alpha === undefined || e.alpha > 0.5) && dist(e, player) < e.r + player.r - 3) {
@@ -2135,14 +2187,50 @@
 
   // ---------- Jefes ----------
   function bossRing(b, off) {
-    const n = b.ringN + (b.enraged ? 4 : 0);
+    const n = b.ringN; // +4 balas por fase (bossPhase)
     for (let i = 0; i < n; i++) fireBullet(b.x, b.y, off + i * TAU / n, (foeCfg().ring + b.tier * 12) * bulMul(), b.dmg, b.bcolor, 8, 'boss:ring');
     Sfx.eshot();
   }
+  // abanico apuntado (jefe y copias del Espejismo): n balas a ±0,17 rad hacia ti
+  function bossFan(b, n, src) {
+    if (bulletCap()) return;
+    const a = angTo(b, player);
+    for (let i = 0; i < n; i++) fireBullet(b.x, b.y, a + (i - (n - 1) / 2) * 0.17, 300, b.dmg, b.bcolor, 8, src);
+    Sfx.eshot();
+  }
 
+  // pausa entre ataques (§5.2): ×0,7 por fase
   function bossIdle(b) {
     b.state = 'idle';
-    b.timer = (rand(0.9, 1.5) - b.tier * 0.1) * (b.enraged ? 0.7 : 1);
+    b.timer = (rand(0.8, 1.3) - b.tier * 0.1) * Math.pow(0.7, b.phase);
+  }
+  // umbral de la siguiente fase (fracción de vida) o 0 si ya no le quedan
+  const bossTh = b => (b.phase === 0 ? b.phase2At || 0.5 : b.phase === 1 && b.final ? b.phase3At || 0.25 : 0);
+  // 2ª y 3ª fase (§5.2, K5): 0,6 s invulnerable SIN vaciar las balas, rótulo, temblor y fuera la congelación; después su ataque
+  // extra (si no lo tenía), +4 balas por anillo, pausas ×0,7 y la variante fuerte del extra
+  function bossPhase(b) {
+    const n = ++b.phase;
+    b.phaseT = 0.6;
+    b.frozen = 0; b.slow = 0; b.frzImm = 2; b.shatter = false;
+    if (b.extra && !b.pats.includes(b.extra)) b.pats.unshift(b.extra);
+    if (n === 1) {
+      b.strong = true;
+      if (b.model === 'senor') b.pats.push('alt'); // Señor: Rocas y Salto alternados
+      if (b.model === 'rey') { // Escisión: 2 Príncipes (slime grande élite Veloz), una sola vez
+        for (const s of [-1, 1]) {
+          const m = makeEnemy('bigslime', b.x + s * (b.r + 30), b.y + 10, -0.2);
+          makeElite(m, 1.5); addAffix(m, 'veloz', true);
+          m.minion = true; m.xp = 2;
+          clampArena(m, false); enemies.push(m);
+        }
+      }
+    }
+    b.ringN += 4; b.pi = 0; b.sub = 0;
+    b.state = 'idle'; b.timer = 0.75; b.alpha = 1; b.tp = null; b.sw = null; // el siguiente ataque es el nuevo
+    banner = { text: n === 1 ? '¡SEGUNDA FASE!' : '¡ÚLTIMO ALIENTO!', sub: '', color: '#ff5a5a', t: 1.3, max: 1.3 };
+    rings.push({ x: b.x, y: b.y, r0: b.r, r1: b.r + 90, t: 0.6, max: 0.6, color: '#ff5a5a', w: 6 });
+    shake = Math.max(shake, 8);
+    Sfx.boss();
   }
 
   const warnCfg = () => (CH && CH.warn) || CH_FALLBACK.ch.warn;
@@ -2162,10 +2250,77 @@
     }
     return null;
   }
+  // punto libre a d px de (x, y) para las copias del Espejismo
+  function mirrorDest(x, y, d) {
+    for (let i = 0; i < 12; i++) {
+      const a = rand(0, TAU), t = { x: x + Math.cos(a) * d, y: y + Math.sin(a) * d };
+      if (t.x > AX + 50 && t.x < AX + AW - 50 && t.y > AY + 50 && t.y < AY + AH - 50 && !isRock(t.x, t.y) && dist(t, player) > 120) return t;
+    }
+    return { x: clamp(x, AX + 60, AX + AW - 60), y: clamp(y, AY + 60, AY + AH - 60) };
+  }
+
+  // ---------- Ataques extra (§5.3) ----------
+  const ROCK = { r: 60, side: 100, fill: 0.9, k: 1.2 }; // círculo r 60 que se llena en 0,9 s; las otras 2, a 100 px; daño 1,2 · bala
+  function dropRock(b, x, y) {
+    rocks.push({ x: clamp(x, AX + 20, AX + AW - 20), y: clamp(y, AY + 20, AY + AH - 20), r: ROCK.r, t: HEROIC ? 0.7 : ROCK.fill, max: HEROIC ? 0.7 : ROCK.fill, dmg: b.dmg * ROCK.k });
+  }
+  function updateRocks(dt) {
+    if (!rocks.length) return;
+    for (const k of rocks) {
+      k.t -= dt;
+      if (k.t > 0) continue;
+      k.done = true;
+      if (dist(k, player) < k.r + player.r * 0.5) hurtPlayer(k.dmg, 'boss:rocks');
+      burst(k.x, k.y, '#b9a886', lowQ() ? 8 : 18, 220); // solo polvo: no deja obstáculo
+      rings.push({ x: k.x, y: k.y, r0: 10, r1: k.r, t: 0.3, max: 0.3, color: '#d8c9a6', w: 5 });
+      shake = Math.max(shake, 5);
+    }
+    rocks = rocks.filter(k => !k.done);
+  }
+  // Volátil: 0,6 s de aviso donde murió y 8 balas lentas en estrella
+  function updateVolatile(dt) {
+    if (!volatileQ.length) return;
+    for (const v of volatileQ) {
+      v.t -= dt;
+      if (v.t > 0) continue;
+      v.done = true;
+      const off = rand(0, TAU);
+      for (let i = 0; i < 8; i++) fireBullet(v.x, v.y, off + i * TAU / 8, 140 * bulMul(), v.dmg, BUL.volatile, 8, 'volatile');
+      burst(v.x, v.y, '#ff8a3d', lowQ() ? 8 : 16, 200);
+      Sfx.blast();
+    }
+    volatileQ = volatileQ.filter(v => !v.done);
+  }
+  // Invocador (élite) y Último aliento del jefe: murciélagos esbirros (como mucho 4 suyos vivos)
+  function summonBats(e, n = 2, max = 4) {
+    const own = enemies.filter(o => !o.dead && o.owner === e).length;
+    n = Math.min(n, max - own);
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, TAU), m = makeEnemy('bat', e.x + Math.cos(a) * (e.r + 24), e.y + Math.sin(a) * (e.r + 24), -0.3);
+      m.minion = true; m.xp = 1; m.owner = e;
+      clampArena(m, false); enemies.push(m);
+    }
+    if (n > 0) rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.r + 46, t: 0.35, max: 0.35, color: '#fff1c4', w: 3 });
+  }
+  // copia del Espejismo: 1 de vida, sin experiencia, sin Ánima y sin baja; dispara su abanico 2 veces y se va a los 4 s
+  function makeMirror(b, x, y) {
+    const m = makeBoss({ tier: b.tier, model: b.model, ach: '', arena: '', ord: 0, final: false, name: b.name, r: b.r, hp: 1, speed: 0, color: b.color, bullet: b.bcolor, pats: [] });
+    Object.assign(m, { kind: 'mirror', decoy: true, x, y, alpha: 0.6, spawnT: 0.35, spawnMax: 0.35, xp: 0, dmg: b.dmg, life: 4, shots: 0, timer: 0.9, strong: !!b.strong, kbMul: 0 });
+    return m;
+  }
+  // ¿el barrido del Juicio pasa por el ángulo pa entre a0 y a1 (en el sentido dir), con un margen de w rad?
+  function sweptOver(pa, a0, a1, dir, w) {
+    const wrap = v => { v %= TAU; return v > Math.PI ? v - TAU : v < -Math.PI ? v + TAU : v; };
+    const s = dir * wrap(pa - a0), span = Math.abs(a1 - a0);
+    return s >= -w && s <= span + w;
+  }
+  const SLAM = { up: 0.6, r: 80 }; // Salto: 0,6 s en el aire + 0,25 s cayendo (sombra 0,85 s); onda de contacto r 80
+  const SWEEP = { warn: 0.8, dur: 1.2, R: 420, off: 0.35, k: 1.5 }; // aviso 0,8 s, barre 180° en 1,2 s, radio 420, daño 1,5 · bala
 
   function bossNext(b) {
     if (bulletCap()) return bossIdle(b); // D23: con la pantalla llena se salta el ataque
-    const p = b.pats[b.pi++ % b.pats.length];
+    let p = b.pats[b.pi++ % b.pats.length];
+    if (p === 'alt') p = (b.altN = (b.altN || 0) + 1) % 2 ? 'rocks' : 'slam'; // Señor en 2ª fase: Rocas y Salto alternados
     b.sub = 0;
     if (p === 'ring') { b.state = 'ring'; b.timer = 0.3; }
     else if (p === 'spiral') { b.state = 'spiral'; b.timer = 2.2; b.acc = 0; }
@@ -2173,15 +2328,18 @@
     else if (p === 'charge') { b.state = 'wind'; b.timer = 0.75; b.aim = angTo(b, player); }
     else if (p === 'summon') { b.state = 'summon'; b.timer = 0.6; }
     else if (p === 'teleport') { b.state = 'tpOut'; b.timer = 0.4; b.tp = warnCfg().early ? bossTpDest() || { x: b.x, y: b.y } : null; }
+    else if (p === 'rocks') { b.state = 'rocks'; b.timer = 0.3; }
+    else if (p === 'slam') { b.state = 'slamUp'; b.timer = SLAM.up; b.tp = { x: clamp(player.x, AX + b.r, AX + AW - b.r), y: clamp(player.y, AY + b.r, AY + AH - b.r) }; }
+    else if (p === 'mirror') { b.state = 'mirror'; b.timer = 0.45; b.mir = [mirrorDest(b.x, b.y, 200), mirrorDest(b.x, b.y, 200)]; }
+    else if (p === 'sweep') {
+      const dir = Math.random() < 0.5 ? -1 : 1, a0 = angTo(b, player) - dir * SWEEP.off;
+      b.state = 'sweepW'; b.timer = SWEEP.warn; b.sw = { a0, a: a0, dir, hit: false };
+    }
   }
 
   function updateBoss(b, ds, dsA = ds) {
+    if (b.phaseT > 0) { b.phaseT -= ds; return; } // transición de fase: quieto e invulnerable
     b.timer -= dsA;
-    if (!b.enraged && b.hp < b.maxHp * 0.5) {
-      b.enraged = true;
-      addText(b.x, b.y - b.r - 20, '¡FURIA!', '#ff5a5a', 1.3);
-      shake = Math.max(shake, 6);
-    }
     switch (b.state) {
       case 'idle': {
         if (dist(b, player) > 170) {
@@ -2210,9 +2368,7 @@
       }
       case 'aimed':
         if (b.timer <= 0) {
-          const a = angTo(b, player);
-          for (let i = -2; i <= 2; i++) fireBullet(b.x, b.y, a + i * 0.17, 300, b.dmg, b.bcolor, 8, 'boss:aimed');
-          Sfx.eshot();
+          bossFan(b, b.strong && b.model === 'brujo' ? 7 : 5, 'boss:aimed'); // Brujo en 2ª fase: abanico de 7
           b.sub++; b.timer = 0.35;
           if (b.sub >= 3) bossIdle(b);
         }
@@ -2237,7 +2393,8 @@
       case 'summon':
         if (b.timer <= 0) {
           const alive = enemies.filter(o => !o.dead && o.minion).length;
-          const n = Math.min(3, 6 - alive), kind = b.tier >= 3 ? 'bat' : 'slime';
+          const spirits = b.strong && b.model === 'brujo'; // Brujo en 2ª fase: 2 espectros en lugar de murciélagos
+          const n = spirits ? Math.min(2, 6 - alive) : Math.min(3, 6 - alive), kind = spirits ? 'spirit' : b.tier >= 3 ? 'bat' : 'slime';
           for (let i = 0; i < n; i++) {
             const a = rand(0, TAU);
             const m = makeEnemy(kind, b.x + Math.cos(a) * (b.r + 26), b.y + Math.sin(a) * (b.r + 26), -0.3);
@@ -2259,8 +2416,64 @@
         break;
       case 'tpIn':
         b.alpha = 1 - clamp(b.timer / 0.35, 0, 1);
-        if (b.timer <= 0) { b.alpha = 1; bossRing(b, rand(0, TAU)); bossIdle(b); }
+        if (b.timer <= 0) {
+          b.alpha = 1; bossRing(b, rand(0, TAU));
+          if (b.phase >= 2) summonBats(b, 2, 4); // Último aliento: 2 murciélagos con cada teletransporte
+          bossIdle(b);
+        }
         break;
+      case 'rocks': // Gólem: 3 rocas (sobre ti y 2 a 100 px); en 2ª fase, 5 seguidas cada 0,35 s donde estés
+        if (b.timer <= 0) {
+          if (!b.strong || b.model === 'senor') {
+            dropRock(b, player.x, player.y);
+            const a = rand(0, TAU);
+            for (const s of [0, 1]) dropRock(b, player.x + Math.cos(a + s * 2.4) * ROCK.side, player.y + Math.sin(a + s * 2.4) * ROCK.side);
+            bossIdle(b);
+          } else {
+            dropRock(b, player.x, player.y);
+            b.sub++; b.timer = 0.35;
+            if (b.sub >= 5) bossIdle(b);
+          }
+        }
+        break;
+      case 'slamUp': // Rey: salta (0,6 s) hacia donde estabas al empezar; la sombra crece donde va a caer
+        b.alpha = clamp(b.timer / SLAM.up, 0, 1);
+        if (b.timer <= 0) { b.x = b.tp.x; b.y = b.tp.y; b.state = 'slamDown'; b.timer = 0.25; }
+        break;
+      case 'slamDown':
+        b.alpha = 0.45 * (1 - clamp(b.timer / 0.25, 0, 1)); // cayendo: aún no toca (el golpe es la onda al caer)
+        if (b.timer <= 0) {
+          b.alpha = 1; b.tp = null;
+          collideRocks(b); clampArena(b, false);
+          if (dist(b, player) < SLAM.r + player.r * 0.5) hurtPlayer(b.dmg * 1.2, 'boss:slam'); // onda de contacto
+          for (let i = 0, off = rand(0, TAU); i < 12; i++) fireBullet(b.x, b.y, off + i * TAU / 12, 150 * bulMul(), b.dmg, b.bcolor, 8, 'boss:slam');
+          rings.push({ x: b.x, y: b.y, r0: b.r, r1: SLAM.r, t: 0.35, max: 0.35, color: '#ffffff', w: 6 });
+          shake = Math.max(shake, 10); sparks(b.x, b.y, '#c9b38a', 16);
+          Sfx.blast();
+          bossIdle(b);
+        }
+        break;
+      case 'mirror': // Brujo: 2 copias a 200 px (con su marca de destino 0,45 s antes)
+        if (b.timer <= 0) {
+          for (const t of b.mir || []) enemies.push(makeMirror(b, t.x, t.y));
+          b.mir = null;
+          Sfx.eshot();
+          bossIdle(b);
+        }
+        break;
+      case 'sweepW': // Señor: línea de aviso de 0,8 s y después barre 180° en 1,2 s (atraviesa las rocas)
+        if (b.timer <= 0) { b.state = 'sweep'; b.timer = SWEEP.dur; }
+        break;
+      case 'sweep': {
+        const S = b.sw, prev = S.a;
+        S.a = S.a0 + S.dir * Math.PI * (1 - clamp(b.timer / SWEEP.dur, 0, 1));
+        const d = dist(b, player);
+        if (!S.hit && d < SWEEP.R + player.r && sweptOver(angTo(b, player), prev, S.a, S.dir, Math.asin(Math.min(1, (player.r - 4) / Math.max(d, 1))))) {
+          S.hit = true; hurtPlayer(b.dmg * SWEEP.k, 'boss:sweep');
+        }
+        if (b.timer <= 0) { b.sw = null; bossIdle(b); }
+        break;
+      }
     }
   }
 
@@ -2284,13 +2497,23 @@
 
   // ---------- Daño a enemigos ----------
   function damageEnemy(e, dmg, crit, color, small) {
-    if (e.dead) return;
+    if (e.dead || e.phaseT > 0) return; // jefe cambiando de fase: invulnerable
     if (e.frozen > 0) dmg *= player.tr.frozenMul || 1.3; // los congelados reciben más daño
     if (e.corrode > 0) dmg *= e.corrMul || 1.4; // corrosión (rayo + veneno)
+    if (e.shield > 0) { // Escudado: el escudo se gasta antes que la vida
+      const a = Math.min(e.shield, dmg);
+      e.shield -= a; dmg -= a;
+      if (e.shield <= 0) shieldBreak(e);
+      if (dmg <= 0) { e.flash = 0.08; return; }
+    }
     if (e.kind === 'boss' && FX()) gainAnima(Math.min(dmg, Math.max(0, e.hp)) / e.maxHp * Forms().ANIMA.boss); // +40 de Ánima por jefe entero
     e.hp -= dmg;
     e.flash = 0.08;
-    if (e.kind === 'boss') gainMana(dmg / e.maxHp * 45);
+    if (e.kind === 'boss') {
+      gainMana(dmg / e.maxHp * 45);
+      const th = bossTh(e); // ningún golpe se salta una fase: se queda justo por debajo del umbral y cambia
+      if (th && e.hp < e.maxHp * th) { e.hp = Math.max(e.hp, e.maxHp * th - 1); bossPhase(e); }
+    }
     if (settings.dmgNumbers) addText(e.x + rand(-6, 6), e.y - e.r - 6, Math.max(1, Math.round(dmg)), color || (crit ? '#ffd23f' : '#ffffff'), crit ? 1.35 : small ? 0.75 : 1);
     if (e.hp <= 0) killEnemy(e);
   }
@@ -2299,11 +2522,13 @@
     if (e.dead) return;
     e.dead = true;
     const isBoss = e.kind === 'boss';
+    if (e.decoy) { burst(e.x, e.y, '#e9d6ff', lowQ() ? 6 : 14, 170); return; } // copia del Espejismo: sin baja ni premio
     if (e.selfBlast) { burst(e.x, e.y, e.color, lowQ() ? 6 : 14, 170); return; } // se ha inmolado: sin baja ni premio
     kills++;
     meta.stats.kills++;
     if (tut && tut.step === 'shoot') tut.step = 'clear';
     if (e.elite) { meta.stats.elites++; if (meta.stats.elites >= 25) unlock('elites'); }
+    if (e.afx && meta.prog) for (const id of e.afx) { const i = afxList().findIndex(a => a.id === id); if (i >= 0) meta.prog.af |= 1 << i; } // afijos vistos (Bestiario)
     if (meta.stats.kills >= 1000) unlock('kills1000');
     burst(e.x, e.y, e.color, isBoss ? 70 : 14, isBoss ? 320 : 170);
     rings.push({ x: e.x, y: e.y, r0: e.r * 0.6, r1: e.r * 1.9, t: 0.25, max: 0.25, color: '#ffffff', w: 3 }); // "pop" al morir
@@ -2333,7 +2558,8 @@
       slowT = 1.1;
       unlock(e.ach || 'boss' + e.tier);
       if (!roomHit) unlock('untouchable');
-      boss = null;
+      lastBossClean = !roomHit; // Pacto favorable en el siguiente altar
+      boss = null; rocks = []; volatileQ = [];
       for (const o of enemies) if (!o.dead && o !== e) { o.wiped = true; killEnemy(o); }
       // redes de seguridad del despertar, por ordinal del jefe en el capítulo (C1: (a) quien nunca ha despertado, tras
       // el Gólem; (b) 1º tras el Rey Slime; (c) 2º tras el Brujo)
@@ -2346,6 +2572,7 @@
       return;
     }
     if (e.wiped) return; // muerto por la caída del jefe: sin efectos en cadena
+    if (hasAfx(e, 'volatil')) volatileQ.push({ x: e.x, y: e.y, t: 0.6, max: 0.6, dmg: e.dmg }); // Volátil: estalla tras 0,6 s de aviso
     formDeath(e);
     if (e.kind === 'bigslime') { // se divide en dos slimes pequeños
       for (const s of [-1, 1]) {
@@ -2500,6 +2727,7 @@
     const had = { fire: e.burn > 0, ice: e.slow > 0, bolt: e.shock > 0, poison: e.poisonDps > 0 };
     const tr = player.tr, fx = !ar.nofx, els = ar.els;
     // Eclipse (Desequilibrio): contra no jefes, los elementos del propio disparo cuentan como estado previo
+    const shd = e.shield > 0; // Escudado: mientras dura el escudo no sufre reacciones
     const rx = tr.firstHit && fx && e.kind !== 'boss'
       ? { fire: had.fire || els.includes('fire'), ice: had.ice || els.includes('ice'), bolt: had.bolt || els.includes('bolt'), poison: had.poison || els.includes('poison') } : had;
     subHit = !fx; damageEnemy(e, dmg, crit); subHit = false;
@@ -2511,7 +2739,7 @@
       e.kx = (e.kx || 0) + ar.vx / sp * kb; e.ky = (e.ky || 0) + ar.vy / sp * kb;
     }
     // nofx (esquirlas y proyectiles secundarios): sin reacciones, sin cadena y sin rasgos; solo daño y elementos
-    if (fx && !e.dead && e.reactCd <= 0) {
+    if (fx && !e.dead && e.reactCd <= 0 && !shd) {
       for (const r of REACTIONS) {
         if (r.id === 'freeze' && e.frzImm > 0) continue; // jefe aún inmune a congelar: no gasta sus estados
         if ((els.includes(r.a) && rx[r.b]) || (els.includes(r.b) && rx[r.a])) { react(r, e); break; }
@@ -2868,7 +3096,7 @@
     list.forEach((k, i) => {
       const p = cells[i % Math.max(1, cells.length)] || { x: AX + AW / 2, y: AY + 150 };
       const e = makeEnemy(k, k === 'totem' ? p.x : p.x + rand(-5, 5), k === 'totem' ? p.y : p.y + rand(-5, 5), i * (CH.spawnStep || 0.05));
-      if (EP.p > 0 && elites < EP.max && Math.random() < EP.p) { makeElite(e, EP.hp); elites++; } // p = 0 antes de su sala: sin gastar azar
+      if (EP.p > 0 && elites < EP.max && Math.random() < EP.p) { makeElite(e, EP.hp); giveAffix(e, EP); elites++; } // p = 0 antes de su sala: sin gastar azar
       enemies.push(e);
     });
     banner = { text: 'SALA ' + room, sub: room === lastRoom() - 1 ? 'Se oye algo enorme al otro lado…' : '', color: '#ffffff', t: 1.4, max: 1.4 };
@@ -2899,7 +3127,7 @@
       const p = cells[i % Math.max(1, cells.length)] || { x: AX + AW / 2, y: AY + 150 };
       const e = makeEnemy(k, p.x, p.y, i * (CH.spawnStep || 0.04));
       e.wave = true;
-      if (EP.p > 0 && elites < EP.max && Math.random() < EP.p) { makeElite(e, EP.hp); elites++; } // también pueden traer élite
+      if (EP.p > 0 && elites < EP.max && Math.random() < EP.p) { makeElite(e, EP.hp); giveAffix(e, EP); elites++; } // también pueden traer élite
       enemies.push(e);
     });
     banner = { text: '¡REFUERZOS!', sub: '', color: '#ff8a5a', t: 1.2, max: 1.2 };
@@ -2910,7 +3138,7 @@
   function nextRoom() {
     const auto = healCfg().autoHearts; // al salir solo se recogen solas las gemas: los corazones hay que pisarlos (K3)
     for (const g of drops) if (auto || g.type === 'gem') collectDrop(g); // la experiencia no se pierde al cambiar de sala
-    waveQ = []; wave1N = 0;
+    waveQ = []; wave1N = 0; rocks = []; volatileQ = [];
     room++;
     if (progStars(false)) saveMeta(); // la estrella de tercio cuenta al llegar, aunque mueras en esta sala
     if (room >= 10) unlock('room10');
@@ -2931,7 +3159,7 @@
   }
 
   function onCleared() {
-    cleared = true;
+    cleared = true; rocks = []; volatileQ = []; // sala limpia: lo que quedaba en el aire ya no cae
     for (const b of bullets) sparks(b.x, b.y, b.color, 2);
     bullets = [];
     const isBossRoom = !!bossAt(room);
@@ -2955,6 +3183,7 @@
     pactRun = false; pools = []; amb = []; ash = []; roomReactA = 0; awakenWait = 0; fxDepth = 0; netLog = []; ambT = 0;
     curtains = []; fog = null; seenMixes.clear();
     runGrim0 = grimPages(); runProg = null; hitStat = HIT_STAT0(); lastHit = null; waveQ = []; wave1N = 0;
+    rocks = []; volatileQ = []; lastBossClean = false;
     seenReactions.clear();
     pendingLevels = 0;
     runUlts = 0; runReacts = 0;
@@ -3094,6 +3323,7 @@
     rechargeTok(dt);
     updateForms(dt);
     updateBullets(dt);
+    updateRocks(dt); updateVolatile(dt);
     updateDrops(dt);
     updateFx(dt);
     syncUlt();
@@ -3525,6 +3755,17 @@
       const tp = e.kind === 'boss' ? (e.state === 'tpOut' ? e.tp : e.state === 'tpIn' ? e : null)
         : e.kind === 'spirit' ? (e.state === 'out' ? e.tp : e.state === 'in' ? e : null) : null;
       if (tp) tpMark(tp.x, tp.y, e.r);
+      if (e.sumT != null && e.sumT < 0.5) { // Invocador: círculo de invocación 0,5 s antes
+        const k = clamp(1 - e.sumT / 0.5, 0, 1);
+        ctx.strokeStyle = `rgba(255,241,196,${0.4 + 0.5 * k})`; ctx.lineWidth = 3; ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 8 + 26 * k, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      }
+      if (e.kind === 'boss') bossTelegraph(e);
+      if (e.kind === 'mirror' && e.shots < 2 && e.timer < 0.5) { // copia a punto de disparar: cono hacia ti
+        const k = clamp(1 - e.timer / 0.5, 0, 1), a = angTo(e, player), n = e.strong ? 7 : 5, w = (n - 1) / 2 * 0.17 + 0.08;
+        ctx.fillStyle = `rgba(255,50,70,${0.08 + 0.14 * k})`;
+        ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.arc(e.x, e.y, 420, a - w, a + w); ctx.closePath(); ctx.fill();
+      }
       if (e.kind === 'bomber' && e.state === 'fuse') { // radio de la explosión
         const k = 1 - e.timer / 0.8;
         ctx.fillStyle = `rgba(255,80,30,${0.1 + 0.18 * k})`;
@@ -3533,6 +3774,66 @@
         ctx.beginPath(); ctx.arc(e.x, e.y, 80 * k, 0, TAU); ctx.stroke();
       }
     }
+  }
+
+  // avisos de los ataques extra del jefe (§5.3): sombra del Salto, copias del Espejismo y línea del Juicio
+  function bossTelegraph(b) {
+    if ((b.state === 'slamUp' && b.tp) || b.state === 'slamDown') {
+      const t = b.state === 'slamUp' ? b.tp : b, k = b.state === 'slamUp' ? 1 - b.timer / SLAM.up : 1;
+      const rr = 20 + 40 * clamp(k / 0.8, 0, 1);
+      ctx.fillStyle = `rgba(10,0,6,${0.25 + 0.3 * k})`;
+      ctx.beginPath(); ctx.ellipse(t.x, t.y + 6, rr * 1.4, rr * 0.8, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(255,70,90,${0.35 + 0.45 * k})`; ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
+      ctx.beginPath(); ctx.arc(t.x, t.y, SLAM.r, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (b.state === 'mirror' && b.mir) for (const t of b.mir) tpMark(t.x, t.y, b.r);
+    if (b.state === 'sweepW' && b.sw) { // línea fina de aviso (6 px) y el abanico que va a barrer
+      const S = b.sw, k = clamp(1 - b.timer / SWEEP.warn, 0, 1), R = SWEEP.R;
+      ctx.fillStyle = `rgba(255,40,60,${0.05 + 0.07 * k})`;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y);
+      ctx.arc(b.x, b.y, R, Math.min(S.a0, S.a0 + S.dir * Math.PI), Math.max(S.a0, S.a0 + S.dir * Math.PI)); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(20,0,10,.6)'; ctx.lineWidth = 9;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(S.a0) * R, b.y + Math.sin(S.a0) * R); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,60,80,${0.55 + 0.4 * Math.sin(clock * 30)})`; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(S.a0) * R, b.y + Math.sin(S.a0) * R); ctx.stroke();
+      const ax = b.x + Math.cos(S.a0) * (R - 30), ay = b.y + Math.sin(S.a0) * (R - 30), na = S.a0 + S.dir * Math.PI / 2; // flecha: hacia dónde barre
+      ctx.fillStyle = 'rgba(255,90,110,.9)';
+      ctx.beginPath(); ctx.moveTo(ax + Math.cos(na) * 26, ay + Math.sin(na) * 26);
+      ctx.lineTo(ax + Math.cos(S.a0) * 12, ay + Math.sin(S.a0) * 12); ctx.lineTo(ax - Math.cos(S.a0) * 12, ay - Math.sin(S.a0) * 12); ctx.closePath(); ctx.fill();
+    }
+  }
+  // rocas del Gólem (círculo que se llena) y estallidos de Volátil pendientes (círculo r 90 que se cierra)
+  function drawRockMarks() {
+    for (const k of rocks) {
+      const f = clamp(1 - k.t / k.max, 0, 1);
+      ctx.fillStyle = `rgba(30,10,0,${0.18 + 0.25 * f})`;
+      ctx.beginPath(); ctx.arc(k.x, k.y, k.r, 0, TAU); ctx.fill();
+      ctx.fillStyle = `rgba(255,70,60,${0.18 + 0.3 * f})`;
+      ctx.beginPath(); ctx.arc(k.x, k.y, k.r * f, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(20,0,10,.55)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(k.x, k.y, k.r, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,110,90,${0.7 + 0.3 * f})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(k.x, k.y, k.r, 0, TAU); ctx.stroke();
+      if (f > 0.6) { const h = (1 - f) * 260; ball(k.x, k.y - h, 16 + 6 * f, '#8a7d6a'); } // la roca cayendo
+    }
+    for (const v of volatileQ) {
+      const f = clamp(1 - v.t / v.max, 0, 1), on = Math.sin(clock * 40) > 0;
+      ctx.fillStyle = `rgba(255,59,107,${0.1 + 0.2 * f})`;
+      ctx.beginPath(); ctx.arc(v.x, v.y, 90, 0, TAU); ctx.fill();
+      ctx.strokeStyle = on ? 'rgba(255,255,255,.9)' : 'rgba(255,59,107,.9)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(v.x, v.y, 90 * (1 - 0.7 * f) + 6, 0, TAU); ctx.stroke();
+      txt('✶', v.x, v.y, 22, '#ffffff', 'center', true);
+    }
+  }
+  // el Juicio barriendo: rayo rojo brillante (encima de todo, como las balas)
+  function drawSweep() {
+    if (!boss || boss.dead || boss.state !== 'sweep' || !boss.sw) return;
+    const b = boss, S = b.sw, R = SWEEP.R, ex = b.x + Math.cos(S.a) * R, ey = b.y + Math.sin(S.a) * R;
+    ctx.save(); ctx.lineCap = 'round';
+    ctx.fillStyle = 'rgba(255,40,70,.12)'; // estela de lo ya barrido
+    ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.arc(b.x, b.y, R, Math.min(S.a, S.a - S.dir * 0.35), Math.max(S.a, S.a - S.dir * 0.35)); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(26,0,12,.85)'; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.strokeStyle = '#ff2e63'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.restore();
   }
 
   function tpMark(x, y, r) {
@@ -3997,10 +4298,25 @@
     const fly = e.kind === 'bat' ? 10 : e.kind === 'spirit' ? 8 + Math.sin(e.t * 3) * 3 : 0;
     shadow(e, fly * 0.3);
     const ang = angTo(e, player);
-    if (e.elite && !spawning) { // aura dorada
-      glow(e.x, e.y - fly, e.r * 2.4, '#ffcf4a', 0.35 + 0.15 * Math.sin(clock * 6 + e.seed));
-      ctx.strokeStyle = `rgba(255,207,74,${0.55 + 0.25 * Math.sin(clock * 6 + e.seed)})`; ctx.lineWidth = 3;
+    if (e.elite && !spawning) { // aura dorada (o la del afijo: plata del Escudado, naranja del Volátil)
+      const ac = e.afx ? afxInfo(e.afx[0]).color : '#ffcf4a', pul = Math.sin(clock * 6 + e.seed);
+      const blink = hasAfx(e, 'volatil') && e.hp < e.maxHp * 0.3 && Math.sin(clock * 24) > 0; // Volátil a punto: parpadea
+      if (hasAfx(e, 'veloz')) for (let i = 1; i <= 3; i++) { // estela de 3 copias tenues
+        const a = Math.atan2(player.y - e.y, player.x - e.x);
+        ctx.globalAlpha = alpha * 0.16 * (4 - i); circle(e.x - Math.cos(a) * i * 9, e.y - fly - Math.sin(a) * i * 9, e.r * 0.9, '#ffe9a8');
+      }
+      ctx.globalAlpha = alpha;
+      glow(e.x, e.y - fly, e.r * 2.4, blink ? '#ffffff' : ac, 0.35 + 0.15 * pul);
+      ctx.strokeStyle = rgba(ac, 0.55 + 0.25 * pul); ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(e.x, e.y - fly, e.r + 6, 0, TAU); ctx.stroke();
+      if (e.shield > 0) { // anillo hexagonal que se agrieta al gastarse
+        const k = e.shield / e.shieldMax;
+        ctx.strokeStyle = `rgba(235,242,255,${0.5 + 0.4 * k})`; ctx.lineWidth = 2 + 2 * k;
+        ctx.setLineDash(k < 0.5 ? [9, 5] : []);
+        ctx.beginPath();
+        for (let i = 0; i <= 6; i++) { const a = i * TAU / 6 + Math.PI / 6, R = e.r + 11; i ? ctx.lineTo(e.x + Math.cos(a) * R, e.y - fly + Math.sin(a) * R) : ctx.moveTo(e.x + Math.cos(a) * R, e.y - fly + Math.sin(a) * R); }
+        ctx.stroke(); ctx.setLineDash([]);
+      }
     }
 
     switch (e.kind) {
@@ -4117,6 +4433,11 @@
         break;
       }
       case 'boss': drawBoss(e, ang); break;
+      case 'mirror': { // copia del Espejismo: el Brujo translúcido; en blanco antes de disparar
+        drawBoss(e, ang);
+        if (e.shots < 2 && e.timer < 0.35) { ctx.globalAlpha = alpha * 0.7; circle(e.x, e.y, e.r, '#ffffff'); ctx.globalAlpha = alpha; }
+        break;
+      }
     }
 
     if (e.flash > 0) { ctx.globalAlpha = 0.7 * alpha; circle(e.x, e.y - fly, e.r, '#fff'); }
@@ -4141,6 +4462,11 @@
       ctx.fillStyle = 'rgba(0,0,0,.6)'; rrect(e.x - bw / 2 - 1.5, by - 1.5, bw + 3, 7, 3.5); ctx.fill();
       ctx.fillStyle = e.elite ? '#ffcf4a' : '#ff4d4d'; rrect(e.x - bw / 2, by, bw * k, 4, 2); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(e.x - bw / 2 + 1, by, Math.max(0, bw * k - 2), 1.2);
+      if (e.shield > 0) { ctx.fillStyle = '#eef3fb'; rrect(e.x - bw / 2, by - 3, bw * e.shield / e.shieldMax, 2.5, 1.2); ctx.fill(); } // escudo sobre la vida
+      if (e.afx) { // glifo(s) en blanco y el nombre flotando 2 s al aparecer
+        txt(e.afx.map(id => afxInfo(id).glyph).join(' '), e.x, by - 11, 15, '#ffffff', 'center', true);
+        if (e.afxT > 0) { ctx.globalAlpha = clamp(e.afxT, 0, 1); txt(e.afx.map(id => afxInfo(id).name).join(' · '), e.x, by - 29, 13, afxInfo(e.afx[0]).color, 'center', true); ctx.globalAlpha = 1; }
+      }
     }
   }
 
@@ -4156,7 +4482,7 @@
   function drawBoss(b, ang) {
     const { x, y, r } = b;
     const a = b.state === 'wind' || b.state === 'dash' ? b.aim : ang;
-    if (b.enraged) {
+    if (b.phase > 0) { // 2ª fase (y 3ª: más rápido)
       ctx.strokeStyle = `rgba(255,60,60,${0.35 + 0.25 * Math.sin(clock * 10)})`; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(x, y, r + 8, 0, TAU); ctx.stroke();
     }
@@ -4455,8 +4781,9 @@
     if (boss && !boss.dead) {
       const x = AX + 30, w = AW - 60, y = AY - 28, kb = clamp(boss.hp / boss.maxHp, 0, 1);
       ctx.fillStyle = 'rgba(0,0,0,.75)'; rrect(x - 2, y - 2, w + 4, 24, 8); ctx.fill();
-      ctx.fillStyle = boss.enraged ? '#ff3b3b' : '#e0453a'; rrect(x, y, w * kb, 20, 7); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(x + w / 2 - 1, y, 2, 20); // a la mitad se enfurece
+      ctx.fillStyle = ['#e0453a', '#ff3b3b', '#ff1f6a'][boss.phase] || '#ff1f6a'; rrect(x, y, w * kb, 20, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; // marcas de fase: 2ª (50 %) y, en el jefe final, 3ª (25 %)
+      for (const f of [boss.phase2At, boss.final ? boss.phase3At : 0]) if (f > 0) ctx.fillRect(x + w * f - 1, y, 2, 20);
       txt(boss.name.toUpperCase(), AX + AW / 2, y + 10, 13, '#fff');
     }
     if (tut && TUT_TEXT[tut.step]) hint(TUT_TEXT[tut.step](), '#ffd27a');
@@ -4537,6 +4864,7 @@
       drawPools();
       drawChest();
       drawTelegraphs();
+      drawRockMarks();
       drawMeteorMarks();
       drawAltar();
       drawSingularity();
@@ -4560,6 +4888,7 @@
       }
       drawShots();
       drawBullets();
+      drawSweep();
       drawCurtains();
       drawRings();
       drawBolts();
@@ -5280,6 +5609,8 @@
   // ---------- Altar (sala de descanso antes de cada jefe) ----------
   function openAltar() {
     altar.used = true;
+    altar.fav = lastBossClean; lastBossClean = false; // Pacto favorable (§5.4): el jefe anterior no te tocó; se gasta en este altar
+    const fav = altar.fav;
     state = 'altar';
     resetJoy();
     lockUntil = performance.now() + 380;
@@ -5304,9 +5635,9 @@
             <div class="ic">${ultIcon()}</div>
             <div class="tx"><div class="nm">Ofrenda de maná</div><div class="ds">Tu ${ultName()} empieza el jefe cargado</div></div><kbd>3</kbd>
           </button>`}
-          ${player.maxHp >= 80 ? `<button class="card pact" data-act="altar" data-id="pact" style="animation-delay:210ms">
+          ${player.maxHp >= 80 ? `<button class="card pact${fav ? ' fav' : ''}" data-act="altar" data-id="pact" style="animation-delay:210ms">
             <div class="ic">😈</div>
-            <div class="tx"><div class="nm">Pacto oscuro</div><div class="ds">Pierdes el 20% de la vida máxima a cambio de 2 habilidades ahora${FX() && !pactRun && player.awak < 2 && player.aff.length === 2 && Forms().isOpp(player.aff[0], player.aff[1]) ? ' · Abre el camino a Eclipse si tus elementos son opuestos' : ''}</div></div><kbd>4</kbd>
+            <div class="tx"><div class="nm">${fav ? 'Pacto favorable' : 'Pacto oscuro'}</div><div class="ds">${fav ? 'El jefe no te tocó: pierdes solo el 15% de la vida máxima y ganas 3 habilidades' : 'Pierdes el 20% de la vida máxima a cambio de 2 habilidades ahora'}${FX() && !pactRun && player.awak < 2 && player.aff.length === 2 && Forms().isOpp(player.aff[0], player.aff[1]) ? ' · Abre el camino a Eclipse si tus elementos son opuestos' : ''}</div></div><kbd>4</kbd>
           </button>` : ''}
         </div>
       </div>`);
@@ -5319,9 +5650,11 @@
     else if (id === 'bless') bonusPicks.push('bless');
     else if (id === 'shield') player.shield = Math.min(3, (player.shield || 0) + 1);
     else if (id === 'pact') {
-      player.maxHp = Math.max(40, Math.round(player.maxHp * 0.8));
+      const fav = !!(altar && altar.fav); // Pacto favorable: −15 % y 3 habilidades
+      player.maxHp = Math.max(40, Math.round(player.maxHp * (fav ? 0.85 : 0.8)));
       player.hp = Math.min(player.hp, player.maxHp);
       bonusPicks.push('pact', 'pact'); // dos habilidades sin subir de nivel (no encarece la experiencia)
+      if (fav) bonusPicks.push('pact');
       pactRun = true; player.snoozeRoom = -1; // abre el camino a Eclipse y reabre el despertar en esta sala
       meta.stats.pacts++;
       unlock('pact');
@@ -5591,6 +5924,8 @@
     get state() { return state; }, get room() { return room; }, get player() { return player; },
     get enemies() { return enemies; }, get bullets() { return bullets; }, get grid() { return grid; },
     get kills() { return kills; }, get shots() { return shots; },
+    get rocks() { return rocks; }, get volatileQ() { return volatileQ; }, get boss() { return boss; }, // fase 5: rocas en el aire, Volátiles pendientes y el jefe
+    get lastBossClean() { return lastBossClean; },
     get chapterId() { return CH.id; }, get hero() { return HEROIC; }, get CH() { return CH; }, get meta() { return meta; }, get lastHit() { return lastHit; }, // chapter(id, hero) cambia de capítulo (?debug)
   };
   if (/[?&]debug\b/.test(location.search)) {
@@ -5679,6 +6014,10 @@
       offer() { player.animaReady = true; openLevelUp('awaken'); return state; },
       later() { if (state === 'levelup' && pickSource === 'awaken') awakenLater(); return state; },
       pact() { pactRun = true; player.snoozeRoom = -1; return pactRun; },
+      bossClean(v = true) { lastBossClean = !!v; return lastBossClean; }, // el próximo altar ofrece el Pacto favorable
+      // jefe a una fracción de vida (dispara la fase que toque) · afijo a la fuerza en enemies[i]
+      bossHp(f) { if (boss) { boss.hp = boss.maxHp * Math.min(1, f) + 1; damageEnemy(boss, 2); } return boss && { hp: boss.hp, phase: boss.phase, phaseT: boss.phaseT, pats: boss.pats.slice() }; },
+      affix(i, id) { const e = enemies[i]; if (!e) return null; if (!e.elite) makeElite(e); addAffix(e, id); return e.afx; },
       // da la runa y la carta de una Mezcla
       mix(id) {
         const m = Forms() && Forms().MIXES.find(x => x.id === id);

@@ -301,6 +301,9 @@ canvas { display: block; touch-action: none; }
 .card .ult { margin-top: calc(var(--u) * 6px); font-size: calc(var(--u) * 15px); opacity: .9; line-height: 1.3; }
 .card .ult b { color: #ffcf4a; }
 .card.hot { border-color: #ffcf4a; box-shadow: 0 0 calc(var(--u) * 16px) rgba(255, 207, 74, .35); }
+/* Pacto favorable (el jefe anterior no te tocó): borde dorado */
+.card.pact.fav { border-color: #ffcf4a; box-shadow: 0 0 calc(var(--u) * 16px) rgba(255, 207, 74, .4); }
+.card.pact.fav .nm { color: #ffe08a; }
 .card .combo { margin-top: calc(var(--u) * 4px); color: #ffcf4a; font-weight: 800; font-size: calc(var(--u) * 15px); }
 .sec {
   margin-top: calc(var(--u) * 22px);
