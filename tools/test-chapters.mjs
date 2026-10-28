@@ -76,7 +76,7 @@ for (let r = 1; r <= 20; r++) {
   ok(E.p === (r >= 6 ? 0.18 + r * 0.008 : 0) && E.max === 2 && E.hp === 2, `v1.1: élites sala ${r}`, E);
   ok(!!C.wavesAt(ch, false, r) === [6, 7, 8, 11, 12, 13, 16, 17, 18].includes(r), `v1.1: refuerzos sala ${r}`);
 }
-ok([5, 10, 15, 20].map(r => C.bossAt(ch, r).hp).join() === '624,1725,3900,5640', 'v1.1: jefes ×1,3 / ×1,5 / ×1,5 / ×1,2 (K3 calibrado)', [5, 10, 15, 20].map(r => C.bossAt(ch, r).hp));
+ok([5, 10, 15, 20].map(r => C.bossAt(ch, r).hp).join() === '560,1725,3900,5200', 'v1.1: vida de jefes 560 / 1725 / 3900 / 5200 (calibrado)', [5, 10, 15, 20].map(r => C.bossAt(ch, r).hp));
 const H1 = C.heal(ch, false);
 ok(H1.boss === 0.1 && H1.bossHearts === 1 && H1.heart === 0.04 && H1.eliteHeart === 0.2 && H1.heartVal === 0.12 && H1.chest === 0.1 && H1.altar === 0.5 && H1.fullAt === 0.95 && H1.autoHearts === false, 'v1.1: curas (§4.7)', H1);
 ok(JSON.stringify(C.anima(ch)) === '[110,175]' && ch.warn.aimed === 0.35 && ch.warn.early === true && ch.speedrun === 270, 'v1.1: Ánima, avisos y speedrun');
@@ -104,7 +104,7 @@ const h1 = C.get(1, true);
 ok(h1.hero === true && h1.cEf === 4 && h1.k === 3 && C.k(h1, true) === 3, 'Héroe 1 = c_ef 4, k 3');
 ok(C.get(1, true) !== C.get(1, false), 'Héroe y Normal cacheados por separado');
 ok(near(C.hpMul(h1, true, 10) / C.hpMul(ch, false, 10), 1.40) && C.enemyLv(h1, true, 5) === 14, 'Héroe 1: vida ×1,40 y nivel r+9');
-ok(C.bossAt(h1, 20).hp === Math.round(5640 * Math.pow(1.12, 3)) && C.bossAt(h1, 20).hp < 10000, 'Héroe: vida de jefe × 1,12³ (por debajo de 10.000)', C.bossAt(h1, 20).hp);
+ok(C.bossAt(h1, 20).hp === Math.round(5200 * Math.pow(1.12, 3)) && C.bossAt(h1, 20).hp < 10000, 'Héroe: vida de jefe × 1,12³ (por debajo de 10.000)', C.bossAt(h1, 20).hp);
 const h1L = Object.assign(C.deepMerge(C.C1_LEGACY, { hero: true }), { k: 3, cEf: 4 });
 ok(near(C.bossAt(h1L, 20).hp, 4700 * Math.pow(1.12, 3), 1e-6), 'Héroe: vida absoluta de jefe × 1,12³');
 ok(C.bossAt(h1, 20).phase2At === 0.6 && C.bossAt(h1, 20).phase3At === 0.35 && C.bossAt(ch, 20).phase3At === 0.25 && C.bossAt(ch, 5).phase3At === 0, 'fases de jefe 50/25 (Héroe 60/35)');
@@ -115,8 +115,8 @@ ok(C.wavesAt(h1, true, 7) && C.wavesAt(h1, true, 16) && !C.wavesAt(h1, true, 9) 
 const Zh = C.hazard(h1, true, 7);
 ok(near(Zh.chance, 0.8, 1e-9) && Zh.n.join() === '3,4', 'trampas de Héroe', Zh);
 // vida de jefe por sala real (puntos K3) y extrapolación
-ok(C.bossHp(5) === 624 && C.bossHp(10) === 1725 && C.bossHp(15) === 3900 && C.bossHp(20) === 5640, 'BOSS_HP en los puntos');
-ok(C.bossHp(3) < 624 && C.bossHp(3) >= 300 && C.bossHp(1) >= 300 && C.bossHp(12) > 1725 && C.bossHp(12) < 3900 && C.bossHp(18) > 3900 && C.bossHp(18) < 5640, 'BOSS_HP entre puntos y por debajo de la sala 5', [C.bossHp(1), C.bossHp(3), C.bossHp(12)]);
+ok(C.bossHp(5) === 560 && C.bossHp(10) === 1725 && C.bossHp(15) === 3900 && C.bossHp(20) === 5200, 'BOSS_HP en los puntos');
+ok(C.bossHp(3) < 560 && C.bossHp(3) >= 300 && C.bossHp(1) >= 300 && C.bossHp(12) > 1725 && C.bossHp(12) < 3900 && C.bossHp(18) > 3900 && C.bossHp(18) < 5200, 'BOSS_HP entre puntos y por debajo de la sala 5', [C.bossHp(1), C.bossHp(3), C.bossHp(12)]);
 
 // ---------- récords (S.best) ----------
 for (let v = 1; v <= 21; v++) { const d = C.decodeBest(v); ok(d.ch === 1 && !d.hero && d.win === (v === 21) && d.room === Math.min(20, v), `récord antiguo ${v}`, d); }
