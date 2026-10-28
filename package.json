@@ -1,0 +1,9 @@
+{
+  "name": "arcano",
+  "private": true,
+  "description": "Roguelite de magia para móvil y PC (HTML5 + canvas, sin dependencias ni build)",
+  "scripts": {
+    "start": "python3 -m http.server 5191 --directory public",
+    "test": "node tools/check.mjs && node tools/test-chapters.mjs && node tools/test-forms.mjs"
+  }
+}

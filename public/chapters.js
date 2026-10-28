@@ -71,7 +71,7 @@
     id: 1, name: 'La Mazmorra', short: 'Mazmorra', len: 20, format: 'std',
     zones: [['pradera', 5], ['cripta', 5], ['cristal', 5], ['volcan', 5]],
     tint: null, enemyTint: null,
-    bosses: { // vida por sala real (BOSS_HP_PTS: 624 / 1725 / 3900 / 5640)
+    bosses: { // vida por sala real (BOSS_HP_PTS: 560 / 1725 / 3900 / 5200)
       5:  { id: 'golem', tier: 1, title: 'Guardián de la pradera' },
       10: { id: 'rey',   tier: 2, title: 'Monarca de la cripta' },
       15: { id: 'brujo', tier: 3, title: 'Tirano de la gruta helada', dmgK: 1.1 }, // dmgK: daño del jefe (§4.10, palanca 3)
